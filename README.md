@@ -106,19 +106,23 @@ python server.py
 ```
 This starts the server on `http://0.0.0.0:5000`
 
+**The server must be running before starting the voice assistant.**
+
 ### **Running the Voice Assistant:**
-To activate Sunday's voice control:
+To activate Sunday's voice control (requires the server to be running):
 ```bash
 python assistant.py
 ```
 
 The assistant will:
-1. Calibrate your microphone
-2. Open Chrome with the yoga platform
-3. Start listening for the wake word "Sunday"
-4. Respond to your voice commands
+1. Connect to the yoga platform at `http://127.0.0.1:5000`
+2. Calibrate your microphone
+3. Open Chrome with the yoga platform
+4. Start listening for the wake word "Sunday"
+5. Respond to your voice commands
 
-**Note:** The assistant requires:
+**Prerequisites:**
+- The HTTP server must be running on port 5000 (`python server.py`)
 - Microphone permissions
 - Chrome browser installed
 - Active internet connection for speech recognition

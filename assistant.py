@@ -139,15 +139,12 @@ class AIVoiceAssistant:
 
     def open_browser(self):
         max_retries = 3
+        server_url = "http://127.0.0.1:5000"
+        
         for attempt in range(max_retries):
             try:
-                if not os.path.exists("index.html"):
-                    self.speak("Cannot find index.html file")
-                    return
-
                 self.driver = webdriver.Chrome(options=self.chrome_options)
-                file_path = "file://" + os.path.abspath("index.html")
-                self.driver.get(file_path)
+                self.driver.get(server_url)
                 
                 WebDriverWait(self.driver, 15).until(
                     EC.presence_of_element_located((By.TAG_NAME, "body"))
@@ -155,16 +152,17 @@ class AIVoiceAssistant:
                 
                 time.sleep(4)
                 
-                self.log_conversation("System", f"Browser ready on attempt {attempt + 1}")
+                self.log_conversation("System", f"Browser connected to {server_url} on attempt {attempt + 1}")
                 self.speak("Perfect! I'm all connected and ready to help you with your yoga practice.")
                 return
                 
             except Exception as e:
                 self.log_conversation("System", f"Browser error attempt {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
+                    self.log_conversation("System", f"Retrying connection to server at {server_url}...")
                     time.sleep(2)
                 else:
-                    self.speak("Having trouble connecting to the browser")
+                    self.speak("Having trouble connecting to the yoga platform. Please make sure the server is running on port 5000.")
 
     def listen_for_speech(self, timeout=8, phrase_time_limit=10):
         try:
