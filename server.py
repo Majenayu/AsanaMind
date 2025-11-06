@@ -18,7 +18,10 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 Handler = MyHTTPRequestHandler
 
-with socketserver.TCPServer(("0.0.0.0", PORT), Handler) as httpd:
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+with ReusableTCPServer(("0.0.0.0", PORT), Handler) as httpd:
     print(f"✓ SUNDAY Yoga Platform server running on http://0.0.0.0:{PORT}")
     print(f"✓ Access your yoga AR correction system at the URL above")
     print(f"✓ Camera permissions will be requested when you start AR correction")
