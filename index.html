@@ -182,6 +182,9 @@
             { name: 'Adho Mukha Svanasana', sanskrit: '(Downward Dog)', category: 'Intermediate', benefits: 'Calms the brain, strengthens arms and legs.', precaution: 'Avoid with wrist injuries.', targeted: 'Shoulders, Hamstrings', image: 'assets/poses/downward-dog.jpg' },
             { name: 'Virabhadrasana III', sanskrit: '(Warrior III)', category: 'Advanced', benefits: 'Tones abdomen, improves balance.', precaution: 'Avoid if high blood pressure.', targeted: 'Ankles, Legs, Back', image: 'assets/poses/warrior-iii.jpg' },
             { name: 'Namastey', sanskrit: '(Prayer Pose)', category: 'Beginner', benefits: 'Fosters inner peace and focus.', precaution: 'Keep shoulders relaxed.', targeted: 'Chest, Shoulders', image: 'assets/poses/namaste.png' },
+            { name: 'Natarajasana', sanskrit: '(Lord of the Dance Pose)', category: 'Advanced', benefits: 'Improves balance, opens hips, strengthens legs and core.', precaution: 'Avoid if ankle or knee injuries.', targeted: 'Hips, Legs, Shoulders', image: 'assets/poses/natarajasana.jpg' },
+            { name: 'Vrikshasana', sanskrit: '(Tree Pose)', category: 'Beginner', benefits: 'Enhances balance, strengthens legs, tones abdomen.', precaution: 'Avoid if high blood pressure or vertigo.', targeted: 'Legs, Core, Ankles', image: 'assets/poses/vrikshasana.jpg' },
+            { name: 'Baddha Konasana', sanskrit: '(Bound Angle Pose)', category: 'Beginner', benefits: 'Opens hips, relieves menstrual discomfort, stretches inner thighs.', precaution: 'Avoid if knee or groin injuries.', targeted: 'Hips, Inner Thighs, Groin', image: 'assets/poses/baddha-konasana.jpg' },
         ];
         
         let videoStream = null;
@@ -752,6 +755,395 @@
             return { score: finalScore, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
         }
 
+        function validateNatarajasana(keypoints) {
+            const feedback = [];
+            let overallScore = 0;
+            let checks = 0;
+
+            const leftShoulder = keypoints[5];
+            const rightShoulder = keypoints[6];
+            const leftElbow = keypoints[7];
+            const rightElbow = keypoints[8];
+            const leftWrist = keypoints[9];
+            const rightWrist = keypoints[10];
+            const leftHip = keypoints[11];
+            const rightHip = keypoints[12];
+            const leftKnee = keypoints[13];
+            const rightKnee = keypoints[14];
+            const leftAnkle = keypoints[15];
+            const rightAnkle = keypoints[16];
+
+            const requiredKeypoints = [
+                { name: 'left shoulder', point: leftShoulder },
+                { name: 'right shoulder', point: rightShoulder },
+                { name: 'left elbow', point: leftElbow },
+                { name: 'right elbow', point: rightElbow },
+                { name: 'left wrist', point: leftWrist },
+                { name: 'right wrist', point: rightWrist },
+                { name: 'left hip', point: leftHip },
+                { name: 'right hip', point: rightHip },
+                { name: 'left knee', point: leftKnee },
+                { name: 'right knee', point: rightKnee },
+                { name: 'left ankle', point: leftAnkle },
+                { name: 'right ankle', point: rightAnkle }
+            ];
+
+            const missingPoints = requiredKeypoints.filter(kp => kp.point.score <= MIN_CONFIDENCE);
+            
+            if (missingPoints.length > 0) {
+                const missingNames = missingPoints.map(kp => kp.name).join(', ');
+                feedback.push({
+                    text: '⚠ Cannot analyze pose - insufficient body point detection',
+                    detail: `The camera cannot detect: ${missingNames}. Dancer's pose requires full body visibility. Ensure your entire body including the lifted leg and raised arm are in frame with good lighting.`,
+                    type: 'warning'
+                });
+                return { score: null, feedback, checksPerformed: 0, totalChecks: 4, allPointsDetected: false };
+            }
+
+            const leftLegDown = leftAnkle.y > leftKnee.y && leftKnee.y > leftHip.y;
+            const rightLegDown = rightAnkle.y > rightKnee.y && rightKnee.y > rightHip.y;
+            const standingLeg = leftLegDown ? 'left' : 'right';
+            const liftedLeg = leftLegDown ? 'right' : 'left';
+
+            const standingAnkle = standingLeg === 'left' ? leftAnkle : rightAnkle;
+            const standingKnee = standingLeg === 'left' ? leftKnee : rightKnee;
+            const standingHip = standingLeg === 'left' ? leftHip : rightHip;
+
+            const liftedAnkle = liftedLeg === 'left' ? leftAnkle : rightAnkle;
+            const liftedKnee = liftedLeg === 'left' ? leftKnee : rightKnee;
+            const liftedHip = liftedLeg === 'left' ? leftHip : rightHip;
+
+            if (standingAnkle.score > MIN_CONFIDENCE && standingKnee.score > MIN_CONFIDENCE && standingHip.score > MIN_CONFIDENCE) {
+                const standingLegAngle = calculateAngle(standingAnkle, standingKnee, standingHip);
+                
+                if (standingLegAngle > 165 && standingLegAngle < 180) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Standing leg perfectly straight', detail: 'Excellent stability! Keep pressing through your standing foot.', type: 'success' });
+                } else if (standingLegAngle > 155) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Standing leg slightly bent', detail: 'Straighten your standing leg and engage your thigh muscles for better balance.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Standing leg needs straightening', detail: 'Your standing leg should be completely straight. Engage your quadriceps and press firmly into the ground.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (liftedKnee.score > MIN_CONFIDENCE && liftedAnkle.score > MIN_CONFIDENCE) {
+                const liftHeight = Math.abs(liftedKnee.y - standingHip.y);
+                const bodyHeight = Math.abs(standingHip.y - standingKnee.y);
+                
+                if (liftHeight > bodyHeight * 0.5) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Lifted leg elevated well', detail: 'Great lift! Your back leg is at a good height.', type: 'success' });
+                } else if (liftHeight > bodyHeight * 0.3) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Lift leg higher', detail: 'Try to bring your lifted foot closer to your head by bending the knee more.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Lifted leg too low', detail: 'Reach back with your hand to grab your foot and lift your leg higher behind you.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (leftShoulder.score > MIN_CONFIDENCE && rightShoulder.score > MIN_CONFIDENCE) {
+                const shoulderLevel = Math.abs(leftShoulder.y - rightShoulder.y);
+                const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                
+                if (shoulderLevel < shoulderWidth * 0.15) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Shoulders balanced', detail: 'Your shoulders are level and balanced. Maintain this alignment.', type: 'success' });
+                } else {
+                    overallScore += 10;
+                    feedback.push({ text: '⚠ Level your shoulders', detail: 'Keep both shoulders at the same height. Draw them back and down.', type: 'warning' });
+                }
+                checks++;
+            }
+
+            if (leftHip.score > MIN_CONFIDENCE && rightHip.score > MIN_CONFIDENCE) {
+                const hipAlignment = Math.abs(leftHip.y - rightHip.y);
+                const hipWidth = Math.abs(leftHip.x - rightHip.x);
+                
+                if (hipAlignment < hipWidth * 0.2) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Hips aligned', detail: 'Perfect hip alignment! Your hips are square and balanced.', type: 'success' });
+                } else {
+                    overallScore += 10;
+                    feedback.push({ text: '⚠ Square your hips', detail: 'Keep your hips facing forward. Avoid rotating them to the side.', type: 'warning' });
+                }
+                checks++;
+            }
+
+            const totalChecks = 4;
+            const totalPossibleScore = totalChecks * 25;
+            
+            if (checks < totalChecks) {
+                feedback.unshift({ 
+                    text: '⚠ Incomplete pose analysis', 
+                    detail: `Only ${checks} of ${totalChecks} pose aspects could be analyzed. Please adjust your position.`,
+                    type: 'warning' 
+                });
+                return { score: null, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
+            }
+            
+            const finalScore = (overallScore / totalPossibleScore) * 100;
+            return { score: finalScore, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
+        }
+
+        function validateVrikshasana(keypoints) {
+            const feedback = [];
+            let overallScore = 0;
+            let checks = 0;
+
+            const nose = keypoints[0];
+            const leftShoulder = keypoints[5];
+            const rightShoulder = keypoints[6];
+            const leftElbow = keypoints[7];
+            const rightElbow = keypoints[8];
+            const leftWrist = keypoints[9];
+            const rightWrist = keypoints[10];
+            const leftHip = keypoints[11];
+            const rightHip = keypoints[12];
+            const leftKnee = keypoints[13];
+            const rightKnee = keypoints[14];
+            const leftAnkle = keypoints[15];
+            const rightAnkle = keypoints[16];
+
+            const requiredKeypoints = [
+                { name: 'nose', point: nose },
+                { name: 'left shoulder', point: leftShoulder },
+                { name: 'right shoulder', point: rightShoulder },
+                { name: 'left elbow', point: leftElbow },
+                { name: 'right elbow', point: rightElbow },
+                { name: 'left wrist', point: leftWrist },
+                { name: 'right wrist', point: rightWrist },
+                { name: 'left hip', point: leftHip },
+                { name: 'right hip', point: rightHip },
+                { name: 'left knee', point: leftKnee },
+                { name: 'right knee', point: rightKnee },
+                { name: 'left ankle', point: leftAnkle },
+                { name: 'right ankle', point: rightAnkle }
+            ];
+
+            const missingPoints = requiredKeypoints.filter(kp => kp.point.score <= MIN_CONFIDENCE);
+            
+            if (missingPoints.length > 0) {
+                const missingNames = missingPoints.map(kp => kp.name).join(', ');
+                feedback.push({
+                    text: '⚠ Cannot analyze pose - insufficient body point detection',
+                    detail: `The camera cannot detect: ${missingNames}. Tree pose requires your entire body visible. Stand facing the camera with arms raised and one leg bent.`,
+                    type: 'warning'
+                });
+                return { score: null, feedback, checksPerformed: 0, totalChecks: 4, allPointsDetected: false };
+            }
+
+            const leftLegStraight = leftAnkle.y > leftKnee.y && Math.abs(leftKnee.y - leftAnkle.y) > Math.abs(leftKnee.y - leftHip.y);
+            const rightLegStraight = rightAnkle.y > rightKnee.y && Math.abs(rightKnee.y - rightAnkle.y) > Math.abs(rightKnee.y - rightHip.y);
+            const standingLeg = leftLegStraight ? 'left' : 'right';
+            const bentLeg = leftLegStraight ? 'right' : 'left';
+
+            const standingAnkle = standingLeg === 'left' ? leftAnkle : rightAnkle;
+            const standingKnee = standingLeg === 'left' ? leftKnee : rightKnee;
+            const standingHip = standingLeg === 'left' ? leftHip : rightHip;
+
+            const bentKnee = bentLeg === 'left' ? leftKnee : rightKnee;
+            const bentAnkle = bentLeg === 'left' ? leftAnkle : rightAnkle;
+            const bentHip = bentLeg === 'left' ? leftHip : rightHip;
+
+            if (standingAnkle.score > MIN_CONFIDENCE && standingKnee.score > MIN_CONFIDENCE && standingHip.score > MIN_CONFIDENCE) {
+                const standingLegAngle = calculateAngle(standingAnkle, standingKnee, standingHip);
+                
+                if (standingLegAngle > 165 && standingLegAngle < 180) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Standing leg perfectly straight', detail: 'Excellent! Your standing leg is firm and stable.', type: 'success' });
+                } else if (standingLegAngle > 155) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Straighten standing leg more', detail: 'Engage your standing leg muscles to fully straighten. Press firmly into the ground.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Standing leg needs work', detail: 'Your standing leg should be completely straight for proper balance and alignment.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (bentKnee.score > MIN_CONFIDENCE && bentAnkle.score > MIN_CONFIDENCE && bentHip.score > MIN_CONFIDENCE) {
+                const bentLegAngle = calculateAngle(bentHip, bentKnee, bentAnkle);
+                const kneeOut = Math.abs(bentKnee.x - standingKnee.x) > Math.abs(standingKnee.x - standingAnkle.x);
+                
+                if (bentLegAngle < 100 && kneeOut) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Bent leg positioned correctly', detail: 'Perfect! Your foot is placed well on the inner thigh with knee pointing out.', type: 'success' });
+                } else if (bentLegAngle < 120) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Bend knee more outward', detail: 'Open your bent knee more to the side while keeping foot on inner thigh or calf.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Adjust bent leg position', detail: 'Place your foot on inner thigh or calf (not knee) and push knee out to the side.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (leftWrist.score > MIN_CONFIDENCE && rightWrist.score > MIN_CONFIDENCE && nose.score > MIN_CONFIDENCE) {
+                const wristsAboveHead = leftWrist.y < nose.y && rightWrist.y < nose.y;
+                const handsTogether = getDistance(leftWrist, rightWrist) < 100;
+                
+                if (wristsAboveHead && handsTogether) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Arms raised perfectly', detail: 'Great! Your hands are together above your head in prayer position.', type: 'success' });
+                } else if (wristsAboveHead) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Bring hands together', detail: 'Your arms are up but bring your palms together in prayer position.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Raise arms overhead', detail: 'Lift your arms straight up and bring palms together above your head.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (leftShoulder.score > MIN_CONFIDENCE && rightShoulder.score > MIN_CONFIDENCE && leftHip.score > MIN_CONFIDENCE && rightHip.score > MIN_CONFIDENCE) {
+                const torsoAlignment = calculateAngle(standingAnkle, standingHip, leftShoulder);
+                
+                if (torsoAlignment > 165) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Perfect posture', detail: 'Your torso is beautifully aligned and upright. Excellent balance!', type: 'success' });
+                } else if (torsoAlignment > 155) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Stand more upright', detail: 'Lengthen your spine and lift through the crown of your head.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Improve posture', detail: 'Stand tall with your torso vertical. Engage your core for better balance.', type: 'error' });
+                }
+                checks++;
+            }
+
+            const totalChecks = 4;
+            const totalPossibleScore = totalChecks * 25;
+            
+            if (checks < totalChecks) {
+                feedback.unshift({ 
+                    text: '⚠ Incomplete pose analysis', 
+                    detail: `Only ${checks} of ${totalChecks} pose aspects could be analyzed. Please adjust your position.`,
+                    type: 'warning' 
+                });
+                return { score: null, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
+            }
+            
+            const finalScore = (overallScore / totalPossibleScore) * 100;
+            return { score: finalScore, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
+        }
+
+        function validateBaddhaKonasana(keypoints) {
+            const feedback = [];
+            let overallScore = 0;
+            let checks = 0;
+
+            const nose = keypoints[0];
+            const leftShoulder = keypoints[5];
+            const rightShoulder = keypoints[6];
+            const leftHip = keypoints[11];
+            const rightHip = keypoints[12];
+            const leftKnee = keypoints[13];
+            const rightKnee = keypoints[14];
+            const leftAnkle = keypoints[15];
+            const rightAnkle = keypoints[16];
+
+            const requiredKeypoints = [
+                { name: 'nose', point: nose },
+                { name: 'left shoulder', point: leftShoulder },
+                { name: 'right shoulder', point: rightShoulder },
+                { name: 'left hip', point: leftHip },
+                { name: 'right hip', point: rightHip },
+                { name: 'left knee', point: leftKnee },
+                { name: 'right knee', point: rightKnee },
+                { name: 'left ankle', point: leftAnkle },
+                { name: 'right ankle', point: rightAnkle }
+            ];
+
+            const missingPoints = requiredKeypoints.filter(kp => kp.point.score <= MIN_CONFIDENCE);
+            
+            if (missingPoints.length > 0) {
+                const missingNames = missingPoints.map(kp => kp.name).join(', ');
+                feedback.push({
+                    text: '⚠ Cannot analyze pose - insufficient body point detection',
+                    detail: `The camera cannot detect: ${missingNames}. Butterfly pose is a seated pose. Ensure you're seated facing the camera with your full body visible, especially your knees and feet.`,
+                    type: 'warning'
+                });
+                return { score: null, feedback, checksPerformed: 0, totalChecks: 4, allPointsDetected: false };
+            }
+
+            if (leftAnkle.score > MIN_CONFIDENCE && rightAnkle.score > MIN_CONFIDENCE) {
+                const feetDistance = getDistance(leftAnkle, rightAnkle);
+                const hipToAnkle = getDistance(leftHip, leftAnkle);
+                
+                if (feetDistance < hipToAnkle * 0.4) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Feet together perfectly', detail: 'Excellent! Your feet are touching at the soles as they should be.', type: 'success' });
+                } else if (feetDistance < hipToAnkle * 0.6) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Bring feet closer', detail: 'Draw your feet closer together so the soles touch completely.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Feet too far apart', detail: 'Press the soles of your feet together and bring them toward your body.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (leftKnee.score > MIN_CONFIDENCE && rightKnee.score > MIN_CONFIDENCE && leftHip.score > MIN_CONFIDENCE && rightHip.score > MIN_CONFIDENCE) {
+                const leftKneeOut = Math.abs(leftKnee.x - leftHip.x);
+                const rightKneeOut = Math.abs(rightKnee.x - rightHip.x);
+                const hipWidth = Math.abs(leftHip.x - rightHip.x);
+                
+                if (leftKneeOut > hipWidth * 0.3 && rightKneeOut > hipWidth * 0.3) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Knees opened well', detail: 'Perfect! Your knees are nicely opened toward the ground.', type: 'success' });
+                } else if (leftKneeOut > hipWidth * 0.2 && rightKneeOut > hipWidth * 0.2) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Open knees more', detail: 'Gently press your knees down toward the floor using your elbows if needed.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Knees need to open', detail: 'Let your knees fall open to the sides. Use your hands to gently press them down.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (nose.score > MIN_CONFIDENCE && leftShoulder.score > MIN_CONFIDENCE && rightShoulder.score > MIN_CONFIDENCE && leftHip.score > MIN_CONFIDENCE) {
+                const spineAngle = Math.abs(nose.y - leftShoulder.y);
+                const torsoLength = Math.abs(leftShoulder.y - leftHip.y);
+                
+                if (spineAngle < torsoLength * 0.3) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Spine tall and straight', detail: 'Excellent posture! Your spine is elongated and straight.', type: 'success' });
+                } else if (spineAngle < torsoLength * 0.5) {
+                    overallScore += 15;
+                    feedback.push({ text: '⚠ Sit up taller', detail: 'Lengthen your spine by sitting up straighter. Imagine a string pulling your head up.', type: 'warning' });
+                } else {
+                    feedback.push({ text: '✗ Straighten your back', detail: 'Sit up tall with your back straight. Engage your core to support your spine.', type: 'error' });
+                }
+                checks++;
+            }
+
+            if (leftShoulder.score > MIN_CONFIDENCE && rightShoulder.score > MIN_CONFIDENCE) {
+                const shoulderLevel = Math.abs(leftShoulder.y - rightShoulder.y);
+                const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                
+                if (shoulderLevel < shoulderWidth * 0.1) {
+                    overallScore += 25;
+                    feedback.push({ text: '✓ Shoulders relaxed & level', detail: 'Perfect! Your shoulders are evenly balanced and relaxed.', type: 'success' });
+                } else {
+                    overallScore += 10;
+                    feedback.push({ text: '⚠ Level your shoulders', detail: 'Keep your shoulders at the same height and relaxed away from your ears.', type: 'warning' });
+                }
+                checks++;
+            }
+
+            const totalChecks = 4;
+            const totalPossibleScore = totalChecks * 25;
+            
+            if (checks < totalChecks) {
+                feedback.unshift({ 
+                    text: '⚠ Incomplete pose analysis', 
+                    detail: `Only ${checks} of ${totalChecks} pose aspects could be analyzed. Please adjust your position.`,
+                    type: 'warning' 
+                });
+                return { score: null, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
+            }
+            
+            const finalScore = (overallScore / totalPossibleScore) * 100;
+            return { score: finalScore, feedback, checksPerformed: checks, totalChecks: totalChecks, allPointsDetected: true };
+        }
+
         function validatePose(poseName, keypoints) {
             switch(poseName) {
                 case 'Tadasana':
@@ -762,6 +1154,12 @@
                     return validateVirabhadrasanaIII(keypoints);
                 case 'Namastey':
                     return validateNamastey(keypoints);
+                case 'Natarajasana':
+                    return validateNatarajasana(keypoints);
+                case 'Vrikshasana':
+                    return validateVrikshasana(keypoints);
+                case 'Baddha Konasana':
+                    return validateBaddhaKonasana(keypoints);
                 default:
                     return { score: 0, feedback: [] };
             }

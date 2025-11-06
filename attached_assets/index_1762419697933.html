@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUNDAY- YOGA Wellness Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.13.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Custom Tailwind Configuration for a dark, calming palette (Now Blue)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Colors adjusted for contrast on a dark background
+                        'primary': '#42A5F5', // Bright Blue (Replaces Bright Green)
+                        'secondary': '#1976D2', // Darker Blue (Replaces Darker Green)
+                        'accent': '#FFEB3B', // Bright Gold/Yellow for alerts/streak
+                        'background': '#121212', // Very Dark Background
+                        'card': '#1E1E1E', // Dark Card Background
+                        'warning': '#FFC107', // Amber/Yellow for warnings/needs attention
+                        'success': '#10B981', // Green for success
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom styles for aesthetic and loading spinner */
+        body {
+            /* ---------------------------------------------------- */
+            /* BRO FIX: SOLID DARK BACKGROUND */
+            background-color: #121212; 
+            background: #121212; /* Ensure all previous gradients are removed */
+            /* ---------------------------------------------------- */
+            
+            color: #E0E0E0; /* Default text color for dark theme */
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden; /* Prevent horizontal scroll from cursor glow */
+        }
+        .scrollable-content {
+            overflow-y: auto;
+            /* Max height calculation for chat window */
+            max-height: calc(100vh - 350px);
+            scrollbar-width: none; /* Firefox */
+        }
+        .scrollable-content::-webkit-scrollbar {
+            display: none; /* Chrome, Safari */
+        }
+
+        .loading-animation {
+            border: 4px solid #333;
+            border-top: 4px solid #42A5F5; /* Primary Blue for spinner */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 3D Card Hover Effect CSS */
+        .card-effect {
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s ease;
+            will-change: transform;
+            transform-style: preserve-3d; 
+            perspective: 1000px; 
+            border: 1px solid rgba(255, 255, 255, 0.05); /* Subtle border for dark cards */
+        }
+        .card-effect:hover {
+            /* Subtle 3D tilt, scale, and deeper shadow */
+            transform: perspective(1000px) rotateX(1deg) rotateY(1deg) scale(1.03); 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* Darker shadow */
+        }
+
+        /* Cursor Glow Effect CSS (Blue) */
+        #cursor-glow {
+            position: fixed;
+            pointer-events: none;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            /* Primary Blue color with higher opacity for visibility */
+            background: rgba(66, 165, 245, 0.45); 
+            filter: blur(90px); /* Heavy blur */
+            transform: translate(-50%, -50%);
+            z-index: -1; 
+            transition: opacity 0.3s ease;
+            opacity: 1.0; 
+        }
+
+        /* Styles for the AR/Video Feed */
+        #video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 75%; /* 4:3 Aspect Ratio */
+            background-color: #000;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+        }
+        #video-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror the video feed for natural user experience */
+        }
+        #ar-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+    </style>
+</head>
+<body class="flex flex-col items-center pb-20 md:pb-8 bg-background text-gray-200">
+    <div id="cursor-glow"></div>
+    
+    <div id="app" class="w-full max-w-4xl p-4 md:p-8">
+        <header class="text-center mb-6 relative">
+            <h1 class="text-5xl font-extrabold text-primary tracking-tight">SUNDAY</h1>
+            <p class="text-gray-400 mt-1 text-sm md:text-base">Your Holistic Yoga & Wellness Platform</p>
+            
+            <button id="voice-toggle" onclick="app.toggleVoiceControl()" 
+                    class="absolute top-4 right-0 md:right-4 flex items-center space-x-2 text-sm px-3 py-2 rounded-xl transition shadow-md bg-gray-700 hover:bg-gray-600 text-gray-200">
+                <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-red-500">
+                    <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
+                    <path fill-rule="evenodd" d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
+                    <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
+                </svg>
+                <span id="mic-status-text">Voice Off</span>
+            </button>
+            </header>
+
+        <main id="content" class="bg-card shadow-2xl rounded-3xl p-6 md:p-8 min-h-[60vh] shadow-gray-900">
+            </main>
+
+        <nav class="fixed bottom-0 left-0 right-0 bg-card border-t border-gray-700 z-10 shadow-2xl md:relative md:mt-6 md:shadow-none md:border-none">
+            <div id="nav-tabs" class="flex justify-around items-center max-w-4xl mx-auto py-3 md:py-0">
+                </div>
+        </nav>
+    </div>
+
+    <script>
+        // --- Firebase and Environment Setup (Required variables for Canvas runtime) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        // FIX: Corrected variable reference from __initialAuthToken to __initial_auth_token
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // --- Mock Data ---
+        const asanaData = [
+            { name: 'Tadasana', sanskrit: '(Mountain Pose)', category: 'Beginner', benefits: 'Improves balance and posture.', precaution: 'Avoid if experiencing headache.', targeted: 'Spine, Core, Legs' },
+            { name: 'Adho Mukha Svanasana', sanskrit: '(Downward Dog)', category: 'Intermediate', benefits: 'Calms the brain, strengthens arms and legs.', precaution: 'Avoid with wrist injuries.', targeted: 'Shoulders, Hamstrings' },
+            { name: 'Virabhadrasana III', sanskrit: '(Warrior III)', category: 'Advanced', benefits: 'Tones abdomen, improves balance.', precaution: 'Avoid if high blood pressure.', targeted: 'Ankles, Legs, Back' },
+            { name: 'Namastey', sanskrit: '(Prayer Pose)', category: 'Beginner', benefits: 'Fosters inner peace and focus.', precaution: 'Keep shoulders relaxed.', targeted: 'Chest, Shoulders' },
+            { name: 'Natarajasana', sanskrit: '(Lord of the Dance Pose)', category: 'Advanced', benefits: 'Improves balance, opens hips, strengthens legs and core.', precaution: 'Avoid if ankle or knee injuries.', targeted: 'Hips, Legs, Shoulders' },
+            { name: 'Vrikshasana', sanskrit: '(Tree Pose)', category: 'Beginner', benefits: 'Enhances balance, strengthens legs, tones abdomen.', precaution: 'Avoid if high blood pressure or vertigo.', targeted: 'Legs, Core, Ankles' },
+            { name: 'Baddha Konasana', sanskrit: '(Bound Angle Pose)', category: 'Beginner', benefits: 'Opens hips, relieves menstrual discomfort, stretches inner thighs.', precaution: 'Avoid if knee or groin injuries.', targeted: 'Hips, Inner Thighs, Groin' },
+        ];
+        
+        // --- MoveNet/AR Correction Globals ---
+        let videoStream = null;
+        let detector = null;
+        let animationFrameId = null;
+        let currentPose = null; // The pose the user selects
+
+        // Define expected body parts and confidence score threshold
+        const keypointIndices = {
+            'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4,
+            'left_shoulder': 5, 'right_shoulder': 6, 'left_elbow': 7, 'right_elbow': 8,
+            'left_wrist': 9, 'right_wrist': 10, 'left_hip': 11, 'right_hip': 12,
+            'left_knee': 13, 'right_knee': 14, 'left_ankle': 15, 'right_ankle': 16
+        };
+        const MIN_CONFIDENCE = 0.3; // Minimum score for a keypoint to be considered valid
+
+        // The correct connections for MoveNet's 17 keypoints (indices 0-16)
+        const SKELETON_CONNECTIONS = [
+            [0, 1], [0, 2], [1, 3], [2, 4], // Head/Face
+            [5, 6], // Shoulders
+            [5, 7], [7, 9], // Left arm
+            [6, 8], [8, 10], // Right arm
+            [5, 11], [6, 12], // Torso upper
+            [11, 12], // Torso lower/Hips
+            [11, 13], [13, 15], // Left leg
+            [12, 14], [14, 16] // Right leg
+        ];
+
+
+        // --- API Configuration and Helper (Moved outside app object) ---
+        const GEMINI_MODEL = "gemini-2.5-flash-preview-05-20";
+        const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. You have access to real-time information. Always format your advice clearly using simple markdown (bold, lists).";
+
+        /**
+         * Calls the Gemini API for the Virtual Assistant feature.
+         */
+        async function callGeminiAssistant(prompt, retries = 3) {
+            // Use the key provided by the user if the environment key is not available, to fix the 401 error.
+            const USER_FALLBACK_API_KEY = "AIzaSyD2BO6IbmYIdVKys2Qy72vimzju_a_2aoY"; 
+            const envApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
+
+            // Use environment key if present, otherwise use the user's fallback key.
+            const apiKey = envApiKey || USER_FALLBACK_API_KEY; 
+            
+            // Construct API URL: Ensure the key is used if available.
+            let API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+            if (apiKey) {
+                 API_URL += `?key=${apiKey}`;
+            }
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                             contents: [{ parts: [{ text: prompt }] }],
+                             tools: [{ "google_search": {} }],
+                             systemInstruction: {
+                                 parts: [{ text: VIRTUAL_ASSISTANT_SYSTEM_PROMPT }]
+                             },
+                        })
+                    });
+
+                    if (!response.ok) {
+                        let errorDetails = `HTTP error! status: ${response.status}`;
+                        let isOverloaded = false;
+                        
+                        try {
+                            const errorBody = await response.json();
+                            if (errorBody && errorBody.error && errorBody.error.message) {
+                                errorDetails = errorBody.error.message;
+                            }
+                            // Check for 503 UNAVAILABLE status in the error code
+                            if (response.status === 503 || errorDetails.includes("model is overloaded")) {
+                                isOverloaded = true;
+                                console.error(`API Error Response (503):`, errorBody);
+                            } else {
+                                console.error(`API Error Response (${response.status}):`, errorBody);
+                            }
+                        } catch (e) {
+                            console.error(`API Error Response (${response.status}): Could not parse error body.`);
+                        }
+
+                        if (isOverloaded) {
+                            throw new Error("Model Unavailable (503). Please wait and try again.");
+                        }
+                        
+                        throw new Error(errorDetails);
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    const text = candidate?.content?.parts?.[0]?.text || "Sorry, I couldn't find an answer for that right now. Please try rephrasing.";
+                    
+                    let sources = [];
+                    const groundingMetadata = candidate?.groundingMetadata;
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                        sources = groundingMetadata.groundingAttributions
+                            .map(attribution => ({
+                                uri: attribution.web?.uri,
+                                title: attribution.web?.title,
+                            }))
+                            .filter(source => source.uri && source.title);
+                    }
+
+                    return { text, sources };
+
+                } catch (error) {
+                    // Check for 401 error
+                    if (error.message && error.message.includes('401')) {
+                        console.error("Authentication Error. Please ensure the Gemini API key is correctly provided by the environment.");
+                        return { text: "I'm still unable to connect to the AI service. The API key appears to be invalid or unauthorized. Please verify the key's status.", sources: [] };
+                    }
+                    
+                    // Check for 503 error after all retries fail
+                    if (error.message && error.message.includes('503') && i === retries - 1) {
+                         // FIX: Provide a single, clear, user-friendly message upon final 503 failure.
+                        return { text: "The AI service is currently overloaded or undergoing maintenance. This is a temporary issue. Please wait a few moments and try your query again!", sources: [] };
+                    }
+
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i === retries - 1) {
+                        // Fallback message for other errors after all retries fail
+                        return { text: "My sensors seem to be offline. Could you check your internet connection or try again shortly?", sources: [] };
+                    }
+                    // Exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+
+        // --- App State and Routing ---
+        const app = {
+            currentView: 'dashboard',
+            views: {
+                dashboard: { name: 'Home', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3V6ZM3 15.75a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2.25ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3v-2.25Z" clip-rule="evenodd" /></svg>' },
+                asana: { name: 'Asana Library', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M11.54 22.351A2.433 2.433 0 0 0 12 22.5c.376 0 .741-.096 1.06-.279l.522-.249 7.55 3.332.002-.001.002-.001a.75.75 0 0 0 .584-.852 16.148 16.148 0 0 0-4.075-8.868 12.396 12.396 0 0 1 2.373-3.084c.645-.632.744-1.638.258-2.479l-.174-.298c-.469-.798-1.547-1.077-2.475-.688l-2.074.887a.75.75 0 0 0-.773-.243l-3.235-4.321C9.654 2.84 8.643 2.5 7.632 2.5a.75.75 0 0 0-.584.852c.321 1.954.249 3.864-.32 5.584l-2.316 4.01a.75.75 0 0 0-.074.786l.635 1.018a.75.75 0 0 0 .866.398l1.378-.475 3.655 1.701Z" clip-rule="evenodd" /></svg>' },
+                routine: { name: 'Routine', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 5.25a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5H8.25a.75.75 0 0 1-.75-.75ZM4.875 6a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5h-.75a.75.75 0 0 1-.75-.75ZM2.25 7.5a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5H3a.75.75 0 0 1-.75-.75ZM18 0a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5h-.75a.75.75 0 0 1-.75-.75ZM19.5 5.25a.75.75 0 0 1-.75-.75h-.75a.75.75 0 0 1 0 1.5h.75a.75.75 0 0 1 .75-.75ZM15 4.5a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0V5.25a.75.75 0 0 1 .75-.75ZM12 7.5a4.5 4.5 0 0 1 4.5 4.5v3.75c0 .66.234 1.278.63 1.747a.75.75 0 0 1-1.12.991 7.472 7.472 0 0 0-2.88 1.487.75.75 0 0 1-1.22 0 7.472 7.472 0 0 0-2.88-1.487.75.75 0 0 1-1.12-.991A4.5 4.5 0 0 1 7.5 15.75V12a4.5 4.5 0 0 1 4.5-4.5Z" clip-rule="evenodd" /></svg>' },
+                ar_correction: { name: 'AR Correction', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><path fill-rule="evenodd" d="M1.5 12c0-2.485 2.404-4.5 5.488-4.5h11.024c3.084 0 5.488 2.015 5.488 4.5s-2.404 4.5-5.488 4.5H6.988c-3.084 0-5.488-2.015-5.488-4.5ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" clip-rule="evenodd" /></svg>' },
+                assistant: { name: 'Assistant', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.818 4.67a.75.75 0 0 0 1.06-1.06L7.172 2.565a.75.75 0 0 0-1.06 1.06l1.706 1.705ZM18.948 4.67a.75.75 0 0 0 1.06 1.06l1.706 1.705a.75.75 0 0 0 1.06-1.06L18.948 4.67Z" clip-rule="evenodd" /><path d="M12 6.75a5.25 5.25 0 0 1 5.25 5.25v3.375c0 2.223.715 4.363 2.022 6.177a.75.75 0 0 1-.95.832c-2.496-1.44-4.43-2.527-5.747-2.527a4.5 4.5 0 0 0-4.5-4.5h-1.5v3a.75.75 0 0 0 1.5 0v-2.25a.75.75 0 0 0-1.5 0v2.25a.75.75 0 0 0-1.5 0v-2.25H6.75A5.25 5.25 0 0 1 12 6.75Z" /></svg>' },
+            },
+            
+            // Elements
+            contentEl: document.getElementById('content'),
+            navTabsEl: document.getElementById('nav-tabs'),
+            
+            // Voice Command State
+            isListening: false,
+            recognitionInstance: null,
+            
+            // Methods
+            init() {
+                this.renderNav();
+                this.navigate(this.currentView);
+                this.setupVoiceCommands(); // Setup the voice command system
+            },
+
+            // --- Voice Command Integration ---
+            setupVoiceCommands() {
+                if (!('webkitSpeechRecognition' in window)) {
+                    document.getElementById('mic-status-text').textContent = "Voice N/A";
+                    document.getElementById('voice-toggle').disabled = true;
+                    console.warn("Speech Recognition not supported in this browser.");
+                    return;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognitionInstance = new SpeechRecognition();
+                this.recognitionInstance.continuous = true;
+                this.recognitionInstance.interimResults = false;
+                this.recognitionInstance.lang = 'en-US';
+
+                const micIcon = document.getElementById('mic-icon');
+                const micStatusText = document.getElementById('mic-status-text');
+
+                const updateMicStatus = (listening, statusText = null) => {
+                    this.isListening = listening;
+                    if (listening) {
+                        micIcon.classList.remove('text-red-500');
+                        micIcon.classList.add('text-primary', 'animate-pulse');
+                        micStatusText.textContent = statusText || "Listening...";
+                    } else {
+                        micIcon.classList.remove('text-primary', 'animate-pulse');
+                        micIcon.classList.add('text-red-500');
+                        micStatusText.textContent = statusText || "Voice Off";
+                    }
+                };
+
+                this.recognitionInstance.onstart = () => {
+                    updateMicStatus(true, "Listening...");
+                };
+
+                this.recognitionInstance.onresult = (event) => {
+                    const last = event.results.length - 1;
+                    const transcript = event.results[last][0].transcript.toLowerCase().trim();
+                    console.log('Voice Command Received:', transcript);
+
+                    // Acknowledge the command via UI/Console
+                    updateMicStatus(true, `Heard: "${transcript}"`);
+
+                    // Simple command mapping logic to match the Python backend
+                    let navigated = false;
+                    const commandMap = {
+                        'home': 'dashboard',
+                        'dashboard': 'dashboard',
+                        'pose library': 'asana',
+                        'asana': 'asana',
+                        'poses': 'asana',
+                        'routine': 'routine',
+                        'workout': 'routine',
+                        'ar correction': 'ar_correction',
+                        'posture correction': 'ar_correction',
+                        'camera': 'ar_correction',
+                        'assistant': 'assistant',
+                        'chat': 'assistant',
+                        'help': 'assistant'
+                    };
+
+                    for (const phrase in commandMap) {
+                        if (transcript.includes(phrase)) {
+                            const targetView = commandMap[phrase];
+                            // Stop recognition temporarily to allow navigation without conflict
+                            this.recognitionInstance.stop(); 
+                            // Set isListening to false so onend doesn't restart immediately
+                            this.isListening = false;
+                            this.navigate(targetView);
+                            navigated = true;
+                            return;
+                        }
+                    }
+
+                    if (!navigated) {
+                        // If nothing matched, revert to listening status after a short delay
+                        setTimeout(() => {
+                            if(this.isListening) micStatusText.textContent = "Listening...";
+                            else micStatusText.textContent = "Voice Off";
+                        }, 1500);
+                    }
+                };
+
+                this.recognitionInstance.onerror = (event) => {
+                    console.error('Speech Recognition Error:', event.error);
+                    updateMicStatus(false, "Error: Check Console");
+
+                    // Specific error handling for permission issues
+                    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                        updateMicStatus(false, "Permission Blocked!");
+                    } else if (event.error === 'no-speech') {
+                        // Common error when it stops due to no speech, but should restart onend
+                        updateMicStatus(true);
+                    }
+                };
+                
+                // Restart listening after a pause or processing, unless manually stopped
+                this.recognitionInstance.onend = () => {
+                    if (this.isListening) {
+                        // Attempt to restart listening only if the flag is still true
+                        // FIX: Add a small delay to prevent browser conflict during rapid restart
+                        setTimeout(() => {
+                            try {
+                                this.recognitionInstance.start(); // Status update handled by onstart
+                            } catch (e) {
+                                console.warn("Recognition restart failed:", e);
+                                updateMicStatus(false);
+                            }
+                        }, 500); // Increased delay to 500ms for better stability
+                    } else {
+                        // If listening was manually turned off/navigation occurred, confirm status is 'Voice Off'
+                        updateMicStatus(false);
+                    }
+                };
+            },
+
+            toggleVoiceControl() {
+                const micStatusText = document.getElementById('mic-status-text');
+                if (this.isListening) {
+                    this.isListening = false;
+                    this.recognitionInstance.stop();
+                    micStatusText.textContent = "Voice Off";
+                } else {
+                    this.isListening = true;
+                    try {
+                        this.recognitionInstance.start();
+                        micStatusText.textContent = "Listening...";
+                    } catch (e) {
+                        console.error("Speech Recognition Start Error:", e);
+                        micStatusText.textContent = "Error";
+                    }
+                }
+            },
+
+            // --- Navigation and Rendering ---
+            navigate(viewKey) {
+                // The following logic block checking for 'music' is now removed.
+                
+                // If voice control is active, stop it before navigating to prevent lingering mic use
+                if (this.recognitionInstance && this.isListening) {
+                    this.recognitionInstance.stop();
+                    this.isListening = false;
+                    // Update UI manually since .onend might not fire immediately after .stop()
+                    document.getElementById('mic-status-text').textContent = "Voice Off";
+                    document.getElementById('mic-icon').classList.remove('text-primary', 'animate-pulse');
+                    document.getElementById('mic-icon').classList.add('text-red-500');
+                }
+                
+                this.currentView = viewKey;
+                this.renderNav();
+                this.renderContent();
+
+                // Start camera and ML model only after rendering the AR view
+                if (viewKey === 'ar_correction') {
+                    // Don't start immediately, wait for asana selection
+                }
+
+                // Set up assistant listeners only when the assistant view is active
+                if (viewKey === 'assistant') {
+                    // Timeout ensures the HTML elements are rendered before attaching events
+                    setTimeout(() => this.setupAssistantListeners(), 50);
+                }
+                
+                // Setup music listeners block removed.
+            },
+            
+            // --- AR Correction Utilities (Now methods of app object) ---
+            
+            /**
+             * Select an asana and start the AR session
+             */
+            selectAsanaAndStart(poseName) {
+                this.currentPose = poseName;
+                const poseSelection = document.getElementById('pose-selection');
+                const arSession = document.getElementById('ar-session');
+                
+                if (poseSelection) poseSelection.style.display = 'none';
+                if (arSession) arSession.style.display = 'block';
+                
+                this.startARAssessment();
+            },
+            
+            /**
+             * Calculates the angle formed by three keypoints (A, B, C) where B is the vertex.
+             * Returns the angle in degrees.
+             */
+            calculateAngle(A, B, C) {
+                if (!A || !B || !C) return 180; // Return 180 (straight line) if points are missing for lenient check
+                
+                const AB = Math.sqrt(Math.pow(B.x - A.x, 2) + Math.pow(B.y - A.y, 2));
+                const BC = Math.sqrt(Math.pow(C.x - B.x, 2) + Math.pow(C.y - B.y, 2));
+                const AC = Math.sqrt(Math.pow(C.x - A.x, 2) + Math.pow(C.y - A.y, 2));
+
+                if (AB === 0 || BC === 0) return 180;
+
+                // Law of Cosines
+                const cosAngle = (Math.pow(AB, 2) + Math.pow(BC, 2) - Math.pow(AC, 2)) / (2 * AB * BC);
+                // Clamp the value to the range [-1, 1] to prevent NaN due to floating point inaccuracies
+                const clampedCosAngle = Math.max(-1, Math.min(1, cosAngle));
+                
+                const angleRad = Math.acos(clampedCosAngle);
+                return (angleRad * 180) / Math.PI;
+            },
+            
+            /**
+             * Checks the detected keypoints against the expected form for the current pose.
+             * Returns an array of correction messages.
+             */
+            checkPose(keypoints, poseName) {
+                const getPoint = (name) => {
+                    const kp = keypoints.find(k => k.name === name);
+                    if (!kp || kp.score < this.MIN_CONFIDENCE) return null;
+                    return { x: kp.x, y: kp.y };
+                };
+                
+                const leftHip = getPoint('left_hip');
+                const leftKnee = getPoint('left_knee');
+                const leftAnkle = getPoint('left_ankle');
+                const rightHip = getPoint('right_hip');
+                const rightKnee = getPoint('right_knee');
+                const rightAnkle = getPoint('right_ankle');
+                const leftShoulder = getPoint('left_shoulder');
+                const rightShoulder = getPoint('right_shoulder');
+                const leftElbow = getPoint('left_elbow'); // Needed for arm checks
+                const rightElbow = getPoint('right_elbow'); // Needed for arm checks
+                const nose = getPoint('nose');
+                const leftWrist = getPoint('left_wrist');
+                const rightWrist = getPoint('right_wrist');
+
+                let corrections = [];
+
+                // --- Global Visibility Check ---
+                if (!leftHip || !rightHip || !leftShoulder || !rightShoulder || !nose) {
+                    return [{message: "Ensure your full body, including your face and hips, is visible.", affected: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip']}];
+                }
+                
+                if (poseName === 'Tadasana') {
+                    // Mountain Pose - Standing Straight
+                    
+                    // 1. Leg Straightness
+                    if (!leftKnee || !leftAnkle) {
+                        corrections.push({message: "Cannot track left leg. Check visibility.", affected: ['left_knee', 'left_ankle']});
+                    } else {
+                        const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
+                        if (leftKneeAngle < 170) corrections.push({message: "Straighten your left leg fully (knee angle below 170°).", affected: ['left_knee', 'left_ankle'], color: 'red'});
+                    }
+
+                    if (!rightKnee || !rightAnkle) {
+                         corrections.push({message: "Cannot track right leg. Check visibility.", affected: ['right_knee', 'right_ankle']});
+                    } else {
+                        const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
+                        if (rightKneeAngle < 170) corrections.push({message: "Straighten your right leg fully (knee angle below 170°).", affected: ['right_knee', 'right_ankle'], color: 'red'});
+                    }
+                    
+                    // 2. Hip/Torso Alignment (Simple vertical check)
+                    if (leftHip && rightHip) {
+                        const hipDifference = Math.abs(leftHip.y - rightHip.y);
+                        if (hipDifference > 30) corrections.push({message: "Keep your hips level (side-to-side wobble).", affected: ['left_hip', 'right_hip'], color: 'yellow'});
+                    }
+                    
+                    // 3. Shoulder Alignment (Simple vertical check)
+                    if (leftShoulder && rightShoulder) {
+                        const shoulderDifference = Math.abs(leftShoulder.y - rightShoulder.y);
+                        if (shoulderDifference > 30) corrections.push({message: "Relax your shoulders down and keep them level.", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow'});
+                    }
+
+                    // 4. Arm Straightness (Arms straight down, palms facing forward) - assuming arms are straight down by side
+                    if (leftShoulder && leftElbow && leftWrist) {
+                        const leftArmAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
+                        if (leftArmAngle < 160) corrections.push({message: "Straighten your left arm.", affected: ['left_elbow', 'left_wrist'], color: 'yellow'});
+                    }
+                    
+                } else if (poseName === 'Adho Mukha Svanasana') {
+                    // Downward Dog
+                    
+                    // 1. Torso/Arm Alignment (Arms should be straight, a line from wrist to shoulder)
+                    if (leftShoulder && leftElbow && leftWrist) {
+                        const armAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
+                        if (armAngle < 160) {
+                            corrections.push({message: "Straighten your arms fully. Press through your palms.", affected: ['left_shoulder', 'left_elbow', 'left_wrist'], color: 'red'});
+                        }
+                    }
+
+                    // 2. Leg Straightness (If not straight, provide a correction)
+                    if (leftHip && leftKnee && leftAnkle) {
+                        const legAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
+                        if (legAngle < 160) {
+                            corrections.push({message: "Straighten your legs more. It's okay if your heels don't touch the floor.", affected: ['left_hip', 'left_knee', 'left_ankle'], color: 'yellow'});
+                        }
+                    }
+
+                    // 3. Hips lifted (Simple check: hips should be higher than shoulders)
+                    if (leftHip && leftShoulder) {
+                        if (leftHip.y < leftShoulder.y) {
+                            corrections.push({message: "Lift your hips higher and press your chest toward your thighs.", affected: ['left_hip', 'left_shoulder'], color: 'red'});
+                        }
+                    }
+
+                } else if (poseName === 'Virabhadrasana III') {
+                    // Warrior III
+                    
+                    // 1. Back Leg Straightness (Assume left leg back for balance)
+                    if (leftHip && leftKnee && leftAnkle) {
+                        const legAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
+                        // The knee should be fully straight, close to 180, but relative to the body angle it's a small angle when parallel to the ground.
+                        // Let's check for knee bend in the back leg.
+                        if (legAngle < 170) { 
+                             corrections.push({message: "Fully straighten your back (left) leg.", affected: ['left_knee', 'left_ankle'], color: 'red'});
+                        }
+                    }
+
+                    // 2. Torso Parallel to Ground (hip to shoulder horizontal) - Simple Y-coordinate difference check
+                    if (leftHip && leftShoulder) {
+                        const torsoVerticalDifference = Math.abs(leftShoulder.y - leftHip.y);
+                        // A large difference means the torso is too upright or dipped too low. The torso should be horizontal, meaning Y coordinates are similar.
+                        if (torsoVerticalDifference > 30) { 
+                            corrections.push({message: "Align your torso so it's parallel to the ground.", affected: ['left_shoulder', 'left_hip'], color: 'red'});
+                        }
+                    }
+
+                    // 3. Arms Forward (Shoulder-Elbow-Wrist should be relatively straight)
+                    if (leftShoulder && leftElbow && leftWrist) {
+                        const armAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
+                        if (armAngle < 160) {
+                            corrections.push({message: "Extend your arms fully forward (keep elbows straight).", affected: ['left_shoulder', 'left_elbow', 'left_wrist'], color: 'yellow'});
+                        }
+                    }
+                } else if (poseName === 'Namastey') {
+                    // Namastey (Prayer Pose) - Standing with hands in prayer at heart center
+                    
+                    // 1. Feet together
+                    if (leftAnkle && rightAnkle) {
+                        const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
+                        if (feetDistance > 20) {
+                            corrections.push({message: "Bring your feet together at the base.", affected: ['left_ankle', 'right_ankle'], color: 'yellow'});
+                        }
+                    }
+
+                    // 2. Hands pressed together at chest level
+                    if (leftWrist && rightWrist) {
+                        const handsDistance = Math.abs(leftWrist.x - rightWrist.x);
+                        if (handsDistance > 20) {
+                            corrections.push({message: "Press your palms firmly together.", affected: ['left_wrist', 'right_wrist'], color: 'red'});
+                        }
+                        
+                        // Approximate chest level using average shoulder Y
+                        if (leftShoulder && rightShoulder) {
+                            const chestY = (leftShoulder.y + rightShoulder.y) / 2;
+                            const avgHandY = (leftWrist.y + rightWrist.y) / 2;
+                            if (Math.abs(avgHandY - chestY) > 50) {
+                                corrections.push({message: "Position your hands at heart center level.", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
+                            }
+                        }
+                    }
+
+                    // 3. Straight posture (similar to Tadasana legs and hips)
+                    if (leftHip && leftKnee && leftAnkle) {
+                        const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
+                        if (leftKneeAngle < 170) corrections.push({message: "Straighten your legs for a grounded stance.", affected: ['left_knee', 'left_ankle'], color: 'yellow'});
+                    }
+                    if (rightHip && rightKnee && rightAnkle) {
+                        const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
+                        if (rightKneeAngle < 170) corrections.push({message: "Straighten your legs for a grounded stance.", affected: ['right_knee', 'right_ankle'], color: 'yellow'});
+                    }
+                } else if (poseName === 'Natarajasana') {
+                    // Lord of the Dance Pose - Balancing on one leg, grabbing back foot
+                    
+                    // Assume right leg standing, left leg bent back
+                    if (rightHip && rightKnee && rightAnkle) {
+                        const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
+                        if (rightKneeAngle < 170) corrections.push({message: "Straighten your standing (right) leg fully.", affected: ['right_knee', 'right_ankle'], color: 'red'});
+                    }
+                    
+                    if (leftHip && leftKnee && leftAnkle) {
+                        // Back leg should be bent, knee angle around 90-120 degrees
+                        const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
+                        if (leftKneeAngle > 140 || leftKneeAngle < 80) corrections.push({message: "Bend your back (left) leg more, aiming for a 90-degree knee bend.", affected: ['left_knee', 'left_ankle'], color: 'yellow'});
+                    }
+                    
+                    // Arms extended
+                    if (rightShoulder && rightElbow && rightWrist) {
+                        const rightArmAngle = this.calculateAngle(rightShoulder, rightElbow, rightWrist);
+                        if (rightArmAngle < 160) corrections.push({message: "Extend your front arm straight forward.", affected: ['right_elbow', 'right_wrist'], color: 'yellow'});
+                    }
+                    
+                    // Hips level for balance
+                    if (leftHip && rightHip) {
+                        const hipDifference = Math.abs(leftHip.y - rightHip.y);
+                        if (hipDifference > 40) corrections.push({message: "Keep hips level to maintain balance.", affected: ['left_hip', 'right_hip'], color: 'red'});
+                    }
+                } else if (poseName === 'Vrikshasana') {
+                    // Tree Pose - Foot on inner thigh, hands in prayer
+                    
+                    // Standing leg straight
+                    if (leftHip && leftKnee && leftAnkle) {
+                        const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
+                        if (leftKneeAngle < 170) corrections.push({message: "Straighten your standing (left) leg fully.", affected: ['left_knee', 'left_ankle'], color: 'red'});
+                    }
+                    
+                    // Bent leg foot position - approximate by checking knee alignment
+                    if (rightHip && rightKnee && rightAnkle) {
+                        const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
+                        if (rightKneeAngle < 90) corrections.push({message: "Place your right foot higher on the inner left thigh, not on the knee.", affected: ['right_knee', 'right_ankle'], color: 'yellow'});
+                    }
+                    
+                    // Hands in prayer at chest
+                    if (leftWrist && rightWrist) {
+                        const handsDistance = Math.abs(leftWrist.x - rightWrist.x);
+                        if (handsDistance > 20) corrections.push({message: "Press palms together in prayer position.", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
+                    }
+                    
+                    // Hips forward
+                    if (leftHip && rightHip) {
+                        const hipAngle = Math.abs(leftHip.x - rightHip.x);
+                        if (hipAngle > 50) corrections.push({message: "Square hips forward, avoid twisting.", affected: ['left_hip', 'right_hip'], color: 'yellow'});
+                    }
+                } else if (poseName === 'Baddha Konasana') {
+                    // Bound Angle Pose - Seated, soles together, knees out
+                    
+                    // Knees should be lower than hips
+                    if (leftHip && leftKnee) {
+                        if (leftKnee.y > leftHip.y) corrections.push({message: "Lower your left knee toward the floor.", affected: ['left_knee'], color: 'yellow'});
+                    }
+                    if (rightHip && rightKnee) {
+                        if (rightKnee.y > rightHip.y) corrections.push({message: "Lower your right knee toward the floor.", affected: ['right_knee'], color: 'yellow'});
+                    }
+                    
+                    // Feet close to pelvis - check ankle positions relative to hips
+                    if (leftHip && leftAnkle && rightAnkle) {
+                        const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
+                        if (feetDistance > 60) corrections.push({message: "Bring soles of feet closer to your pelvis.", affected: ['left_ankle', 'right_ankle'], color: 'yellow'});
+                    }
+                    
+                    // Back straight - shoulders over hips
+                    if (leftShoulder && rightShoulder && leftHip && rightHip) {
+                        const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+                        const avgHipY = (leftHip.y + rightHip.y) / 2;
+                        if (avgShoulderY > avgHipY + 20) corrections.push({message: "Lengthen your spine, lift chest forward.", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow'});
+                    }
+                }
+                
+                // If no specific corrections, but all keypoints are visible, provide a positive message.
+                if (corrections.length === 0) {
+                    corrections.push({message: `You are holding ${poseName} well! Focus on your breath.`, color: 'green'});
+                }
+
+                return corrections;
+            },
+            
+            /**
+             * Initializes the camera and TensorFlow MoveNet model.
+             */
+            async startARAssessment() {
+                const video = document.getElementById('video-feed');
+                const canvas = document.getElementById('ar-canvas');
+                const ctx = canvas.getContext('2d');
+                const statusDiv = document.getElementById('camera-status');
+                const statusText = document.getElementById('status-text');
+                const errorText = document.getElementById('error-message');
+                const feedbackText = document.getElementById('current-feedback-text');
+
+                const updateStatus = (message, isError = false) => {
+                    statusText.textContent = message;
+                    if (isError) {
+                        errorText.textContent = message;
+                        errorText.classList.remove('hidden');
+                        statusText.classList.add('hidden');
+                    } else {
+                        errorText.classList.add('hidden');
+                        statusText.classList.remove('hidden');
+                    }
+                    statusDiv.classList.remove('hidden');
+                };
+
+                updateStatus("Loading MoveNet model...");
+                
+                // Clear any running animation frame before starting a new one
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+                
+                // Clean up previous video stream if it exists
+                if (this.videoStream) {
+                    this.videoStream.getTracks().forEach(track => track.stop());
+                }
+
+
+                // 1. Load Model
+                if (!this.detector) {
+                    try {
+                        const model = poseDetection.SupportedModels.MoveNet;
+                        const detectorConfig = {
+                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+                            defaultUrl: 'https://tfhub.dev/google/movenet/singlepose/lightning/4',
+                        };
+                        this.detector = await poseDetection.createDetector(model, detectorConfig);
+                        updateStatus("Model loaded. Requesting camera access...");
+                    } catch (e) {
+                        updateStatus(`Failed to load MoveNet model: ${e.message}`, true);
+                        console.error(e);
+                        return;
+                    }
+                }
+
+                // 2. Get Camera Stream
+                navigator.mediaDevices.getUserMedia({ video: true })
+                .then((stream) => {
+                    this.videoStream = stream;
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        
+                        // Set canvas dimensions to match video stream
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        
+                        // Show video container
+                        document.getElementById('video-container').style.display = 'block';
+                        statusDiv.classList.add('hidden');
+                        document.getElementById('feedback-area').style.display = 'block';
+                        feedbackText.textContent = `Starting ${this.currentPose} analysis... Stand in position!`;
+                        
+                        // Start the ML loop, passing video reference
+                        this.poseDetectionFrame(video, ctx, this.detector, feedbackText);
+                    };
+                })
+                .catch((err) => {
+                    console.error("Camera access error:", err);
+                    updateStatus("Permission denied or camera is in use. Please enable camera access.", true);
+                });
+            },
+            
+            /**
+             * Main loop for MoveNet pose detection and drawing.
+             */
+            async poseDetectionFrame(video, ctx, detector, feedbackText) {
+                // Request next frame first to allow browser to manage repaint speed
+                this.animationFrameId = requestAnimationFrame(() => this.poseDetectionFrame(video, ctx, detector, feedbackText));
+
+                if (detector && video.readyState === 4) {
+                    const poses = await detector.estimatePoses(video);
+                    
+                    // Clear the canvas
+                    ctx.clearRect(0, 0, video.videoWidth, video.videoHeight);
+
+                    if (poses.length > 0) {
+                        const pose = poses[0];
+                        const keypoints = pose.keypoints;
+
+                        // 1. Correction Logic - Get corrections with affected parts
+                        let affectedKeypoints = new Set(); // Track all affected keypoints for coloring
+                        let corrections = [];
+                        
+                        if (this.currentPose) {
+                            corrections = this.checkPose(keypoints, this.currentPose.split('(')[0].trim());
+                            
+                            // Aggregate affected keypoints for drawing
+                            corrections.forEach(c => {
+                                if (c.affected) {
+                                    c.affected.forEach(kpName => affectedKeypoints.add(kpName));
+                                }
+                            });
+
+                            // Display main feedback message
+                            feedbackText.textContent = corrections[0].message;
+                            
+                            // Update feedback color (optional, based on first message)
+                            if (corrections[0].color === 'red') {
+                                feedbackText.classList.remove('text-green-400', 'text-yellow-400', 'text-gray-400');
+                                feedbackText.classList.add('text-red-400');
+                            } else if (corrections[0].color === 'yellow') {
+                                feedbackText.classList.remove('text-green-400', 'text-red-400', 'text-gray-400');
+                                feedbackText.classList.add('text-yellow-400');
+                            } else {
+                                feedbackText.classList.remove('text-red-400', 'text-yellow-400');
+                                feedbackText.classList.add('text-green-400');
+                            }
+
+                        } else {
+                            feedbackText.textContent = "Select a pose to begin tracking!";
+                        }
+                        
+                        // 2. Drawing Logic
+                        this.drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections);
+                        this.drawSkeleton(video, keypoints, ctx, affectedKeypoints, corrections);
+
+                    } else {
+                        // No pose detected
+                        feedbackText.textContent = this.currentPose ? `No person detected. Stand further back or adjust lighting.` : 'Select a pose to begin tracking!';
+                    }
+                }
+            },
+
+            /**
+             * Draws circles on the keypoints detected by MoveNet with color coding.
+             */
+            drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections) {
+                keypoints.forEach((keypoint, index) => {
+                    if (keypoint.score > this.MIN_CONFIDENCE) {
+                        // Coordinates need to be adjusted for the mirrored video feed
+                        const x = video.videoWidth - keypoint.x;
+                        const y = keypoint.y;
+
+                        // Determine color: red for error, yellow for warning, green for good, default blue/white
+                        let fillColor = '#42A5F5'; // Default blue
+                        const keypointName = Object.keys(this.keypointIndices).find(name => this.keypointIndices[name] === index);
+
+                        if (affectedKeypoints.has(keypointName)) {
+                            // Check if it's marked as error or warning
+                            const corr = corrections.find(c => c.affected && c.affected.includes(keypointName));
+                            if (corr && corr.color === 'red') {
+                                fillColor = '#EF4444'; // Red for error
+                            } else if (corr && corr.color === 'yellow') {
+                                fillColor = '#F59E0B'; // Yellow for warning
+                            } else {
+                                fillColor = '#10B981'; // Green for good if perfect
+                            }
+                        } else if (keypoint.score > 0.8) {
+                            fillColor = 'white'; // High confidence white
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                        ctx.fillStyle = fillColor;
+                        ctx.fill();
+                        
+                        // Add a subtle border for contrast
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                });
+            },
+
+            /**
+             * Draws lines connecting the keypoints detected by MoveNet with color coding.
+             */
+            drawSkeleton(video, keypoints, ctx, affectedKeypoints, corrections) {
+                ctx.lineWidth = 3;
+
+                this.SKELETON_CONNECTIONS.forEach(([i, j]) => {
+                    const kp1 = keypoints.find(k => k.id === i);
+                    const kp2 = keypoints.find(k => k.id === j);
+
+                    if (kp1 && kp2 && kp1.score > this.MIN_CONFIDENCE && kp2.score > this.MIN_CONFIDENCE) {
+                        
+                        const kp1Name = Object.keys(this.keypointIndices).find(name => this.keypointIndices[name] === i);
+                        const kp2Name = Object.keys(this.keypointIndices).find(name => this.keypointIndices[name] === j);
+
+                        let lineColor = '#1E88E5'; // Default line color (Secondary Blue)
+                        let corrColor = null;
+
+                        // Check if either keypoint in the connection is part of a severe correction (red or yellow)
+                        if (affectedKeypoints.has(kp1Name) || affectedKeypoints.has(kp2Name)) {
+                            const relevantCorrections = corrections.filter(c => 
+                                c.affected && (c.affected.includes(kp1Name) || c.affected.includes(kp2Name))
+                            );
+                            
+                            // Prioritize the worst color (red > yellow > green)
+                            if (relevantCorrections.some(c => c.color === 'red')) {
+                                corrColor = 'red';
+                            } else if (relevantCorrections.some(c => c.color === 'yellow')) {
+                                corrColor = 'yellow';
+                            } else if (relevantCorrections.some(c => c.color === 'green')) {
+                                corrColor = 'green';
+                            }
+                        }
+
+                        if (corrColor === 'red') {
+                            lineColor = '#EF4444'; // Red
+                        } else if (corrColor === 'yellow') {
+                            lineColor = '#F59E0B'; // Yellow
+                        } else if (corrColor === 'green') {
+                            lineColor = '#10B981'; // Green
+                        }
+
+                        ctx.strokeStyle = lineColor;
+                        ctx.beginPath();
+
+                        // Mirror X coordinates for drawing
+                        const p1x = video.videoWidth - kp1.x;
+                        const p1y = kp1.y;
+                        const p2x = video.videoWidth - kp2.x;
+                        const p2y = kp2.y;
+
+                        ctx.moveTo(p1x, p1y);
+                        ctx.lineTo(p2x, p2y);
+                        ctx.stroke();
+                    }
+                });
+            },
+            
+            /**
+             * Stops the AR session and frees resources.
+             */
+            stopARAssessment() {
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+                if (this.videoStream) {
+                    this.videoStream.getTracks().forEach(track => track.stop());
+                    this.videoStream = null;
+                }
+                // Hide the video container and show selection again
+                const videoContainer = document.getElementById('video-container');
+                const poseSelection = document.getElementById('pose-selection');
+                const arSession = document.getElementById('ar-session');
+                const feedbackArea = document.getElementById('feedback-area');
+
+                if (videoContainer) videoContainer.style.display = 'none';
+                if (poseSelection) poseSelection.style.display = 'grid';
+                if (arSession) arSession.style.display = 'block';
+                if (feedbackArea) feedbackArea.style.display = 'none';
+
+                this.currentPose = null;
+                console.log("AR assessment stopped.");
+            },
+            
+            // --- Virtual Assistant Methods ---
+            setupAssistantListeners() {
+                const form = document.getElementById('assistant-form');
+                const input = document.getElementById('user-input');
+                const sendButton = document.getElementById('send-button');
+                
+                if (!form || !input || !sendButton) return; // Exit if elements are not rendered
+
+                // Clear previous listeners to prevent duplicates
+                form.removeEventListener('submit', this.handleAssistantSubmit);
+                
+                // Bind and store the handler to be able to remove it later
+                this.handleAssistantSubmit = (e) => this.processAssistantQuery(e, form, input, sendButton);
+                
+                form.addEventListener('submit', this.handleAssistantSubmit);
+            },
+            
+            async processAssistantQuery(e, form, input, sendButton) {
+                e.preventDefault();
+                const query = input.value.trim();
+                if (!query) return;
+
+                // 1. Display user message
+                this.addMessageToChat(query, 'user');
+                input.value = '';
+                
+                // 2. Show loading state on button
+                this.showLoading(sendButton);
+
+                // 3. Call Gemini API
+                const fullPrompt = `${VIRTUAL_ASSISTANT_SYSTEM_PROMPT} User Query: ${query}`;
+                const response = await callGeminiAssistant(fullPrompt);
+
+                // 4. Display AI response
+                this.addMessageToChat(response.text, 'ai', response.sources);
+                
+                // 5. Hide loading state
+                this.hideLoading(sendButton);
+            },
+            
+            /**
+             * Converts simple markdown (**, *) to HTML for display.
+             */
+            markdownToHtml(text) {
+                // Ensure text is a string
+                if (typeof text !== 'string') return '';
+                
+                let html = text;
+                // Bold: **text** -> <strong>text</strong>
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                // Italic: *text* -> <em>text</em>
+                html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                // Simple Newlines to <br>
+                html = html.replace(/\n/g, '<br>');
+                // List items: - item -> <ul><li>item...
+                // This is a complex conversion and for simple markdown we'll rely on the whitespace-pre-wrap style.
+                // If a full markdown parser is needed, a library should be used.
+                return html;
+            },
+            
+            /**
+             * Adds a message bubble to the chat container.
+             */
+            addMessageToChat(text, sender, sources = []) {
+                const container = document.getElementById('chat-messages');
+                if (!container) return;
+
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+                
+                const bubbleClasses = sender === 'user' 
+                    ? 'bg-secondary text-gray-100 p-3 rounded-xl rounded-br-none max-w-[80%] shadow-lg' 
+                    : 'bg-primary text-gray-900 p-3 rounded-xl rounded-bl-none max-w-[80%] shadow-lg';
+                
+                let sourcesHtml = '';
+                if (sources.length > 0) {
+                    sourcesHtml = '<div class="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">';
+                    sourcesHtml += 'Source(s): ';
+                    // Changed hover color to primary (blue)
+                    sources.slice(0, 1).forEach((s) => {
+                        sourcesHtml += `<a href="${s.uri}" target="_blank" class="text-primary hover:text-secondary hover:underline transition font-medium">${s.title}</a>`;
+                    });
+                    sourcesHtml += '</div>';
+                }
+
+                messageDiv.innerHTML = `<div class="${bubbleClasses} whitespace-pre-wrap">${this.markdownToHtml(text)} ${sourcesHtml}</div>`;
+                container.appendChild(messageDiv);
+                container.scrollTop = container.scrollHeight; // Auto-scroll to bottom
+            },
+
+            showLoading(button) {
+                button.disabled = true;
+                button.innerHTML = '<div class="loading-animation"></div>';
+            },
+
+            hideLoading(button) {
+                button.disabled = false;
+                // Restore the original SVG icon
+                button.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.917a.75.75 0 0 0 .926.096l4.64-4.432 3.483 3.125a.75.75 0 0 0 .926-.096l2.432-7.917a.75.75 0 0 0-.926-.94l-2.432 7.917a.75.75 0 0 0-.926.096l-4.64 4.432-3.483-3.125Z" />
+                    </svg>
+                `;
+            },
+            
+            // --- Rendering Methods ---
+            renderNav() {
+                this.navTabsEl.innerHTML = Object.keys(this.views).map(key => {
+                    const view = this.views[key];
+                    const isActive = this.currentView === key;
+                    
+                    return `
+                        <button onclick="app.navigate('${key}')" 
+                                class="flex flex-col items-center p-2 rounded-xl transition-all ${isActive ? 'text-primary bg-secondary/30' : 'text-gray-500 hover:text-gray-300'}">
+                            ${view.icon}
+                            <span class="text-xs mt-1 md:text-sm">${view.name}</span>
+                        </button>
+                    `;
+                }).join('');
+            },
+
+            renderContent() {
+                this.contentEl.innerHTML = '';
+                const viewKey = this.currentView;
+                let contentHTML = '';
+
+                // FIX: Ensure all rendering methods are accessed via 'this' and are defined.
+                switch (viewKey) {
+                    case 'dashboard':
+                        contentHTML = this.renderDashboard();
+                        break;
+                    case 'asana':
+                        contentHTML = this.renderAsanaLibrary();
+                        break;
+                    case 'routine':
+                        contentHTML = this.renderRoutine();
+                        break;
+                    case 'ar_correction':
+                        contentHTML = this.renderARCorrection();
+                        break;
+                    case 'assistant':
+                        contentHTML = this.renderVirtualAssistant();
+                        break;
+                    default:
+                        contentHTML = '<div class="text-center text-gray-500 py-10">404 | View Not Found</div>';
+                }
+                
+                this.contentEl.innerHTML = `
+                    <h2 class="text-3xl font-extrabold text-gray-100 mb-6 border-b pb-3 border-gray-700">${this.views[viewKey]?.name || 'SUNDAY'}</h2>
+                    ${contentHTML}
+                `;
+            },
+
+            renderDashboard() {
+                // Dashboard Cards with mock data and links to sections
+                const featureCards = [
+                    { key: 'asana', icon: '🧘', title: 'Pose Library', desc: 'Browse over 100 asanas with benefits and guidance.', status: null },
+                    { key: 'ar_correction', icon: '🤳', title: 'Posture Correction', desc: 'Get real-time AR feedback on your poses using your camera.', status: null },
+                    { key: 'routine', icon: '🗓️', title: 'Your Daily Routine', desc: 'Personalized sequences and wellness recommendations.', status: null },
+                    { key: 'assistant', icon: '💬', title: 'Ask the AI', desc: 'Chat with your personal certified yoga assistant, Sunday.', status: null },
+                ];
+
+                return `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${featureCards.map(card => `
+                            <button ${card.key ? `onclick="app.navigate('${card.key}')"` : 'disabled'} class="p-6 bg-secondary/20 card-effect rounded-2xl shadow-lg flex flex-col items-start text-left ${card.status ? 'opacity-70 cursor-not-allowed bg-gray-900 shadow-inner text-gray-500' : 'hover:bg-secondary/40'}">
+                                <span class="text-4xl mb-3">${card.icon}</span>
+                                <h3 class="text-xl font-bold text-gray-100">${card.title}</h3>
+                                <p class="text-gray-400 text-sm mt-1">${card.desc}</p>
+                                ${card.status ? `<span class="mt-2 text-xs font-semibold text-red-400 bg-red-900 px-2 py-1 rounded-full">${card.status}</span>` : ''}
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div class="mt-8 p-6 bg-gray-900 border border-primary/50 rounded-2xl shadow-xl">
+                        <h3 class="text-2xl font-extrabold text-primary mb-5 border-b pb-3 border-gray-700">Your Progress Snapshot</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+
+                            <div class="p-4 bg-card rounded-xl shadow-lg border border-gray-700 card-effect">
+                                <p class="text-sm font-medium text-gray-400 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1 text-primary">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 0 0 9-9c0-1.657-.643-3.237-1.802-4.407L14.735 4.5 12 6.75 9.265 4.5l-2.463 2.15C5.643 8.763 5 10.343 5 12a9 9 0 0 0 9 9Z" />
+                                    </svg>
+                                    Posture Score
+                                </p>
+                                <p class="text-4xl font-extrabold text-accent mt-1">88<span class="text-2xl text-gray-400">/100</span></p>
+                                <div class="w-full bg-gray-700 rounded-full h-2.5 mt-3">
+                                    <div class="bg-accent h-2.5 rounded-full" style="width: 88%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">Alignment goal: 90%</p>
+                            </div>
+
+                            <div class="p-4 bg-card rounded-xl shadow-lg border border-gray-700 card-effect">
+                                <p class="text-sm font-medium text-gray-400 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1 text-warning">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 0 12 21 8.252 8.252 0 0 0 8.638 5.214M12 4.2c-1.35 0-2.617.261-3.754.757L8.638 5.214M15.362 5.214l1.116-1.116M8.638 5.214l-1.116-1.116M12 4.2V2.25" />
+                                    </svg>
+                                    Current Streak
+                                </p>
+                                <p class="text-4xl font-extrabold text-primary mt-1">14 <span class="text-2xl text-gray-400">Days</span></p>
+                                <p class="text-xs text-gray-500 mt-3">Keep it up! Longest streak: 21 Days</p>
+                            </div>
+
+                            <div class="p-4 bg-card rounded-xl shadow-lg border border-gray-700 card-effect">
+                                <p class="text-sm font-medium text-gray-400 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1 text-success">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 0 12 21 8.252 8.252 0 0 0 8.638 5.214M12 4.2c-1.35 0-2.617.261-3.754.757L8.638 5.214M15.362 5.214l1.116-1.116M8.638 5.214l-1.116-1.116M12 4.2V2.25" />
+                                    </svg>
+                                    Kcal Burned (Today)
+                                </p>
+                                <p class="text-4xl font-extrabold text-success mt-1">450 <span class="text-2xl text-gray-400">kcal</span></p>
+                                <div class="w-full bg-gray-700 rounded-full h-2.5">
+                                    <div class="bg-primary h-2.5 rounded-full" style="width: 75%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">Target: 600 kcal</p>
+                            </div>
+                        </div>
+                        <p class="mt-6 text-sm text-gray-400 pt-4 border-t border-gray-800 text-center">For personalized tracking of sleep, stress, and food, explore the **Routine** section.</p>
+                    </div>
+                `;
+            },
+
+            renderAsanaLibrary() {
+                return `
+                    <div class="space-y-4">
+                        <div class="p-4 bg-accent/20 border-l-4 border-accent rounded-xl shadow-sm">
+                            <p class="text-gray-100 font-medium">✨ Tip: Use the Virtual Assistant for demo videos and detailed guides on any pose!</p>
+                        </div>
+                        ${asanaData.map(asana => `
+                            <div class="p-5 border rounded-xl shadow-lg bg-card card-effect">
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                                    <h3 class="text-xl font-extrabold text-gray-100">${asana.name} <span class="text-sm font-medium text-gray-500">${asana.sanskrit}</span></h3>
+                                    <span class="px-3 py-1 text-xs rounded-full font-semibold mt-2 sm:mt-0 ${asana.category === 'Beginner' ? 'bg-primary/40 text-gray-900 border-primary/60' : asana.category === 'Intermediate' ? 'bg-blue-600/50 text-blue-100 border-blue-600' : 'bg-red-600/50 text-red-100 border-red-600'}">${asana.category}</span>
+                                </div>
+                                
+                                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <p class="font-bold text-primary">Benefits:</p>
+                                        <p class="text-gray-300">${asana.benefits}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-warning">Precautions:</p>
+                                        <p class="text-gray-300">${asana.precaution}</p>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <p class="font-bold text-gray-400">Targeted Areas: <span class="font-normal">${asana.targeted}</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            },
+
+            renderRoutine() {
+                return `
+                    <div class="space-y-6">
+                        <div class="p-4 bg-primary/20 border-l-4 border-primary rounded-xl shadow-sm">
+                            <h4 class="text-lg font-bold text-gray-100 mb-1">🧘 Today's Recommended Routine</h4>
+                            <p class="text-gray-300 text-sm">Based on your low sleep score (6 hours) and medium stress level (3/5).</p>
+                        </div>
+                        
+                        <div class="p-6 bg-card rounded-2xl shadow-xl border border-gray-700">
+                            <h3 class="text-xl font-extrabold text-primary mb-3">Stress Relief Flow (20 Minutes)</h3>
+                            <p class="text-gray-400 mb-4">A gentle sequence to calm the nervous system and release tension in the neck and shoulders.</p>
+                            
+                            <ul class="list-disc list-inside text-gray-300 space-y-2 ml-4">
+                                <li><strong>Opening:</strong> 5 mins of Mindful Breathing (Dirga Pranayama)</li>
+                                <li><strong>Flow:</strong> Cat-Cow, Child's Pose, Downward Dog (modified), Seated Twist</li>
+                                <li><strong>Focus Poses:</strong> Supported Bridge Pose (Viparita Karani)</li>
+                                <li><strong>Closing:</strong> 5 mins of Savasana with a guided body scan</li>
+                            </ul>
+                            
+                            <button class="mt-6 w-full py-2 bg-primary text-gray-900 font-bold rounded-xl hover:bg-primary/80 transition">
+                                Start Routine Now
+                            </button>
+                        </div>
+                        
+                        <div class="p-6 bg-card rounded-2xl shadow-xl border border-gray-700">
+                            <h3 class="text-xl font-extrabold text-accent mb-4">Wellness Tracking (Mock Data)</h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div class="p-3 bg-gray-900 rounded-lg">
+                                    <p class="text-gray-400">Sleep Quality</p>
+                                    <p class="text-lg font-bold text-white">6.2 hrs <span class="text-red-500">🔻</span></p>
+                                </div>
+                                <div class="p-3 bg-gray-900 rounded-lg">
+                                    <p class="text-gray-400">Stress Level</p>
+                                    <p class="text-lg font-bold text-white">3/5 <span class="text-yellow-500">🟡</span></p>
+                                </div>
+                                <div class="col-span-2 p-3 bg-gray-900 rounded-lg">
+                                    <p class="text-gray-400">Hydration Goal</p>
+                                    <div class="w-full bg-gray-700 rounded-full h-2.5 mt-2">
+                                        <div class="bg-primary h-2.5 rounded-full" style="width: 65%"></div>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-1">65% Complete (8/12 glasses)</p>
+                                </div>
+                            </div>
+                            <p class="mt-4 text-xs text-gray-500">Metrics are integrated via mock API. Full functionality requires wearable device sync.</p>
+                        </div>
+                    </div>
+                `;
+            },
+            
+            renderARCorrection() {
+                // AR Correction View with pose selection and video feed
+                return `
+                    <div class="space-y-6">
+                        <div class="p-4 bg-accent/20 border-l-4 border-accent rounded-xl shadow-sm">
+                            <p class="text-gray-100 font-medium">📷 **Before starting:** Ensure you have enough space and your full body is visible in the frame for best results.</p>
+                        </div>
+
+                        <div id="pose-selection" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${asanaData.map(asana => `
+                                <button onclick="app.selectAsanaAndStart('${asana.name}')" class="p-6 bg-secondary/20 card-effect rounded-2xl shadow-lg flex flex-col items-start text-left hover:bg-secondary/40">
+                                    <span class="text-4xl mb-3">🧘</span>
+                                    <h3 class="text-xl font-bold text-gray-100">${asana.name} <span class="text-sm font-medium text-gray-500">${asana.sanskrit}</span></h3>
+                                    <span class="px-2 py-1 text-xs rounded-full font-semibold mt-2 bg-primary/40 text-gray-900">${asana.category}</span>
+                                    <p class="text-gray-400 text-sm mt-2">${asana.benefits}</p>
+                                </button>
+                            `).join('')}
+                        </div>
+
+                        <div id="ar-session" style="display: none;">
+                            <div id="video-container" style="display: none;">
+                                <video id="video-feed" autoplay playsinline class="rounded-xl"></video>
+                                <canvas id="ar-canvas"></canvas>
+                                <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 text-gray-400 rounded-xl">
+                                    <div class="loading-animation mb-3"></div>
+                                    <p id="status-text">Loading...</p>
+                                    <p id="error-message" class="text-red-500 mt-2 text-sm hidden"></p>
+                                </div>
+                            </div>
+
+                            <div id="feedback-area" style="display: none;" class="mt-4 p-4 bg-card rounded-xl border border-gray-700 shadow-md">
+                                <p class="text-sm font-bold text-primary mb-1">Real-Time Feedback:</p>
+                                <p id="current-feedback-text" class="text-lg text-gray-400 font-medium transition-colors">Select a pose to begin.</p>
+                                <button onclick="app.stopARAssessment()" class="mt-4 py-2 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition">
+                                    Stop AR Tracking
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+            
+            renderVirtualAssistant() {
+                // The chat interface HTML
+                return `
+                    <div id="assistant-container" class="flex flex-col h-full">
+                        <div id="chat-messages" class="scrollable-content flex-grow p-4 space-y-4 bg-gray-900 rounded-xl shadow-inner mb-4">
+                            <div class="flex justify-start">
+                                <div class="bg-primary text-gray-900 p-3 rounded-xl rounded-bl-none max-w-[80%] shadow-lg">
+                                    <p class="font-medium">Hello! I am SUNDAY, your personal yoga assistant. Ask me anything about poses, benefits, or request a custom session plan!</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form id="assistant-form" class="flex items-center space-x-3 p-2 bg-card rounded-xl shadow-xl border border-gray-700">
+                            <input type="text" id="user-input" placeholder="e.g., Which pose helps with digestion? Or, 30-min plan for sleep." class="flex-grow p-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary">
+                            <button id="send-button" type="submit" class="p-3 bg-primary text-gray-900 rounded-lg hover:bg-primary/80 transition shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                    <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.917a.75.75 0 0 0 .926.096l4.64-4.432 3.483 3.125a.75.75 0 0 0 .926-.096l2.432-7.917a.75.75 0 0 0-.926-.94l-2.432 7.917a.75.75 0 0 0-.926.096l-4.64 4.432-3.483-3.125Z" />
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                `;
+            },
+        };
+    
+        // --- Initialization on Window Load ---
+        window.onload = function() {
+            app.init();
+            
+            // Cursor Glow Effect Logic
+            const glow = document.getElementById('cursor-glow');
+            document.addEventListener('mousemove', (e) => {
+                glow.style.left = `${e.clientX}px`;
+                glow.style.top = `${e.clientY}px`;
+            });
+        };
+
+    
+        
+    </script>
+</body>
+</html>
