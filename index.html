@@ -164,12 +164,8 @@
         // --- Mock Data ---
         const asanaData = [
             { name: 'Tadasana', sanskrit: '(Mountain Pose)', category: 'Beginner', benefits: 'Improves balance and posture.', precaution: 'Avoid if experiencing headache.', targeted: 'Spine, Core, Legs' },
-            { name: 'Adho Mukha Svanasana', sanskrit: '(Downward Dog)', category: 'Intermediate', benefits: 'Calms the brain, strengthens arms and legs.', precaution: 'Avoid with wrist injuries.', targeted: 'Shoulders, Hamstrings' },
-            { name: 'Virabhadrasana III', sanskrit: '(Warrior III)', category: 'Advanced', benefits: 'Tones abdomen, improves balance.', precaution: 'Avoid if high blood pressure.', targeted: 'Ankles, Legs, Back' },
-            { name: 'Namastey', sanskrit: '(Prayer Pose)', category: 'Beginner', benefits: 'Fosters inner peace and focus.', precaution: 'Keep shoulders relaxed.', targeted: 'Chest, Shoulders' },
-            { name: 'Natarajasana', sanskrit: '(Lord of the Dance Pose)', category: 'Advanced', benefits: 'Improves balance, opens hips, strengthens legs and core.', precaution: 'Avoid if ankle or knee injuries.', targeted: 'Hips, Legs, Shoulders' },
             { name: 'Vrikshasana', sanskrit: '(Tree Pose)', category: 'Beginner', benefits: 'Enhances balance, strengthens legs, tones abdomen.', precaution: 'Avoid if high blood pressure or vertigo.', targeted: 'Legs, Core, Ankles' },
-            { name: 'Baddha Konasana', sanskrit: '(Bound Angle Pose)', category: 'Beginner', benefits: 'Opens hips, relieves menstrual discomfort, stretches inner thighs.', precaution: 'Avoid if knee or groin injuries.', targeted: 'Hips, Inner Thighs, Groin' },
+            { name: 'Namastey', sanskrit: '(Prayer Pose)', category: 'Beginner', benefits: 'Fosters inner peace and focus.', precaution: 'Keep shoulders relaxed.', targeted: 'Chest, Shoulders' }
         ];
         
         // --- MoveNet/AR Correction Globals ---
@@ -531,8 +527,8 @@
                     document.getElementById('reference-precaution').textContent = asana.precaution;
                 }
                 
-                // Load reference video if available
-                this.loadReferenceVideo(poseName);
+                // Load reference image if available
+                this.loadReferenceImage(poseName);
                 
                 // Reset scoring system
                 poseScore = 100;
@@ -555,30 +551,28 @@
             },
             
             /**
-             * Loads reference video for the selected pose
+             * Loads reference image for the selected pose
              */
-            loadReferenceVideo(poseName) {
-                const videoElement = document.getElementById('reference-video');
+            loadReferenceImage(poseName) {
+                const imageElement = document.getElementById('reference-image');
                 const placeholder = document.getElementById('reference-placeholder');
                 
-                // Map pose names to reference videos (you can expand this)
-                const videoMap = {
-                    'Tadasana': 'assets/reference_videos/WhatsApp Video 2025-11-06 at 16.58.32_d23ae766_1762435065437.mp4',
-                    'Vrikshasana': 'assets/reference_videos/WhatsApp Video 2025-11-06 at 16.59.08_8c833d43_1762435067481.mp4'
+                // Map pose names to reference images
+                const imageMap = {
+                    'Tadasana': 'assets/poses/tadasana.jpg',
+                    'Vrikshasana': 'assets/poses/vrikshasana.jpg',
+                    'Namastey': 'assets/poses/namaste.png'
                 };
                 
-                const videoPath = videoMap[poseName];
+                const imagePath = imageMap[poseName];
                 
-                if (videoPath) {
-                    videoElement.src = videoPath;
-                    videoElement.classList.remove('hidden');
-                    placeholder.classList.add('hidden');
-                    videoElement.play().catch(e => {
-                        console.log('Auto-play prevented, user needs to interact first');
-                    });
+                if (imagePath && imageElement) {
+                    imageElement.src = imagePath;
+                    imageElement.classList.remove('hidden');
+                    if (placeholder) placeholder.classList.add('hidden');
                 } else {
-                    videoElement.classList.add('hidden');
-                    placeholder.classList.remove('hidden');
+                    if (imageElement) imageElement.classList.add('hidden');
+                    if (placeholder) placeholder.classList.remove('hidden');
                 }
             },
             
@@ -1598,9 +1592,9 @@
                                 <div id="reference-container" style="display: none;" class="bg-card rounded-xl border border-gray-700 shadow-md p-4">
                                     <h3 class="text-lg font-bold text-primary mb-3">Reference Guide</h3>
                                     
-                                    <!-- Reference Video or Image -->
+                                    <!-- Reference Image -->
                                     <div id="reference-media-container" class="bg-gray-900 rounded-xl overflow-hidden mb-3" style="min-height: 200px;">
-                                        <video id="reference-video" loop muted playsinline class="w-full h-full object-cover hidden rounded-xl"></video>
+                                        <img id="reference-image" class="w-full h-full object-contain hidden rounded-xl" alt="Reference Pose">
                                         <div id="reference-placeholder" class="flex items-center justify-center p-6" style="min-height: 200px;">
                                             <div class="text-center">
                                                 <span id="reference-emoji" class="text-8xl">🧘</span>
