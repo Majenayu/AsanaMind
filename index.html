@@ -656,36 +656,26 @@
                     // Mountain Pose - Standing Straight
                     
                     // 1. Leg Straightness
-                    if (!leftKnee || !leftAnkle) {
-                        corrections.push({message: "Cannot track left leg. Check visibility.", affected: ['left_knee', 'left_ankle']});
-                    } else {
+                    if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 170) corrections.push({message: "Straighten your left leg fully (knee angle below 170°).", affected: ['left_knee', 'left_ankle'], color: 'red'});
+                        if (leftKneeAngle < 165) corrections.push({message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red'});
                     }
 
-                    if (!rightKnee || !rightAnkle) {
-                         corrections.push({message: "Cannot track right leg. Check visibility.", affected: ['right_knee', 'right_ankle']});
-                    } else {
+                    if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 170) corrections.push({message: "Straighten your right leg fully (knee angle below 170°).", affected: ['right_knee', 'right_ankle'], color: 'red'});
+                        if (rightKneeAngle < 165) corrections.push({message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'red'});
                     }
                     
                     // 2. Hip/Torso Alignment (Simple vertical check)
                     if (leftHip && rightHip) {
                         const hipDifference = Math.abs(leftHip.y - rightHip.y);
-                        if (hipDifference > 30) corrections.push({message: "Keep your hips level (side-to-side wobble).", affected: ['left_hip', 'right_hip'], color: 'yellow'});
+                        if (hipDifference > 40) corrections.push({message: "Hips: keep level", affected: ['left_hip', 'right_hip'], color: 'yellow'});
                     }
                     
                     // 3. Shoulder Alignment (Simple vertical check)
                     if (leftShoulder && rightShoulder) {
                         const shoulderDifference = Math.abs(leftShoulder.y - rightShoulder.y);
-                        if (shoulderDifference > 30) corrections.push({message: "Relax your shoulders down and keep them level.", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow'});
-                    }
-
-                    // 4. Arm Straightness (Arms straight down, palms facing forward) - assuming arms are straight down by side
-                    if (leftShoulder && leftElbow && leftWrist) {
-                        const leftArmAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
-                        if (leftArmAngle < 160) corrections.push({message: "Straighten your left arm.", affected: ['left_elbow', 'left_wrist'], color: 'yellow'});
+                        if (shoulderDifference > 40) corrections.push({message: "Shoulders: relax and level", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow'});
                     }
                     
                 } else if (poseName === 'Adho Mukha Svanasana') {
@@ -749,24 +739,24 @@
                     // 1. Feet together
                     if (leftAnkle && rightAnkle) {
                         const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
-                        if (feetDistance > 20) {
-                            corrections.push({message: "Bring your feet together at the base.", affected: ['left_ankle', 'right_ankle'], color: 'yellow'});
+                        if (feetDistance > 30) {
+                            corrections.push({message: "Feet: bring closer together", affected: ['left_ankle', 'right_ankle'], color: 'yellow'});
                         }
                     }
 
                     // 2. Hands pressed together at chest level
                     if (leftWrist && rightWrist) {
                         const handsDistance = Math.abs(leftWrist.x - rightWrist.x);
-                        if (handsDistance > 20) {
-                            corrections.push({message: "Press your palms firmly together.", affected: ['left_wrist', 'right_wrist'], color: 'red'});
+                        if (handsDistance > 25) {
+                            corrections.push({message: "Hands: press palms together", affected: ['left_wrist', 'right_wrist'], color: 'red'});
                         }
                         
                         // Approximate chest level using average shoulder Y
                         if (leftShoulder && rightShoulder) {
                             const chestY = (leftShoulder.y + rightShoulder.y) / 2;
                             const avgHandY = (leftWrist.y + rightWrist.y) / 2;
-                            if (Math.abs(avgHandY - chestY) > 50) {
-                                corrections.push({message: "Position your hands at heart center level.", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
+                            if (Math.abs(avgHandY - chestY) > 60) {
+                                corrections.push({message: "Hands: raise to heart level", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
                             }
                         }
                     }
@@ -774,11 +764,11 @@
                     // 3. Straight posture (similar to Tadasana legs and hips)
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 170) corrections.push({message: "Straighten your legs for a grounded stance.", affected: ['left_knee', 'left_ankle'], color: 'yellow'});
+                        if (leftKneeAngle < 165) corrections.push({message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'yellow'});
                     }
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 170) corrections.push({message: "Straighten your legs for a grounded stance.", affected: ['right_knee', 'right_ankle'], color: 'yellow'});
+                        if (rightKneeAngle < 165) corrections.push({message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'yellow'});
                     }
                 } else if (poseName === 'Natarajasana') {
                     // Lord of the Dance Pose - Balancing on one leg, grabbing back foot
@@ -812,25 +802,25 @@
                     // Standing leg straight
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 170) corrections.push({message: "Straighten your standing (left) leg fully.", affected: ['left_knee', 'left_ankle'], color: 'red'});
+                        if (leftKneeAngle < 165) corrections.push({message: `Standing leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red'});
                     }
                     
-                    // Bent leg foot position - approximate by checking knee alignment
+                    // Bent leg foot position
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 90) corrections.push({message: "Place your right foot higher on the inner left thigh, not on the knee.", affected: ['right_knee', 'right_ankle'], color: 'yellow'});
+                        if (rightKneeAngle < 80) corrections.push({message: "Right foot: place higher on thigh", affected: ['right_knee', 'right_ankle'], color: 'yellow'});
                     }
                     
                     // Hands in prayer at chest
                     if (leftWrist && rightWrist) {
                         const handsDistance = Math.abs(leftWrist.x - rightWrist.x);
-                        if (handsDistance > 20) corrections.push({message: "Press palms together in prayer position.", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
+                        if (handsDistance > 25) corrections.push({message: "Hands: press palms together", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
                     }
                     
                     // Hips forward
                     if (leftHip && rightHip) {
                         const hipAngle = Math.abs(leftHip.x - rightHip.x);
-                        if (hipAngle > 50) corrections.push({message: "Square hips forward, avoid twisting.", affected: ['left_hip', 'right_hip'], color: 'yellow'});
+                        if (hipAngle > 60) corrections.push({message: "Hips: square forward", affected: ['left_hip', 'right_hip'], color: 'yellow'});
                     }
                 } else if (poseName === 'Baddha Konasana') {
                     // Bound Angle Pose - Seated, soles together, knees out
@@ -1042,7 +1032,7 @@
                             this.updateScore(poseScore);
                             
                             // Log all corrections to the correction log panel (less frequently)
-                            if (correctionCounter % 3 === 0) { // Update log every 3 frames
+                            if (correctionCounter % 20 === 0) { // Update log every 20 frames (about once per second)
                                 this.logCorrections(corrections);
                             }
 
@@ -1054,10 +1044,16 @@
                         this.drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections);
                         this.drawSkeleton(video, keypoints, ctx, affectedKeypoints, corrections);
                         
-                        // 3. Draw Score on Canvas
+                        // 3. Draw Score on Canvas (Fix mirrored text)
                         if (this.currentPose) {
+                            // Save the current canvas state
+                            ctx.save();
+                            
+                            // Flip horizontally to un-mirror the text
+                            ctx.scale(-1, 1);
+                            
                             ctx.font = 'bold 48px Inter, sans-serif';
-                            ctx.textAlign = 'right';
+                            ctx.textAlign = 'left';
                             ctx.textBaseline = 'top';
                             
                             // Add shadow for better visibility
@@ -1075,14 +1071,11 @@
                                 ctx.fillStyle = '#EF4444'; // Red
                             }
                             
-                            // Draw score
-                            ctx.fillText(Math.round(poseScore), video.videoWidth - 20, 20);
+                            // Draw score (negative x because canvas is flipped)
+                            ctx.fillText(Math.round(poseScore), -video.videoWidth + 20, 20);
                             
-                            // Reset shadow
-                            ctx.shadowColor = 'transparent';
-                            ctx.shadowBlur = 0;
-                            ctx.shadowOffsetX = 0;
-                            ctx.shadowOffsetY = 0;
+                            // Restore the canvas state
+                            ctx.restore();
                         }
 
                     } else {
