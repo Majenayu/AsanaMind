@@ -185,6 +185,11 @@
         let poseScore = 100; // Start at perfect score
         let scoreHistory = []; // Track score over time for averaging
 
+        // --- Milestone Tracking Variables ---
+        let milestonesEarned = parseInt(localStorage.getItem('milestonesEarned') || '0');
+        let highAccuracyTimer = 0; // Counts frames with 70%+ accuracy
+        let lastMilestoneTime = 0; // Prevents double-counting
+
         // Define expected body parts and confidence score threshold
         const keypointIndices = {
             'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4,
@@ -496,7 +501,133 @@
                     setTimeout(() => this.setupAssistantListeners(), 50);
                 }
                 
+                // Update milestone UI when navigating to dashboard
+                if (viewKey === 'dashboard') {
+                    setTimeout(() => this.updateMilestoneUI(), 50);
+                }
+                
                 // Setup music listeners block removed.
+            },
+            
+            // --- Milestone Tracking Functions ---
+            updateMilestoneUI() {
+                const milestonesEarnedEl = document.getElementById('milestones-earned');
+                const progressBar = document.getElementById('milestone-progress-bar');
+                const milestone1 = document.getElementById('milestone-1');
+                const milestone2 = document.getElementById('milestone-2');
+                const certificateBtn = document.getElementById('download-certificate-btn');
+                
+                if (!milestonesEarnedEl) return;
+                
+                milestonesEarnedEl.textContent = milestonesEarned;
+                const progressPercent = (milestonesEarned / 2) * 100;
+                progressBar.style.width = `${progressPercent}%`;
+                
+                // Update milestone markers
+                if (milestonesEarned >= 1 && milestone1) {
+                    milestone1.classList.remove('bg-gray-600');
+                    milestone1.classList.add('bg-accent');
+                    milestone1.querySelector('span').classList.remove('text-gray-400');
+                    milestone1.querySelector('span').classList.add('text-gray-900');
+                    milestone1.innerHTML = '<span class="text-2xl">✓</span>';
+                }
+                if (milestonesEarned >= 2 && milestone2) {
+                    milestone2.classList.remove('bg-gray-600');
+                    milestone2.classList.add('bg-accent');
+                    milestone2.querySelector('span').classList.remove('text-gray-400');
+                    milestone2.querySelector('span').classList.add('text-gray-900');
+                    milestone2.innerHTML = '<span class="text-2xl">✓</span>';
+                    
+                    // Show certificate download button
+                    if (certificateBtn) {
+                        certificateBtn.classList.remove('hidden');
+                    }
+                }
+            },
+            
+            downloadCertificate() {
+                // Create canvas for certificate
+                const canvas = document.createElement('canvas');
+                canvas.width = 1200;
+                canvas.height = 900;
+                const ctx = canvas.getContext('2d');
+                
+                // Background gradient
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, '#1E1E1E');
+                gradient.addColorStop(0.5, '#2D3748');
+                gradient.addColorStop(1, '#1E1E1E');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Border
+                ctx.strokeStyle = '#42A5F5';
+                ctx.lineWidth = 10;
+                ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
+                
+                // Inner border (gold)
+                ctx.strokeStyle = '#FFEB3B';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(60, 60, canvas.width - 120, canvas.height - 120);
+                
+                // Title
+                ctx.fillStyle = '#42A5F5';
+                ctx.font = 'bold 72px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('CERTIFICATE OF ACHIEVEMENT', canvas.width / 2, 180);
+                
+                // Subtitle
+                ctx.fillStyle = '#FFEB3B';
+                ctx.font = '32px Inter, sans-serif';
+                ctx.fillText('SUNDAY Yoga & Wellness Platform', canvas.width / 2, 240);
+                
+                // Body text
+                ctx.fillStyle = '#E0E0E0';
+                ctx.font = '28px Inter, sans-serif';
+                ctx.fillText('This certifies that', canvas.width / 2, 340);
+                
+                // User name (you can customize this)
+                ctx.fillStyle = '#FFEB3B';
+                ctx.font = 'bold 48px Inter, sans-serif';
+                ctx.fillText('Yoga Practitioner', canvas.width / 2, 420);
+                
+                // Achievement text
+                ctx.fillStyle = '#E0E0E0';
+                ctx.font = '26px Inter, sans-serif';
+                ctx.fillText('has successfully completed', canvas.width / 2, 490);
+                ctx.fillText('2 Milestone Achievements', canvas.width / 2, 530);
+                ctx.fillText('by maintaining 70%+ posture accuracy', canvas.width / 2, 570);
+                ctx.fillText('for 20 seconds during practice sessions', canvas.width / 2, 610);
+                
+                // Date
+                const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                ctx.fillStyle = '#42A5F5';
+                ctx.font = '24px Inter, sans-serif';
+                ctx.fillText(`Awarded on ${today}`, canvas.width / 2, 720);
+                
+                // Signature line
+                ctx.strokeStyle = '#42A5F5';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(400, 800);
+                ctx.lineTo(800, 800);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#E0E0E0';
+                ctx.font = 'italic 22px Inter, sans-serif';
+                ctx.fillText('SUNDAY Platform', canvas.width / 2, 835);
+                
+                // Convert to download
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `SUNDAY_Certificate_${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
             },
             
             // --- AR Correction Utilities (Now methods of app object) ---
@@ -1031,6 +1162,30 @@
                             // Update score display
                             this.updateScore(poseScore);
                             
+                            // === MILESTONE TRACKING ===
+                            // Track high accuracy for milestone rewards
+                            if (poseScore >= 70 && milestonesEarned < 2) {
+                                highAccuracyTimer++;
+                                
+                                // 10 seconds at ~30fps = 300 frames
+                                if (highAccuracyTimer >= 300 && Date.now() - lastMilestoneTime > 1000) {
+                                    milestonesEarned++;
+                                    localStorage.setItem('milestonesEarned', milestonesEarned.toString());
+                                    lastMilestoneTime = Date.now();
+                                    highAccuracyTimer = 0;
+                                    
+                                    // Show celebration message
+                                    feedbackText.textContent = `🎉 Milestone ${milestonesEarned} Earned! Great job!`;
+                                    feedbackText.classList.remove('text-red-400', 'text-yellow-400', 'text-gray-400');
+                                    feedbackText.classList.add('text-green-400');
+                                    
+                                    console.log(`Milestone ${milestonesEarned} achieved!`);
+                                }
+                            } else {
+                                // Reset timer if accuracy drops below 70%
+                                highAccuracyTimer = 0;
+                            }
+                            
                             // Log all corrections to the correction log panel (less frequently)
                             if (correctionCounter % 20 === 0) { // Update log every 20 frames (about once per second)
                                 this.logCorrections(corrections);
@@ -1448,47 +1603,39 @@
 
                     <div class="mt-8 p-6 bg-gray-900 border border-primary/50 rounded-2xl shadow-xl">
                         <h3 class="text-2xl font-extrabold text-primary mb-5 border-b pb-3 border-gray-700">Your Progress Snapshot</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-
-                            <div class="p-4 bg-card rounded-xl shadow-lg border border-gray-700 card-effect">
-                                <p class="text-sm font-medium text-gray-400 flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1 text-primary">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 0 0 9-9c0-1.657-.643-3.237-1.802-4.407L14.735 4.5 12 6.75 9.265 4.5l-2.463 2.15C5.643 8.763 5 10.343 5 12a9 9 0 0 0 9 9Z" />
-                                    </svg>
-                                    Posture Score
-                                </p>
-                                <p class="text-4xl font-extrabold text-accent mt-1">88<span class="text-2xl text-gray-400">/100</span></p>
-                                <div class="w-full bg-gray-700 rounded-full h-2.5 mt-3">
-                                    <div class="bg-accent h-2.5 rounded-full" style="width: 88%"></div>
+                        
+                        <div class="p-6 bg-card rounded-xl shadow-lg border border-gray-700">
+                            <div class="flex justify-between items-center mb-4">
+                                <p class="text-lg font-bold text-gray-200">Milestone Progress</p>
+                                <p class="text-sm text-gray-400"><span id="milestones-earned" class="text-primary font-bold">0</span>/2 Completed</p>
+                            </div>
+                            
+                            <!-- Progress Bar -->
+                            <div class="relative w-full bg-gray-700 rounded-full h-6 mb-2">
+                                <div id="milestone-progress-bar" class="bg-gradient-to-r from-primary to-accent h-6 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                
+                                <!-- Milestone Markers -->
+                                <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-10 -mt-2">
+                                    <div id="milestone-1" class="w-10 h-10 rounded-full border-4 border-gray-700 bg-gray-600 flex items-center justify-center">
+                                        <span class="text-gray-400 text-sm font-bold">1</span>
+                                    </div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-2">Alignment goal: 90%</p>
-                            </div>
-
-                            <div class="p-4 bg-card rounded-xl shadow-lg border border-gray-700 card-effect">
-                                <p class="text-sm font-medium text-gray-400 flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1 text-warning">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 0 12 21 8.252 8.252 0 0 0 8.638 5.214M12 4.2c-1.35 0-2.617.261-3.754.757L8.638 5.214M15.362 5.214l1.116-1.116M8.638 5.214l-1.116-1.116M12 4.2V2.25" />
-                                    </svg>
-                                    Current Streak
-                                </p>
-                                <p class="text-4xl font-extrabold text-primary mt-1">14 <span class="text-2xl text-gray-400">Days</span></p>
-                                <p class="text-xs text-gray-500 mt-3">Keep it up! Longest streak: 21 Days</p>
-                            </div>
-
-                            <div class="p-4 bg-card rounded-xl shadow-lg border border-gray-700 card-effect">
-                                <p class="text-sm font-medium text-gray-400 flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1 text-success">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 0 12 21 8.252 8.252 0 0 0 8.638 5.214M12 4.2c-1.35 0-2.617.261-3.754.757L8.638 5.214M15.362 5.214l1.116-1.116M8.638 5.214l-1.116-1.116M12 4.2V2.25" />
-                                    </svg>
-                                    Kcal Burned (Today)
-                                </p>
-                                <p class="text-4xl font-extrabold text-success mt-1">450 <span class="text-2xl text-gray-400">kcal</span></p>
-                                <div class="w-full bg-gray-700 rounded-full h-2.5">
-                                    <div class="bg-primary h-2.5 rounded-full" style="width: 75%"></div>
+                                <div class="absolute top-0 right-0 w-10 h-10 -mt-2 -mr-5">
+                                    <div id="milestone-2" class="w-10 h-10 rounded-full border-4 border-gray-700 bg-gray-600 flex items-center justify-center">
+                                        <span class="text-gray-400 text-sm font-bold">2</span>
+                                    </div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-2">Target: 600 kcal</p>
                             </div>
+                            
+                            <p class="text-xs text-gray-500 mt-3">💪 Hold 70%+ accuracy for 10 seconds to earn a milestone!</p>
+                            
+                            <!-- Certificate Download Button (hidden by default) -->
+                            <button id="download-certificate-btn" onclick="app.downloadCertificate()" class="hidden mt-4 w-full py-3 px-4 bg-gradient-to-r from-accent to-warning text-gray-900 font-bold rounded-xl hover:shadow-lg transition flex items-center justify-center space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                </svg>
+                                <span>🎉 Download Your Certificate!</span>
+                            </button>
                         </div>
                     </div>
                 `;
