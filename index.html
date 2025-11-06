@@ -1566,15 +1566,15 @@
                                 </div>
                                 
                                 <div id="reference-container" style="display: none;" class="bg-card rounded-xl border border-gray-700 shadow-md p-4">
-                                    <h3 class="text-lg font-bold text-primary mb-3">Reference Guide</h3>
+                                    <h3 class="text-sm font-bold text-primary mb-2">Reference Guide</h3>
                                     
                                     <!-- Reference Image -->
-                                    <div id="reference-media-container" class="bg-gray-900 rounded-xl overflow-hidden mb-3" style="min-height: 200px;">
-                                        <img id="reference-image" class="w-full h-full object-contain hidden rounded-xl" alt="Reference Pose">
-                                        <div id="reference-placeholder" class="flex items-center justify-center p-6" style="min-height: 200px;">
+                                    <div id="reference-media-container" class="bg-gray-900 rounded-xl overflow-hidden mb-2" style="max-height: 250px; min-height: 100px;">
+                                        <img id="reference-image" class="w-full object-contain hidden rounded-xl" style="max-height: 250px;" alt="Reference Pose">
+                                        <div id="reference-placeholder" class="flex items-center justify-center p-3" style="min-height: 100px;">
                                             <div class="text-center">
-                                                <span id="reference-emoji" class="text-8xl">🧘</span>
-                                                <p id="reference-pose-name" class="text-gray-400 mt-3 text-sm font-medium">Pose Name</p>
+                                                <span id="reference-emoji" class="text-4xl">🧘</span>
+                                                <p id="reference-pose-name" class="text-gray-400 mt-2 text-xs font-medium">Pose Name</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1587,15 +1587,19 @@
                                 </div>
                             </div>
 
-                            <div id="feedback-area" style="display: none;" class="mt-4 p-4 bg-card rounded-xl border border-gray-700 shadow-md">
-                                <p class="text-sm font-bold text-primary mb-1">Real-Time Feedback:</p>
-                                <p id="current-feedback-text" class="text-lg text-gray-400 font-medium transition-colors">Select a pose to begin.</p>
-                                
-                                <div id="correction-log" class="mt-4 space-y-2 max-h-48 overflow-y-auto scrollable-content">
-                                    <p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>
+                            <div id="feedback-area" style="display: none;" class="mt-4 p-4 bg-card rounded-xl border border-gray-700 shadow-md space-y-3">
+                                <div>
+                                    <p class="text-sm font-bold text-primary mb-1">Real-Time Feedback:</p>
+                                    <p id="current-feedback-text" class="text-lg text-gray-400 font-medium transition-colors">Select a pose to begin.</p>
                                 </div>
                                 
-                                <button onclick="app.stopARAssessment()" class="mt-4 py-2 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition">
+                                <div class="border-t border-gray-700 pt-3">
+                                    <div id="correction-log" class="space-y-2 max-h-40 overflow-y-auto scrollable-content">
+                                        <p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>
+                                    </div>
+                                </div>
+                                
+                                <button onclick="app.stopARAssessment()" class="w-full py-2 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition">
                                     Stop AR Tracking
                                 </button>
                             </div>
