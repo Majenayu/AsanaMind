@@ -637,7 +637,7 @@
                     // Check for 401 error
                     if (error.message && error.message.includes('401')) {
                         console.error("Authentication Error. Please ensure the Gemini API key is correctly provided by the environment.");
-                        return { text: "I'm still unable to connect to the AI service. The API key appears to be invalid or unauthorized. Please verify the key's status.", sources: [] };
+                        return { text: "I can't access my brain right now. Please make sure you have added your Gemini API key to the Render environment variables.", sources: [] };
                     }
 
                     // Check for 503 error after all retries fail
@@ -756,6 +756,7 @@
                         'home': 'dashboard',
                         'dashboard': 'dashboard',
                         'pose library': 'asana',
+                        'library': 'asana',
                         'asana': 'asana',
                         'poses': 'asana',
                         'ar correction': 'ar_correction',
@@ -764,6 +765,7 @@
                         'course': 'course',
                         'test': 'course',
                         'certification': 'course'
+
                     };
 
                     for (const phrase in commandMap) {
@@ -778,19 +780,28 @@
                     }
 
                     if (!navigated) {
-                        // If no command matches, use Gemini AI as Voice Assistant
+                        // Check if API key exists
+                        const envApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
+                        if (!envApiKey) {
+                            console.warn("Gemini API key is missing. AI response disabled.");
+                            updateMicStatus(true, "Key Missing");
+                            this.speakCorrection("I can't answer that because your Gemini API key is not set. Please add it to your environment variables.", true);
+                            return;
+                        }
+
+                        // Use Gemini AI as Voice Assistant
                         updateMicStatus(true, "Thinking...");
 
                         try {
                             const response = await callGeminiAssistant(transcript);
                             const text = response.text || "I'm not sure about that.";
 
-                            // Speak the response back
-                            this.speakCorrection(text);
+                            // Speak the response back (forcing it to interrupt any background guidance)
+                            this.speakCorrection(text, true);
                             updateMicStatus(true, "Speaking...");
                         } catch (error) {
                             console.error("AI Voice Error:", error);
-                            this.speakCorrection("I'm sorry, I'm having trouble connecting to my brain right now.");
+                            this.speakCorrection("I'm sorry, I'm having trouble connecting to my brain right now.", true);
                         }
                     }
                 };
@@ -869,6 +880,12 @@
                         text.classList.add('text-blue-400');
                         icon.style.color = "#60A5FA";
                         btn.classList.add('voice-talking');
+                        break;
+                    case 'thinking':
+                        text.textContent = "Thinking...";
+                        text.classList.add('text-yellow-400');
+                        icon.style.color = "#FBBF24";
+                        btn.classList.add('animate-pulse');
                         break;
                     default:
                         text.textContent = "Voice Standby";
@@ -1053,20 +1070,23 @@
                 }
             },
 
-            speakCorrection(message) {
+            speakCorrection(message, force = false) {
                 // Check if browser supports speech synthesis
                 if (!('speechSynthesis' in window)) {
                     console.warn('Text-to-Speech not supported in this browser');
                     return;
                 }
 
-                // Don't interrupt if already speaking
-                if (this.isSpeaking || window.speechSynthesis.speaking) {
+                // If force is false, don't interrupt if already speaking
+                if (!force && (this.isSpeaking || window.speechSynthesis.speaking)) {
                     return;
                 }
 
-                // Cancel any pending speech
-                window.speechSynthesis.cancel();
+                // Cancel any pending speech if forcing
+                if (force) {
+                    window.speechSynthesis.cancel();
+                }
+
 
                 // Create utterance
                 const utterance = new SpeechSynthesisUtterance(message);
