@@ -240,7 +240,27 @@ def home():
         return redirect(url_for('index'))
     if not os.path.exists('main.html'):
         return "Error: main.html not found in app directory. Place it here.", 500
-    return send_from_directory('.', 'main.html')
+    
+    with open('main.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Inject API Key and Source URL for production compatibility
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    site_url = request.url_root.rstrip('/')
+    
+    injection = f"""
+    <script>
+        window.__gemini_api_key = "{api_key}";
+        window.__asana_mind_url = "{site_url}";
+    </script>
+    """
+    # Insert before the closing head tag or at the beginning of body
+    if '</head>' in content:
+        content = content.replace('</head>', f'{injection}</head>')
+    else:
+        content = injection + content
+        
+    return render_template_string(content)
 
 @app.route('/profile')
 def profile_page():
@@ -248,7 +268,12 @@ def profile_page():
         return redirect(url_for('index'))
     if not os.path.exists('profile.html'):
         return "Error: profile.html not found in app directory. Place it here.", 500
-    return send_from_directory('.', 'profile.html')
+        
+    with open('profile.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+        
+    return render_template_string(content)
+
 
 @app.route('/register', methods=['POST'])
 def register():

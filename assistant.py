@@ -20,7 +20,11 @@ CHROMEDRIVER_PATH = ''
 
 class AIVoiceAssistant:
     def __init__(self):
+        # Base URL for the AsanaMind server (can be localhost or Render URL)
+        self.base_url = os.environ.get('ASANA_MIND_URL', "http://127.0.0.1:5000").rstrip('/')
+        
         self.status_file = "sunday_status.json"
+
         self.conv_log_file = "conversation_log.txt"
         self.listening = True
         self.wake_word = "sunday"
@@ -110,10 +114,13 @@ class AIVoiceAssistant:
             except: pass
 
     def open_browser(self):
-        server_url = "http://127.0.0.1:5000/home"
+        home_url = f"{self.base_url}/home"
+        print(f"🌐 Opening AsanaMind at: {home_url}")
+
         try:
             self.driver = webdriver.Chrome(options=self.chrome_options)
-            self.driver.get(server_url)
+            self.driver.get(home_url)
+
             self.update_ui('idle')
         except: pass
 
@@ -186,8 +193,9 @@ class AIVoiceAssistant:
         elif 'camera' in cmd or 'ar' in cmd: self.navigate_section('ar_correction')
         elif 'course' in cmd or 'test' in cmd: self.navigate_section('course')
         elif 'profile' in cmd: 
-            self.speak("Profile")
-            self.driver.get("http://127.0.0.1:5000/profile")
+            self.speak("Opening Profile")
+            self.driver.get(f"{self.base_url}/profile")
+
 
         # 2. POSES (ALL 7)
         elif 'tadasana' in cmd or 'mountain' in cmd: self.select_pose('Tadasana'); self.speak("Tadasana")
@@ -206,7 +214,8 @@ class AIVoiceAssistant:
         elif 'mute' in cmd or 'silent' in cmd: self.driver.execute_script("const v = document.querySelector('video'); if(v) v.muted = true;"); self.speak("Muted")
         elif 'unmute' in cmd or 'sound' in cmd: self.driver.execute_script("const v = document.querySelector('video'); if(v) v.muted = false;"); self.speak("Sound on")
         elif 'refresh' in cmd or 'reload' in cmd: self.driver.refresh(); self.speak("Reset")
-        elif 'logout' in cmd: self.driver.get("http://127.0.0.1:5000/logout"); self.speak("Out")
+        elif 'logout' in cmd: self.driver.get(f"{self.base_url}/logout"); self.speak("Logging out")
+
         elif 'back' in cmd: self.driver.back(); self.speak("Back")
         
         # 4. UTILS

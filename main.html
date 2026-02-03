@@ -556,7 +556,7 @@
 
 
         // --- API Configuration and Helper (Moved outside app object) ---
-        const GEMINI_MODEL = "gemini-2.5-flash-preview-05-20";
+        const GEMINI_MODEL = "gemini-1.5-flash";
         const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. You have access to real-time information. Always format your advice clearly using simple markdown (bold, lists).";
 
         /**
@@ -665,8 +665,10 @@
                 dashboard: { name: 'Home', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3V6ZM3 15.75a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2.25ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3v-2.25Z" clip-rule="evenodd" /></svg>' },
                 asana: { name: 'Asana Library', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M11.54 22.351A2.433 2.433 0 0 0 12 22.5c.376 0 .741-.096 1.06-.279l.522-.249 7.55 3.332.002-.001.002-.001a.75.75 0 0 0 .584-.852 16.148 16.148 0 0 0-4.075-8.868 12.396 12.396 0 0 1 2.373-3.084c.645-.632.744-1.638.258-2.479l-.174-.298c-.469-.798-1.547-1.077-2.475-.688l-2.074.887a.75.75 0 0 0-.773-.243l-3.235-4.321C9.654 2.84 8.643 2.5 7.632 2.5a.75.75 0 0 0-.584.852c.321 1.954.249 3.864-.32 5.584l-2.316 4.01a.75.75 0 0 0-.074.786l.635 1.018a.75.75 0 0 0 .866.398l1.378-.475 3.655 1.701Z" clip-rule="evenodd" /></svg>' },
                 ar_correction: { name: 'AR Correction', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><path fill-rule="evenodd" d="M1.5 12c0-2.485 2.404-4.5 5.488-4.5h11.024c3.084 0 5.488 2.015 5.488 4.5s-2.404 4.5-5.488 4.5H6.988c-3.084 0-5.488-2.015-5.488-4.5ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" clip-rule="evenodd" /></svg>' },
-                course: { name: 'Course', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M11.7 2.805a.75.75 0 0 1 .6 0A60.65 60.65 0 0 1 22.83 8.72a.75.75 0 0 1-.231 1.337 49.948 49.948 0 0 0-9.902 3.912l-.003.002c-.114.06-.227.119-.34.18a.75.75 0 0 1-.707 0A50.88 50.88 0 0 0 7.5 12.173v-.224c0-.131.067-.248.172-.311a54.615 54.615 0 0 1 4.653-2.52.75.75 0 0 0-.65-1.352 56.123 56.123 0 0 0-4.78 2.589 1.858 1.858 0 0 0-.859 1.228 49.803 49.803 0 0 0-4.634-1.527.75.75 0 0 1-.231-1.337A60.653 60.653 0 0 1 11.7 2.805Z" /><path d="M13.06 15.473a48.45 48.45 0 0 1 7.666-3.282c.134 1.414.22 2.843.255 4.284a.75.75 0 0 1-.46.711 47.87 47.87 0 0 0-8.105 4.342.75.75 0 0 1-.832 0 47.87 47.87 0 0 0-8.104-4.342.75.75 0 0 1-.461-.71c.035-1.442.121-2.87.255-4.286.921.304 1.83.634 2.726.99v1.27a1.5 1.5 0 0 0-.14 2.508c-.09.38-.222.753-.397 1.11.452.213.901.434 1.346.66a6.727 6.727 0 0 0 .551-1.607 1.5 1.5 0 0 0 .14-2.67v-.645a48.549 48.549 0 0 1 3.44 1.667 2.25 2.25 0 0 0 2.12 0Z" /></svg>' }
+                course: { name: 'Course', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M11.7 2.805a.75.75 0 0 1 .6 0A60.65 60.65 0 0 1 22.83 8.72a.75.75 0 0 1-.231 1.337 49.948 49.948 0 0 0-9.902 3.912l-.003.002c-.114.06-.227.119-.34.18a.75.75 0 0 1-.707 0A50.88 50.88 0 0 0 7.5 12.173v-.224c0-.131.067-.248.172-.311a54.615 54.615 0 0 1 4.653-2.52.75.75 0 0 0-.65-1.352 56.123 56.123 0 0 0-4.78 2.589 1.858 1.858 0 0 0-.859 1.228 49.803 49.803 0 0 0-4.634-1.527.75.75 0 0 1-.231-1.337A60.653 60.653 0 0 1 11.7 2.805Z" /><path d="M13.06 15.473a48.45 48.45 0 0 1 7.666-3.282c.134 1.414.22 2.843.255 4.284a.75.75 0 0 1-.46.711 47.87 47.87 0 0 0-8.105 4.342.75.75 0 0 1-.832 0 47.87 47.87 0 0 0-8.104-4.342.75.75 0 0 1-.461-.71c.035-1.442.121-2.87.255-4.286.921.304 1.83.634 2.726.99v1.27a1.5 1.5 0 0 0-.14 2.508c-.09.38-.222.753-.397 1.11.452.213.901.434 1.346.66a6.727 6.727 0 0 0 .551-1.607 1.5 1.5 0 0 0 .14-2.67v-.645a48.549 48.549 0 0 1 3.44 1.667 2.25 2.25 0 0 0 2.12 0Z" /></svg>' },
+                assistant: { name: 'Assistant', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" /><path fill-rule="evenodd" d="M10.5 15a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" /><path d="M6 15a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v.75a.75.75 0 0 1-.75.75H6.75a.75.75 0 0 1-.75-.75V15Z" /><path fill-rule="evenodd" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-1.5a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" clip-rule="evenodd" /></svg>' }
             },
+
 
             // Elements
             contentEl: document.getElementById('content'),
@@ -1951,6 +1953,10 @@
                     case 'course':
                         contentHTML = this.renderCourse();
                         break;
+                    case 'assistant':
+                        contentHTML = this.renderAssistant();
+                        break;
+
                     default:
                         contentHTML = '<div class="text-center text-gray-500 py-10">404 | View Not Found</div>';
                 }
@@ -2113,6 +2119,148 @@
                 backdrop.classList.remove('active');
                 document.body.style.overflow = ''; // Restore scroll
             },
+
+            // --- AI Assistant Methods ---
+            renderAssistant() {
+                return `
+                    <div class="flex flex-col h-[calc(100vh-350px)] bg-gray-900/50 rounded-3xl overflow-hidden border border-gray-800">
+                        <!-- Chat Header -->
+                        <div class="p-4 border-b border-gray-800 bg-gray-900/80 flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-xl shadow-inner border border-primary/20">🧘</div>
+                                <div>
+                                    <p class="text-white font-bold leading-tight">SUNDAY AI</p>
+                                    <p class="text-[10px] text-green-400 font-bold uppercase tracking-wider animate-pulse">Online</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Messages -->
+                        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 scrollable-content">
+                            <div class="flex justify-start">
+                                <div class="max-w-[85%] bg-gray-800 p-4 rounded-2xl rounded-tl-none border border-gray-700 shadow-lg text-sm leading-relaxed text-gray-200">
+                                    Namaste! I am SUNDAY, your personal yoga and wellness guide. How can I help you with your practice today?
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Input -->
+                        <div class="p-4 bg-gray-900/80 border-t border-gray-800">
+                            <form id="assistant-form" class="flex items-center space-x-2">
+                                <input type="text" id="assistant-input" placeholder="Ask about poses, benefits, or wellness..." 
+                                    class="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder-gray-500">
+                                <button type="submit" class="w-12 h-12 bg-primary hover:bg-primary-light text-background rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            },
+
+            setupAssistantListeners() {
+                const form = document.getElementById('assistant-form');
+                const input = document.getElementById('assistant-input');
+                const messagesContainer = document.getElementById('chat-messages');
+
+                if (!form || !input || !messagesContainer) return;
+
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const prompt = input.value.trim();
+                    if (!prompt) return;
+
+                    // 1. Clear input and show user message
+                    input.value = '';
+                    this.renderMessage(prompt, 'user');
+
+                    // 2. Show loading state
+                    const loadingId = 'loading-' + Date.now();
+                    const loadingHTML = `
+                        <div id="${loadingId}" class="flex justify-start">
+                            <div class="bg-gray-800 p-4 rounded-2xl rounded-tl-none border border-gray-700 shadow-lg text-sm text-gray-500 italic flex items-center space-x-2">
+                                <div class="loading-animation"></div>
+                                <span>SUNDAY is thinking...</span>
+                            </div>
+                        </div>
+                    `;
+                    messagesContainer.insertAdjacentHTML('beforeend', loadingHTML);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                    // 3. Call Gemini API
+                    try {
+                        const response = await callGeminiAssistant(prompt);
+
+                        // Remove loading
+                        const loadingEl = document.getElementById(loadingId);
+                        if (loadingEl) loadingEl.remove();
+
+                        // Render AI response
+                        this.renderMessage(response.text, 'assistant', response.sources);
+                    } catch (error) {
+                        const loadingEl = document.getElementById(loadingId);
+                        if (loadingEl) loadingEl.remove();
+                        this.renderMessage("I'm having a bit of trouble connecting to my knowledge base. Please try again in a moment!", 'assistant');
+                        console.error("Assistant Error:", error);
+                    }
+                };
+            },
+
+            renderMessage(text, role, sources = []) {
+                const container = document.getElementById('chat-messages');
+                if (!container) return;
+
+                const isAI = role === 'assistant';
+                const alignment = isAI ? 'justify-start' : 'justify-end';
+                const bgColor = isAI ? 'bg-gray-800' : 'bg-primary text-background font-medium';
+                const rounded = isAI ? 'rounded-tl-none' : 'rounded-tr-none';
+                const borderColor = isAI ? 'border-gray-700' : 'border-primary/20';
+
+                // Basic markdown-like formatting for AI responses
+                let formattedText = text;
+                if (isAI) {
+                    // Convert bold (**text**) to HTML
+                    formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-black">$1</strong>');
+                    // Convert bullets (* text) to HTML
+                    formattedText = formattedText.replace(/^\* (.*)/gm, '<li class="ml-4 mb-2">$1</li>');
+                    if (formattedText.includes('<li>')) {
+                        formattedText = '<ul class="space-y-1">' + formattedText + '</ul>';
+                    }
+                    // Handle newlines
+                    formattedText = formattedText.replace(/\n/g, '<br>');
+                }
+
+                let sourcesHTML = '';
+                if (sources && sources.length > 0) {
+                    sourcesHTML = `
+                        <div class="mt-3 pt-3 border-t border-gray-700/50">
+                            <p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2">Sources:</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${sources.map(s => `
+                                    <a href="${s.uri}" target="_blank" class="text-[9px] bg-gray-900 px-2 py-1 rounded-md border border-gray-700 hover:border-primary transition-colors text-primary truncate max-w-[150px]">
+                                        ${s.title}
+                                    </a>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const msgHTML = `
+                    <div class="flex ${alignment} view-fade-in">
+                        <div class="max-w-[85%] ${bgColor} p-4 rounded-2xl ${rounded} border ${borderColor} shadow-lg text-sm leading-relaxed">
+                            <div class="${isAI ? 'text-gray-200' : ''}">${formattedText}</div>
+                            ${sourcesHTML}
+                        </div>
+                    </div>
+                `;
+
+                container.insertAdjacentHTML('beforeend', msgHTML);
+                container.scrollTop = container.scrollHeight;
+            },
+
 
 
             renderARCorrection() {
