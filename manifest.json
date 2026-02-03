@@ -1,0 +1,21 @@
+{
+  "name": "SUNDAY - Yoga Wellness Platform",
+  "short_name": "SUNDAY",
+  "description": "Your Personal Holistic Yoga & Wellness Companion",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#0c0e12",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

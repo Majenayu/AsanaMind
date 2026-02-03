@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUNDAY- YOGA Wellness Platform</title>
+    <title>SUNDAY - Yoga Wellness Platform</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/assets/logo.png">
+    <link rel="icon" type="image/png" href="/assets/logo.png">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.13.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -33,52 +39,73 @@
     <style>
         /* Custom styles for aesthetic and loading spinner */
         body {
-            /* ---------------------------------------------------- */
-            /* BRO FIX: SOLID DARK BACKGROUND */
-            background-color: #121212; 
-            background: #121212; /* Ensure all previous gradients are removed */
-            /* ---------------------------------------------------- */
-            
-            color: #E0E0E0; /* Default text color for dark theme */
+            background-color: #0c0e12;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.1) 0, transparent 50%);
+            color: #E0E0E0;
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
-            overflow-x: hidden; /* Prevent horizontal scroll from cursor glow */
+            overflow-x: hidden;
         }
+
+        .view-fade-in {
+            animation: viewFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes viewFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .scrollable-content {
             overflow-y: auto;
-            /* Max height calculation for chat window */
             max-height: calc(100vh - 350px);
-            scrollbar-width: none; /* Firefox */
+            scrollbar-width: none;
         }
+
         .scrollable-content::-webkit-scrollbar {
-            display: none; /* Chrome, Safari */
+            display: none;
         }
 
         .loading-animation {
             border: 4px solid #333;
-            border-top: 4px solid #42A5F5; /* Primary Blue for spinner */
+            border-top: 4px solid #42A5F5;
             border-radius: 50%;
             width: 24px;
             height: 24px;
             animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* 3D Card Hover Effect CSS */
         .card-effect {
-            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s ease;
-            will-change: transform;
-            transform-style: preserve-3d; 
-            perspective: 1000px; 
-            border: 1px solid rgba(255, 255, 255, 0.05); /* Subtle border for dark cards */
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
+
         .card-effect:hover {
-            /* Subtle 3D tilt, scale, and deeper shadow */
-            transform: perspective(1000px) rotateX(1deg) rotateY(1deg) scale(1.03); 
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* Darker shadow */
+            transform: translateY(-8px) scale(1.02);
+            border-color: rgba(66, 165, 245, 0.4);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(66, 165, 245, 0.2);
+            background: rgba(30, 41, 59, 0.6) !important;
         }
 
         /* Cursor Glow Effect CSS (Blue) */
@@ -89,24 +116,66 @@
             height: 300px;
             border-radius: 50%;
             /* Primary Blue color with higher opacity for visibility */
-            background: rgba(66, 165, 245, 0.45); 
-            filter: blur(90px); /* Heavy blur */
+            background: rgba(66, 165, 245, 0.45);
+            filter: blur(90px);
+            /* Heavy blur */
             transform: translate(-50%, -50%);
-            z-index: -1; 
+            z-index: -1;
             transition: opacity 0.3s ease;
-            opacity: 1.0; 
+            opacity: 1.0;
+        }
+
+        /* Pulse Animation for Voice Assistant - applied to the button pill */
+        @keyframes pulse-green {
+            0% {
+                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 12px rgba(74, 222, 128, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+            }
+        }
+
+        @keyframes pulse-blue {
+            0% {
+                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 12px rgba(96, 165, 250, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
+            }
+        }
+
+        .voice-listening {
+            animation: pulse-green 1.5s infinite;
+            border: 1px solid #4ADE80 !important;
+        }
+
+        .voice-talking {
+            animation: pulse-blue 1.5s infinite;
+            border: 1px solid #60A5FA !important;
         }
 
         /* Styles for the AR/Video Feed */
         #video-container {
             position: relative;
             width: 100%;
-            padding-top: 75%; /* 4:3 Aspect Ratio */
+            padding-top: 75%;
+            /* 4:3 Aspect Ratio */
             background-color: #000;
             border-radius: 1rem;
             overflow: hidden;
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
         }
+
         #video-feed {
             position: absolute;
             top: 0;
@@ -114,49 +183,211 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror the video feed for natural user experience */
+            transform: scaleX(-1);
+            /* Mirror the video feed for natural user experience */
         }
+
         #ar-canvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1); /* Mirror the canvas to match the mirrored video */
+            transform: scaleX(-1);
+            /* Mirror the canvas to match the mirrored video */
         }
-        
+
+        /* --- Premium Asana Library Styles --- */
+        .asana-card {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .asana-card:hover {
+            background: rgba(30, 41, 59, 0.6);
+            border-color: rgba(66, 165, 245, 0.5);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Modal Backdrop */
+        #asana-modal-backdrop {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        #asana-modal-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Modal Content */
+        #asana-modal-content {
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #asana-modal-backdrop.active #asana-modal-content {
+            transform: translateY(0) scale(1);
+        }
+
+        /* Scrollbar for modal */
+        .modal-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .modal-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .modal-scroll::-webkit-scrollbar-thumb {
+            background: rgba(66, 165, 245, 0.3);
+            border-radius: 10px;
+        }
     </style>
 </head>
-<body class="flex flex-col items-center pb-20 md:pb-8 bg-background text-gray-200">
+
+<body class="gradient-bg min-h-screen flex flex-col items-center pb-20 md:pb-8 text-gray-200">
+
     <div id="cursor-glow"></div>
-    
+
     <div id="app" class="w-full max-w-4xl p-4 md:p-8">
-        <header class="text-center mb-6 relative">
-            <h1 class="text-5xl font-extrabold text-primary tracking-tight">SUNDAY</h1>
-            <p class="text-gray-400 mt-1 text-sm md:text-base">Your Holistic Yoga & Wellness Platform</p>
-            
-            <button id="voice-toggle" onclick="app.toggleVoiceControl()" 
-                    class="absolute top-4 right-0 md:right-4 flex items-center space-x-2 text-sm px-3 py-2 rounded-xl transition shadow-md bg-gray-700 hover:bg-gray-600 text-gray-200">
-                <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-red-500">
-                    <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
-                    <path fill-rule="evenodd" d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
-                    <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
-                </svg>
-                <a href="/profile" class="bg-primary text-white px-4 py-2 rounded hover:bg-secondary">Profile</a>
-                <span id="mic-status-text">Voice Off</span>
-            </button>
-            </header>
+        <header class="flex flex-col md:flex-row items-center justify-between mb-8 pb-6 border-b border-gray-800 gap-6">
+            <div class="flex items-center space-x-4">
+                <div
+                    class="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center overflow-hidden p-1.5 shadow-lg shadow-primary/10 border border-primary/20">
+                    <img src="/assets/logo.png" alt="SUNDAY Logo" class="w-full h-full object-contain">
+                </div>
+                <div class="text-left">
+                    <h1 class="text-4xl md:text-5xl font-black text-primary tracking-tighter uppercase italic">SUNDAY
+                    </h1>
+                    <p class="text-gray-500 font-medium text-[10px] md:text-xs uppercase tracking-[0.2em]">Holistic Yoga
+                        & Wellness</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3 w-full md:w-auto justify-center">
+                <a href="/profile"
+                    class="flex-1 md:flex-none text-center bg-primary/10 text-primary px-5 py-2.5 rounded-2xl hover:bg-primary/20 transition-all font-bold border border-primary/20 shadow-lg shadow-primary/5 text-sm uppercase">
+                    Profile
+                </a>
+                <button id="voice-toggle" onclick="app.toggleVoiceControl()"
+                    class="flex-1 md:flex-none flex items-center justify-center space-x-2 text-sm px-4 py-2.5 rounded-2xl transition-all shadow-lg bg-gray-900/50 hover:bg-gray-800 text-gray-400 border border-gray-800 active:scale-95">
+                    <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                        class="w-4 h-4 transition-colors duration-300">
+                        <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
+                        <path fill-rule="evenodd"
+                            d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z"
+                            clip-rule="evenodd" />
+                        <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
+                    </svg>
+                    <span id="mic-status-text" class="uppercase font-bold tracking-tighter">Standby</span>
+                </button>
+            </div>
+        </header>
 
         <main id="content" class="bg-card shadow-2xl rounded-3xl p-6 md:p-8 min-h-[60vh] shadow-gray-900">
-            </main>
+        </main>
 
-        <nav class="fixed bottom-0 left-0 right-0 bg-card border-t border-gray-700 z-10 shadow-2xl md:relative md:mt-6 md:shadow-none md:border-none">
+        <nav
+            class="fixed bottom-0 left-0 right-0 bg-card border-t border-gray-700 z-10 shadow-2xl md:relative md:mt-6 md:shadow-none md:border-none">
             <div id="nav-tabs" class="flex justify-around items-center max-w-4xl mx-auto py-3 md:py-0">
-                </div>
+            </div>
         </nav>
     </div>
 
-    
+    <!-- Asana Details Modal -->
+    <div id="asana-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+        <div id="asana-modal-content"
+            class="bg-card w-full max-w-2xl rounded-[2rem] sm:rounded-3xl overflow-hidden shadow-2xl border border-gray-700 relative h-full sm:h-auto max-h-[90vh] flex flex-col">
+            <!-- Modal Header with Background Pattern -->
+            <div
+                class="h-24 sm:h-32 bg-gradient-to-br from-primary/30 to-secondary/30 relative flex items-end p-5 sm:p-6">
+                <button onclick="app.closeAsanaDetails()"
+                    class="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white w-10 h-10 rounded-full flex items-center justify-center transition-all backdrop-blur-md border border-white/10">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                        stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <div class="z-10">
+                    <h3 id="modal-asana-name" class="text-3xl font-black text-white leading-tight">Asana Name</h3>
+                    <p id="modal-asana-sanskrit" class="text-primary-light font-medium opacity-90 italic">Sanskrit Name
+                    </p>
+                </div>
+                <!-- Decorative Circle -->
+                <div class="absolute -bottom-8 -right-8 w-32 h-32 bg-primary/20 rounded-full blur-2xl"></div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 md:p-8 overflow-y-auto modal-scroll flex-grow">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-2 space-y-6">
+                        <section>
+                            <h4 class="text-sm uppercase tracking-widest text-primary font-bold mb-3 flex items-center">
+                                <span class="w-6 h-px bg-primary/30 mr-2"></span> Overview
+                            </h4>
+                            <p id="modal-asana-benefits" class="text-gray-300 leading-relaxed"></p>
+                        </section>
+
+                        <section>
+                            <h4 class="text-sm uppercase tracking-widest text-warning font-bold mb-3 flex items-center">
+                                <span class="w-6 h-px bg-warning/30 mr-2"></span> Precautions
+                            </h4>
+                            <div class="bg-warning/5 border border-warning/20 p-4 rounded-2xl">
+                                <p id="modal-asana-precaution" class="text-warning-light/90 text-sm leading-relaxed">
+                                </p>
+                            </div>
+                        </section>
+
+                        <section>
+                            <h4 class="text-sm uppercase tracking-widest text-accent font-bold mb-3 flex items-center">
+                                <span class="w-6 h-px bg-accent/30 mr-2"></span> Practice Steps
+                            </h4>
+                            <ol id="modal-asana-steps" class="space-y-3 text-gray-300"></ol>
+                        </section>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="bg-gray-800/50 p-4 rounded-2xl border border-white/5 shadow-inner">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-3">Specifications</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Difficulty</p>
+                                    <span id="modal-asana-category"
+                                        class="px-3 py-1 text-xs rounded-full font-bold bg-primary/20 text-primary border border-primary/20">Beginner</span>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Target Areas</p>
+                                    <p id="modal-asana-targeted" class="text-sm text-gray-300 font-medium"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="modal-start-btn"
+                            class="w-full py-4 bg-primary hover:bg-primary-light text-background font-black rounded-2xl transition-all shadow-lg shadow-primary/20 active:scale-95 flex items-center justify-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                                class="w-5 h-5">
+                                <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+                                <path fill-rule="evenodd"
+                                    d="M1.5 12c0-2.485 2.404-4.5 5.488-4.5h11.024c3.084 0 5.488 2.015 5.488 4.5s-2.404 4.5-5.488 4.5H6.988c-3.084 0-5.488-2.015-5.488-4.5ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                            <span>START PRACTICE</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
 
     <script>
         // --- Firebase and Environment Setup (Required variables for Canvas runtime) ---
@@ -167,23 +398,132 @@
 
         // --- Mock Data ---
         const asanaData = [
-            { name: 'Tadasana', sanskrit: '(Mountain Pose)', category: 'Beginner', benefits: 'Improves balance and posture.', precaution: 'Avoid if experiencing headache.', targeted: 'Spine, Core, Legs' },
-            { name: 'Vrikshasana', sanskrit: '(Tree Pose)', category: 'Beginner', benefits: 'Enhances balance, strengthens legs, tones abdomen.', precaution: 'Avoid if high blood pressure or vertigo.', targeted: 'Legs, Core, Ankles' },
-            { name: 'Namastey', sanskrit: '(Prayer Pose)', category: 'Beginner', benefits: 'Fosters inner peace and focus.', precaution: 'Keep shoulders relaxed.', targeted: 'Chest, Shoulders' }
+            {
+                name: 'Tadasana',
+                sanskrit: '(Mountain Pose)',
+                category: 'Beginner',
+                emoji: '⛰️',
+                benefits: 'Foundational standing pose that improves posture, strengthens thighs, knees, and ankles. It helps establish a sense of grounding and mental clarity.',
+                precaution: 'Avoid if you have low blood pressure, insomnia, or are experiencing dizziness.',
+                targeted: 'Spine, Core, Legs',
+                steps: [
+                    'Stand with feet together, big toes touching.',
+                    'Distribute your weight evenly through both feet.',
+                    'Engage your thighs and lift your kneecaps.',
+                    'Lengthen your tailbone toward the floor and lift your chest.',
+                    'Relax shoulders away from ears, arms by your sides.'
+                ]
+            },
+            {
+                name: 'Vrikshasana',
+                sanskrit: '(Tree Pose)',
+                category: 'Beginner',
+                emoji: '🌳',
+                benefits: 'Improves balance and focus while strengthening the legs, ankles, and spine. It opens the hips and stretches the inner thighs.',
+                precaution: 'Avoid placing the foot directly on the knee joint. Use a wall for balance if needed.',
+                targeted: 'Legs, Core, Hips',
+                steps: [
+                    'Start in Tadasana. Shift weight onto your left leg.',
+                    'Place right foot on the inner left thigh or calf (never the knee).',
+                    'Press your foot into the leg and the leg into the foot.',
+                    'Bring hands to heart center or reach them toward the sky.',
+                    'Find a steady gaze point (Drishti) to maintain balance.'
+                ]
+            },
+            {
+                name: 'Namastey',
+                sanskrit: '(Anjali Mudra)',
+                category: 'Beginner',
+                emoji: '🙏',
+                benefits: 'Centering practice that calms the mind and reduces stress. Increases flexibility in the wrists and hands.',
+                precaution: 'Keep the spine tall and avoid hunching the shoulders.',
+                targeted: 'Wrists, Chest, Heart',
+                steps: [
+                    'Bring palms together in front of the heart.',
+                    'Press the bases of the palms and fingers firmly.',
+                    'Keep shoulders relaxed and elbows level.',
+                    'Close your eyes and focus on your breath.',
+                    'Bow your head slightly toward your fingertips.'
+                ]
+            },
+            {
+                name: 'Adho Mukha Svanasana',
+                sanskrit: '(Downward Dog)',
+                category: 'Intermediate',
+                emoji: '🐕',
+                benefits: 'Deeply stretches the hamstrings, calves, and spine. Energizes the body and improves blood flow to the head.',
+                precaution: 'Avoid if you have carpal tunnel syndrome or high blood pressure.',
+                targeted: 'Shoulders, Back, Hamstrings',
+                steps: [
+                    'Start on all fours. Tuck your toes and lift your hips high.',
+                    'Press your palms firmly into the mat, fingers spread.',
+                    'Lengthen your spine, reaching your sit bones toward the sky.',
+                    'Keep a slight bend in knees if hamstrings are tight.',
+                    'Draw your belly in and hold for several deep breaths.'
+                ]
+            },
+            {
+                name: 'Virabhadrasana III',
+                sanskrit: '(Warrior III)',
+                category: 'Intermediate',
+                emoji: '⚔️',
+                benefits: 'Powerful balance pose that strengthens the back, core, and legs. Improves proprioception and stamina.',
+                precaution: 'Avoid if you have lower back injuries or severe high blood pressure.',
+                targeted: 'Lower Back, Hamstrings, Glutes',
+                steps: [
+                    'From a high lunge, lean forward over the front thigh.',
+                    'Reach arms forward in line with your ears.',
+                    'Lift the back leg parallel to the floor.',
+                    'Flex the back foot and point toes toward the ground.',
+                    'Keep your gaze down to maintain a neutral neck.'
+                ]
+            },
+            {
+                name: 'Natarajasana',
+                sanskrit: '(Dance Pose)',
+                category: 'Advanced',
+                emoji: '💃',
+                benefits: 'Deep backbend that opens the chest and shoulders while challenging balance and hip flexibility.',
+                precaution: 'Ensure a proper warm-up before attempting. Use a strap if you cannot reach your foot.',
+                targeted: 'Chest, Shoulders, Spine, Quads',
+                steps: [
+                    'Stand in Tadasana. Bend left knee and reach back for the inner ankle.',
+                    'Reach the right arm forward, palm facing up.',
+                    'Kick the left foot back and up away from the tailbone.',
+                    'Hinge forward slightly at the hips.',
+                    'Maintain a steady breath and focused gaze.'
+                ]
+            },
+            {
+                name: 'Baddha Konasana',
+                sanskrit: '(Bound Angle)',
+                category: 'Beginner',
+                emoji: '🦋',
+                benefits: 'Stretches the inner thighs, groin, and knees. Stimulates abdominal organs and improves circulation.',
+                precaution: 'Use blocks under knees if they are high off the ground. Avoid if you have knee injuries.',
+                targeted: 'Hips, Groin, Pelvis',
+                steps: [
+                    'Sit with your legs extended. Bend knees and bring soles together.',
+                    'Hold your feet or ankles and draw heels closer to the pelvis.',
+                    'Lengthen your spine and drop your shoulders.',
+                    'Gently press knees toward the mat without using force.',
+                    'Hold and breathe deeply into the hip area.'
+                ]
+            }
         ];
-        
+
         // --- MoveNet/AR Correction Globals ---
         let videoStream = null;
         let detector = null;
         let animationFrameId = null;
         let currentPose = null; // The pose the user selects
-        
+
         // --- Suggestion Stabilization Variables ---
         let suggestionBuffer = []; // Stores recent correction messages
         const BUFFER_SIZE = 5; // Number of frames to buffer before changing suggestion
         let stableSuggestion = null; // Current stable suggestion being displayed
         let correctionCounter = 0; // Frame counter for stabilization
-        
+
         // --- Scoring System Variables ---
         let poseScore = 100; // Start at perfect score
         let scoreHistory = []; // Track score over time for averaging
@@ -227,12 +567,12 @@
             const envApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
 
             // Use environment key if present, otherwise use the user's fallback key.
-            const apiKey = envApiKey; 
-            
+            const apiKey = envApiKey;
+
             // Construct API URL: Ensure the key is used if available.
             let API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
             if (apiKey) {
-                 API_URL += `?key=${apiKey}`;
+                API_URL += `?key=${apiKey}`;
             }
 
             for (let i = 0; i < retries; i++) {
@@ -241,18 +581,18 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                             contents: [{ parts: [{ text: prompt }] }],
-                             tools: [{ "google_search": {} }],
-                             systemInstruction: {
-                                 parts: [{ text: VIRTUAL_ASSISTANT_SYSTEM_PROMPT }]
-                             },
+                            contents: [{ parts: [{ text: prompt }] }],
+                            tools: [{ "google_search": {} }],
+                            systemInstruction: {
+                                parts: [{ text: VIRTUAL_ASSISTANT_SYSTEM_PROMPT }]
+                            },
                         })
                     });
 
                     if (!response.ok) {
                         let errorDetails = `HTTP error! status: ${response.status}`;
                         let isOverloaded = false;
-                        
+
                         try {
                             const errorBody = await response.json();
                             if (errorBody && errorBody.error && errorBody.error.message) {
@@ -272,14 +612,14 @@
                         if (isOverloaded) {
                             throw new Error("Model Unavailable (503). Please wait and try again.");
                         }
-                        
+
                         throw new Error(errorDetails);
                     }
 
                     const result = await response.json();
                     const candidate = result.candidates?.[0];
                     const text = candidate?.content?.parts?.[0]?.text || "Sorry, I couldn't find an answer for that right now. Please try rephrasing.";
-                    
+
                     let sources = [];
                     const groundingMetadata = candidate?.groundingMetadata;
                     if (groundingMetadata && groundingMetadata.groundingAttributions) {
@@ -299,10 +639,10 @@
                         console.error("Authentication Error. Please ensure the Gemini API key is correctly provided by the environment.");
                         return { text: "I'm still unable to connect to the AI service. The API key appears to be invalid or unauthorized. Please verify the key's status.", sources: [] };
                     }
-                    
+
                     // Check for 503 error after all retries fail
                     if (error.message && error.message.includes('503') && i === retries - 1) {
-                         // FIX: Provide a single, clear, user-friendly message upon final 503 failure.
+                        // FIX: Provide a single, clear, user-friendly message upon final 503 failure.
                         return { text: "The AI service is currently overloaded or undergoing maintenance. This is a temporary issue. Please wait a few moments and try your query again!", sources: [] };
                     }
 
@@ -319,38 +659,47 @@
 
 
         // --- App State and Routing ---
-        const app = {
+        window.app = {
             currentView: 'dashboard',
             views: {
                 dashboard: { name: 'Home', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3V6ZM3 15.75a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2.25ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3v-2.25Z" clip-rule="evenodd" /></svg>' },
                 asana: { name: 'Asana Library', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M11.54 22.351A2.433 2.433 0 0 0 12 22.5c.376 0 .741-.096 1.06-.279l.522-.249 7.55 3.332.002-.001.002-.001a.75.75 0 0 0 .584-.852 16.148 16.148 0 0 0-4.075-8.868 12.396 12.396 0 0 1 2.373-3.084c.645-.632.744-1.638.258-2.479l-.174-.298c-.469-.798-1.547-1.077-2.475-.688l-2.074.887a.75.75 0 0 0-.773-.243l-3.235-4.321C9.654 2.84 8.643 2.5 7.632 2.5a.75.75 0 0 0-.584.852c.321 1.954.249 3.864-.32 5.584l-2.316 4.01a.75.75 0 0 0-.074.786l.635 1.018a.75.75 0 0 0 .866.398l1.378-.475 3.655 1.701Z" clip-rule="evenodd" /></svg>' },
                 ar_correction: { name: 'AR Correction', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><path fill-rule="evenodd" d="M1.5 12c0-2.485 2.404-4.5 5.488-4.5h11.024c3.084 0 5.488 2.015 5.488 4.5s-2.404 4.5-5.488 4.5H6.988c-3.084 0-5.488-2.015-5.488-4.5ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" clip-rule="evenodd" /></svg>' },
-                course: { name: 'Course', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M11.7 2.805a.75.75 0 0 1 .6 0A60.65 60.65 0 0 1 22.83 8.72a.75.75 0 0 1-.231 1.337 49.948 49.948 0 0 0-9.902 3.912l-.003.002c-.114.06-.227.119-.34.18a.75.75 0 0 1-.707 0A50.88 50.88 0 0 0 7.5 12.173v-.224c0-.131.067-.248.172-.311a54.615 54.615 0 0 1 4.653-2.52.75.75 0 0 0-.65-1.352 56.123 56.123 0 0 0-4.78 2.589 1.858 1.858 0 0 0-.859 1.228 49.803 49.803 0 0 0-4.634-1.527.75.75 0 0 1-.231-1.337A60.653 60.653 0 0 1 11.7 2.805Z" /><path d="M13.06 15.473a48.45 48.45 0 0 1 7.666-3.282c.134 1.414.22 2.843.255 4.284a.75.75 0 0 1-.46.711 47.87 47.87 0 0 0-8.105 4.342.75.75 0 0 1-.832 0 47.87 47.87 0 0 0-8.104-4.342.75.75 0 0 1-.461-.71c.035-1.442.121-2.87.255-4.286.921.304 1.83.634 2.726.99v1.27a1.5 1.5 0 0 0-.14 2.508c-.09.38-.222.753-.397 1.11.452.213.901.434 1.346.66a6.727 6.727 0 0 0 .551-1.607 1.5 1.5 0 0 0 .14-2.67v-.645a48.549 48.549 0 0 1 3.44 1.667 2.25 2.25 0 0 0 2.12 0Z" /></svg>' },
+                course: { name: 'Course', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M11.7 2.805a.75.75 0 0 1 .6 0A60.65 60.65 0 0 1 22.83 8.72a.75.75 0 0 1-.231 1.337 49.948 49.948 0 0 0-9.902 3.912l-.003.002c-.114.06-.227.119-.34.18a.75.75 0 0 1-.707 0A50.88 50.88 0 0 0 7.5 12.173v-.224c0-.131.067-.248.172-.311a54.615 54.615 0 0 1 4.653-2.52.75.75 0 0 0-.65-1.352 56.123 56.123 0 0 0-4.78 2.589 1.858 1.858 0 0 0-.859 1.228 49.803 49.803 0 0 0-4.634-1.527.75.75 0 0 1-.231-1.337A60.653 60.653 0 0 1 11.7 2.805Z" /><path d="M13.06 15.473a48.45 48.45 0 0 1 7.666-3.282c.134 1.414.22 2.843.255 4.284a.75.75 0 0 1-.46.711 47.87 47.87 0 0 0-8.105 4.342.75.75 0 0 1-.832 0 47.87 47.87 0 0 0-8.104-4.342.75.75 0 0 1-.461-.71c.035-1.442.121-2.87.255-4.286.921.304 1.83.634 2.726.99v1.27a1.5 1.5 0 0 0-.14 2.508c-.09.38-.222.753-.397 1.11.452.213.901.434 1.346.66a6.727 6.727 0 0 0 .551-1.607 1.5 1.5 0 0 0 .14-2.67v-.645a48.549 48.549 0 0 1 3.44 1.667 2.25 2.25 0 0 0 2.12 0Z" /></svg>' }
             },
-            
+
             // Elements
             contentEl: document.getElementById('content'),
             navTabsEl: document.getElementById('nav-tabs'),
-            
+
             // Voice Command State
             isListening: false,
             recognitionInstance: null,
-            
+
             // TTS State
             ttsEnabled: false,
             isSpeaking: false,
-            
+
             // Course State
-            courseProgress: JSON.parse(localStorage.getItem('courseProgress') || '{"poses": [{"name": "Tadasana", "completed": false, "locked": false, "timeHeld": 0, "bestAccuracy": 0}, {"name": "Namastey", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0}, {"name": "Vrikshasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0}], "certificateEarned": false}'),
+            courseProgress: JSON.parse(localStorage.getItem('courseProgress') || '{"poses": [{"name": "Tadasana", "completed": false, "locked": false, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Namastey", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Vrikshasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Adho Mukha Svanasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Virabhadrasana III", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Natarajasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Baddha Konasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}], "certificateEarned": false}'),
             courseMode: false,
+            testActive: false, // Starts true only when 90%+ match is hit
             courseTimer: 0,
             courseTimerInterval: null,
             courseStartTime: null,
             courseHoldTime: 0,
             courseHoldTimer: null,
-            
+
             // Methods
             init() {
+                // Register Service Worker for PWA
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        navigator.serviceWorker.register('/sw.js')
+                            .then(reg => console.log('SW Registered', reg))
+                            .catch(err => console.log('SW Register Error', err));
+                    });
+                }
                 this.renderNav();
                 this.navigate(this.currentView);
                 this.setupVoiceCommands(); // Setup the voice command system
@@ -419,7 +768,7 @@
                         if (transcript.includes(phrase)) {
                             const targetView = commandMap[phrase];
                             // Stop recognition temporarily to allow navigation without conflict
-                            this.recognitionInstance.stop(); 
+                            this.recognitionInstance.stop();
                             // Set isListening to false so onend doesn't restart immediately
                             this.isListening = false;
                             this.navigate(targetView);
@@ -431,7 +780,7 @@
                     if (!navigated) {
                         // If nothing matched, revert to listening status after a short delay
                         setTimeout(() => {
-                            if(this.isListening) micStatusText.textContent = "Listening...";
+                            if (this.isListening) micStatusText.textContent = "Listening...";
                             else micStatusText.textContent = "Voice Off";
                         }, 1500);
                     }
@@ -449,7 +798,7 @@
                         updateMicStatus(true);
                     }
                 };
-                
+
                 // Restart listening after a pause or processing, unless manually stopped
                 this.recognitionInstance.onend = () => {
                     if (this.isListening) {
@@ -489,9 +838,38 @@
             },
 
             // --- Navigation and Rendering ---
+            updateVoiceStatus(state) {
+                const text = document.getElementById('mic-status-text');
+                const icon = document.getElementById('mic-icon');
+                const btn = document.getElementById('voice-toggle');
+                if (!text || !icon || !btn) return;
+
+                // Remove existing tone classes
+                btn.classList.remove('voice-listening', 'voice-talking');
+                text.className = "ml-2 font-bold";
+
+                switch (state) {
+                    case 'listening':
+                        text.textContent = "Listening...";
+                        text.classList.add('text-green-400');
+                        icon.style.color = "#4ADE80";
+                        btn.classList.add('voice-listening');
+                        break;
+                    case 'talking':
+                        text.textContent = "Speaking...";
+                        text.classList.add('text-blue-400');
+                        icon.style.color = "#60A5FA";
+                        btn.classList.add('voice-talking');
+                        break;
+                    default:
+                        text.textContent = "Voice Standby";
+                        text.classList.add('text-gray-400');
+                        icon.style.color = "#9CA3AF";
+                }
+            },
             navigate(viewKey) {
                 // The following logic block checking for 'music' is now removed.
-                
+
                 // If voice control is active, stop it before navigating to prevent lingering mic use
                 if (this.recognitionInstance && this.isListening) {
                     this.recognitionInstance.stop();
@@ -501,7 +879,7 @@
                     document.getElementById('mic-icon').classList.remove('text-primary', 'animate-pulse');
                     document.getElementById('mic-icon').classList.add('text-red-500');
                 }
-                
+
                 this.currentView = viewKey;
                 this.renderNav();
                 this.renderContent();
@@ -516,15 +894,15 @@
                     // Timeout ensures the HTML elements are rendered before attaching events
                     setTimeout(() => this.setupAssistantListeners(), 50);
                 }
-                
+
                 // Update milestone UI when navigating to dashboard
                 if (viewKey === 'dashboard') {
                     setTimeout(() => this.updateMilestoneUI(), 50);
                 }
-                
+
                 // Setup music listeners block removed.
             },
-            
+
             // --- Milestone Tracking Functions ---
             updateMilestoneUI() {
                 const milestonesEarnedEl = document.getElementById('milestones-earned');
@@ -532,13 +910,13 @@
                 const milestone1 = document.getElementById('milestone-1');
                 const milestone2 = document.getElementById('milestone-2');
                 const certificateBtn = document.getElementById('download-certificate-btn');
-                
+
                 if (!milestonesEarnedEl) return;
-                
+
                 milestonesEarnedEl.textContent = milestonesEarned;
                 const progressPercent = (milestonesEarned / 2) * 100;
                 progressBar.style.width = `${progressPercent}%`;
-                
+
                 // Update milestone markers
                 if (milestonesEarned >= 1 && milestone1) {
                     milestone1.classList.remove('bg-gray-600');
@@ -553,21 +931,21 @@
                     milestone2.querySelector('span').classList.remove('text-gray-400');
                     milestone2.querySelector('span').classList.add('text-gray-900');
                     milestone2.innerHTML = '<span class="text-2xl">✓</span>';
-                    
+
                     // Show certificate download button
                     if (certificateBtn) {
                         certificateBtn.classList.remove('hidden');
                     }
                 }
             },
-            
+
             downloadCertificate() {
                 // Create canvas for certificate
                 const canvas = document.createElement('canvas');
                 canvas.width = 1200;
                 canvas.height = 900;
                 const ctx = canvas.getContext('2d');
-                
+
                 // Background gradient
                 const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
                 gradient.addColorStop(0, '#1E1E1E');
@@ -575,38 +953,38 @@
                 gradient.addColorStop(1, '#1E1E1E');
                 ctx.fillStyle = gradient;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
+
                 // Border
                 ctx.strokeStyle = '#42A5F5';
                 ctx.lineWidth = 10;
                 ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
-                
+
                 // Inner border (gold)
                 ctx.strokeStyle = '#FFEB3B';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(60, 60, canvas.width - 120, canvas.height - 120);
-                
+
                 // Title
                 ctx.fillStyle = '#42A5F5';
                 ctx.font = 'bold 72px Inter, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('CERTIFICATE OF ACHIEVEMENT', canvas.width / 2, 180);
-                
+
                 // Subtitle
                 ctx.fillStyle = '#FFEB3B';
                 ctx.font = '32px Inter, sans-serif';
                 ctx.fillText('SUNDAY Yoga & Wellness Platform', canvas.width / 2, 240);
-                
+
                 // Body text
                 ctx.fillStyle = '#E0E0E0';
                 ctx.font = '28px Inter, sans-serif';
                 ctx.fillText('This certifies that', canvas.width / 2, 340);
-                
+
                 // User name (you can customize this)
                 ctx.fillStyle = '#FFEB3B';
                 ctx.font = 'bold 48px Inter, sans-serif';
                 ctx.fillText('Yoga Practitioner', canvas.width / 2, 420);
-                
+
                 // Achievement text
                 ctx.fillStyle = '#E0E0E0';
                 ctx.font = '26px Inter, sans-serif';
@@ -614,13 +992,13 @@
                 ctx.fillText('2 Milestone Achievements', canvas.width / 2, 530);
                 ctx.fillText('by maintaining 70%+ posture accuracy', canvas.width / 2, 570);
                 ctx.fillText('for 20 seconds during practice sessions', canvas.width / 2, 610);
-                
+
                 // Date
                 const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
                 ctx.fillStyle = '#42A5F5';
                 ctx.font = '24px Inter, sans-serif';
                 ctx.fillText(`Awarded on ${today}`, canvas.width / 2, 720);
-                
+
                 // Signature line
                 ctx.strokeStyle = '#42A5F5';
                 ctx.lineWidth = 2;
@@ -628,11 +1006,11 @@
                 ctx.moveTo(400, 800);
                 ctx.lineTo(800, 800);
                 ctx.stroke();
-                
+
                 ctx.fillStyle = '#E0E0E0';
                 ctx.font = 'italic 22px Inter, sans-serif';
                 ctx.fillText('SUNDAY Platform', canvas.width / 2, 835);
-                
+
                 // Convert to download
                 canvas.toBlob((blob) => {
                     const url = URL.createObjectURL(blob);
@@ -645,14 +1023,14 @@
                     URL.revokeObjectURL(url);
                 });
             },
-            
+
             // --- TTS (Text-to-Speech) Functions ---
             toggleTTS() {
                 this.ttsEnabled = !this.ttsEnabled;
                 const ttsBtn = document.getElementById('tts-toggle-btn');
                 const ttsIcon = document.getElementById('tts-icon');
                 const ttsText = document.getElementById('tts-status-text');
-                
+
                 if (this.ttsEnabled) {
                     ttsIcon.classList.remove('text-gray-400');
                     ttsIcon.classList.add('text-accent', 'animate-pulse');
@@ -665,55 +1043,55 @@
                     ttsText.textContent = 'Voice Guide Off';
                     ttsBtn.classList.remove('bg-accent/20', 'border-2', 'border-accent');
                     ttsBtn.classList.add('bg-gray-700');
-                    
+
                     // Stop any ongoing speech
                     window.speechSynthesis.cancel();
                     this.isSpeaking = false;
                 }
             },
-            
+
             speakCorrection(message) {
                 // Check if browser supports speech synthesis
                 if (!('speechSynthesis' in window)) {
                     console.warn('Text-to-Speech not supported in this browser');
                     return;
                 }
-                
+
                 // Don't interrupt if already speaking
                 if (this.isSpeaking || window.speechSynthesis.speaking) {
                     return;
                 }
-                
+
                 // Cancel any pending speech
                 window.speechSynthesis.cancel();
-                
+
                 // Create utterance
                 const utterance = new SpeechSynthesisUtterance(message);
                 utterance.rate = 0.9; // Slightly slower for clarity
                 utterance.pitch = 1.0;
                 utterance.volume = 1.0;
                 utterance.lang = 'en-US';
-                
+
                 // Event handlers
                 utterance.onstart = () => {
                     this.isSpeaking = true;
                 };
-                
+
                 utterance.onend = () => {
                     this.isSpeaking = false;
                 };
-                
+
                 utterance.onerror = (event) => {
                     console.error('TTS Error:', event);
                     this.isSpeaking = false;
                 };
-                
+
                 // Speak
                 window.speechSynthesis.speak(utterance);
             },
-            
+
             // --- AR Correction Utilities (Now methods of app object) ---
-            
+
             /**
              * Select an asana and start the AR session
              */
@@ -721,13 +1099,13 @@
                 this.currentPose = poseName;
                 const poseSelection = document.getElementById('pose-selection');
                 const arSession = document.getElementById('ar-session');
-                
+
                 if (poseSelection) poseSelection.style.display = 'none';
                 if (arSession) arSession.style.display = 'block';
-                
+
                 // Find the asana data
                 const asana = asanaData.find(a => a.name === poseName);
-                
+
                 // Show and populate reference container
                 const referenceContainer = document.getElementById('reference-container');
                 if (referenceContainer && asana) {
@@ -737,46 +1115,46 @@
                     document.getElementById('reference-benefits').textContent = asana.benefits;
                     document.getElementById('reference-precaution').textContent = asana.precaution;
                 }
-                
+
                 // Load reference image if available
                 this.loadReferenceImage(poseName);
-                
+
                 // Reset scoring system
                 poseScore = 100;
                 scoreHistory = [];
                 this.updateScore(100);
-                
+
                 // Reset suggestion stabilization
                 suggestionBuffer = [];
                 stableSuggestion = null;
                 correctionCounter = 0;
-                
+
                 // Initialize correction log
                 const correctionLog = document.getElementById('correction-log');
                 if (correctionLog) {
                     correctionLog.innerHTML = '<p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>';
                     this.correctionHistory = [];
                 }
-                
+
                 this.startARAssessment();
             },
-            
+
             /**
              * Loads reference image for the selected pose
              */
             loadReferenceImage(poseName) {
                 const imageElement = document.getElementById('reference-image');
                 const placeholder = document.getElementById('reference-placeholder');
-                
+
                 // Map pose names to reference images
                 const imageMap = {
                     'Tadasana': 'assets/poses/tadasana.jpg',
                     'Vrikshasana': 'assets/poses/vrikshasana.jpg',
                     'Namastey': 'assets/poses/namaste.png'
                 };
-                
+
                 const imagePath = imageMap[poseName];
-                
+
                 if (imagePath && imageElement) {
                     imageElement.src = imagePath;
                     imageElement.classList.remove('hidden');
@@ -786,18 +1164,18 @@
                     if (placeholder) placeholder.classList.remove('hidden');
                 }
             },
-            
+
             /**
              * Updates the pose score display
              */
             updateScore(score) {
                 const scoreElement = document.getElementById('pose-score');
                 const scoreBar = document.getElementById('score-bar');
-                
+
                 if (scoreElement && scoreBar) {
                     scoreElement.textContent = Math.round(score);
                     scoreBar.style.width = `${Math.max(0, Math.min(100, score))}%`;
-                    
+
                     // Change color based on score
                     if (score >= 85) {
                         scoreBar.className = 'bg-gradient-to-r from-green-500 to-green-400 h-3 rounded-full transition-all duration-500';
@@ -810,14 +1188,14 @@
                     }
                 }
             },
-            
+
             /**
              * Calculates the angle formed by three keypoints (A, B, C) where B is the vertex.
              * Returns the angle in degrees.
              */
             calculateAngle(A, B, C) {
                 if (!A || !B || !C) return 180; // Return 180 (straight line) if points are missing for lenient check
-                
+
                 const AB = Math.sqrt(Math.pow(B.x - A.x, 2) + Math.pow(B.y - A.y, 2));
                 const BC = Math.sqrt(Math.pow(C.x - B.x, 2) + Math.pow(C.y - B.y, 2));
                 const AC = Math.sqrt(Math.pow(C.x - A.x, 2) + Math.pow(C.y - A.y, 2));
@@ -828,11 +1206,11 @@
                 const cosAngle = (Math.pow(AB, 2) + Math.pow(BC, 2) - Math.pow(AC, 2)) / (2 * AB * BC);
                 // Clamp the value to the range [-1, 1] to prevent NaN due to floating point inaccuracies
                 const clampedCosAngle = Math.max(-1, Math.min(1, cosAngle));
-                
+
                 const angleRad = Math.acos(clampedCosAngle);
                 return (angleRad * 180) / Math.PI;
             },
-            
+
             /**
              * Checks the detected keypoints against the expected form for the current pose.
              * Returns an array of correction messages.
@@ -843,7 +1221,7 @@
                     if (!kp || kp.score < MIN_CONFIDENCE) return null;
                     return { x: kp.x, y: kp.y };
                 };
-                
+
                 const leftHip = getPoint('left_hip');
                 const leftKnee = getPoint('left_knee');
                 const leftAnkle = getPoint('left_ankle');
@@ -862,43 +1240,43 @@
 
                 // --- Global Visibility Check ---
                 if (!leftHip || !rightHip || !leftShoulder || !rightShoulder || !nose) {
-                    return [{message: "Ensure your full body, including your face and hips, is visible.", affected: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip']}];
+                    return [{ message: "Ensure your full body, including your face and hips, is visible.", affected: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip'] }];
                 }
-                
+
                 if (poseName === 'Tadasana') {
                     // Mountain Pose - Standing Straight
-                    
+
                     // 1. Leg Straightness
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 165) corrections.push({message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red'});
+                        if (leftKneeAngle < 165) corrections.push({ message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red' });
                     }
 
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 165) corrections.push({message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'red'});
+                        if (rightKneeAngle < 165) corrections.push({ message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'red' });
                     }
-                    
+
                     // 2. Hip/Torso Alignment (Simple vertical check)
                     if (leftHip && rightHip) {
                         const hipDifference = Math.abs(leftHip.y - rightHip.y);
-                        if (hipDifference > 40) corrections.push({message: "Hips: keep level", affected: ['left_hip', 'right_hip'], color: 'yellow'});
+                        if (hipDifference > 40) corrections.push({ message: "Hips: keep level", affected: ['left_hip', 'right_hip'], color: 'yellow' });
                     }
-                    
+
                     // 3. Shoulder Alignment (Simple vertical check)
                     if (leftShoulder && rightShoulder) {
                         const shoulderDifference = Math.abs(leftShoulder.y - rightShoulder.y);
-                        if (shoulderDifference > 40) corrections.push({message: "Shoulders: relax and level", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow'});
+                        if (shoulderDifference > 40) corrections.push({ message: "Shoulders: relax and level", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow' });
                     }
-                    
+
                 } else if (poseName === 'Adho Mukha Svanasana') {
                     // Downward Dog
-                    
+
                     // 1. Torso/Arm Alignment (Arms should be straight, a line from wrist to shoulder)
                     if (leftShoulder && leftElbow && leftWrist) {
                         const armAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
                         if (armAngle < 160) {
-                            corrections.push({message: "Straighten your arms fully. Press through your palms.", affected: ['left_shoulder', 'left_elbow', 'left_wrist'], color: 'red'});
+                            corrections.push({ message: "Straighten your arms fully. Press through your palms.", affected: ['left_shoulder', 'left_elbow', 'left_wrist'], color: 'red' });
                         }
                     }
 
@@ -906,27 +1284,27 @@
                     if (leftHip && leftKnee && leftAnkle) {
                         const legAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
                         if (legAngle < 160) {
-                            corrections.push({message: "Straighten your legs more. It's okay if your heels don't touch the floor.", affected: ['left_hip', 'left_knee', 'left_ankle'], color: 'yellow'});
+                            corrections.push({ message: "Straighten your legs more. It's okay if your heels don't touch the floor.", affected: ['left_hip', 'left_knee', 'left_ankle'], color: 'yellow' });
                         }
                     }
 
                     // 3. Hips lifted (Simple check: hips should be higher than shoulders)
                     if (leftHip && leftShoulder) {
                         if (leftHip.y < leftShoulder.y) {
-                            corrections.push({message: "Lift your hips higher and press your chest toward your thighs.", affected: ['left_hip', 'left_shoulder'], color: 'red'});
+                            corrections.push({ message: "Lift your hips higher and press your chest toward your thighs.", affected: ['left_hip', 'left_shoulder'], color: 'red' });
                         }
                     }
 
                 } else if (poseName === 'Virabhadrasana III') {
                     // Warrior III
-                    
+
                     // 1. Back Leg Straightness (Assume left leg back for balance)
                     if (leftHip && leftKnee && leftAnkle) {
                         const legAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
                         // The knee should be fully straight, close to 180, but relative to the body angle it's a small angle when parallel to the ground.
                         // Let's check for knee bend in the back leg.
-                        if (legAngle < 170) { 
-                             corrections.push({message: "Fully straighten your back (left) leg.", affected: ['left_knee', 'left_ankle'], color: 'red'});
+                        if (legAngle < 170) {
+                            corrections.push({ message: "Fully straighten your back (left) leg.", affected: ['left_knee', 'left_ankle'], color: 'red' });
                         }
                     }
 
@@ -934,8 +1312,8 @@
                     if (leftHip && leftShoulder) {
                         const torsoVerticalDifference = Math.abs(leftShoulder.y - leftHip.y);
                         // A large difference means the torso is too upright or dipped too low. The torso should be horizontal, meaning Y coordinates are similar.
-                        if (torsoVerticalDifference > 30) { 
-                            corrections.push({message: "Align your torso so it's parallel to the ground.", affected: ['left_shoulder', 'left_hip'], color: 'red'});
+                        if (torsoVerticalDifference > 30) {
+                            corrections.push({ message: "Align your torso so it's parallel to the ground.", affected: ['left_shoulder', 'left_hip'], color: 'red' });
                         }
                     }
 
@@ -943,17 +1321,17 @@
                     if (leftShoulder && leftElbow && leftWrist) {
                         const armAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
                         if (armAngle < 160) {
-                            corrections.push({message: "Extend your arms fully forward (keep elbows straight).", affected: ['left_shoulder', 'left_elbow', 'left_wrist'], color: 'yellow'});
+                            corrections.push({ message: "Extend your arms fully forward (keep elbows straight).", affected: ['left_shoulder', 'left_elbow', 'left_wrist'], color: 'yellow' });
                         }
                     }
                 } else if (poseName === 'Namastey') {
                     // Namastey (Prayer Pose) - Standing with hands in prayer at heart center
-                    
+
                     // 1. Feet together
                     if (leftAnkle && rightAnkle) {
                         const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
                         if (feetDistance > 30) {
-                            corrections.push({message: "Feet: bring closer together", affected: ['left_ankle', 'right_ankle'], color: 'yellow'});
+                            corrections.push({ message: "Feet: bring closer together", affected: ['left_ankle', 'right_ankle'], color: 'yellow' });
                         }
                     }
 
@@ -961,15 +1339,15 @@
                     if (leftWrist && rightWrist) {
                         const handsDistance = Math.abs(leftWrist.x - rightWrist.x);
                         if (handsDistance > 25) {
-                            corrections.push({message: "Hands: press palms together", affected: ['left_wrist', 'right_wrist'], color: 'red'});
+                            corrections.push({ message: "Hands: press palms together", affected: ['left_wrist', 'right_wrist'], color: 'red' });
                         }
-                        
+
                         // Approximate chest level using average shoulder Y
                         if (leftShoulder && rightShoulder) {
                             const chestY = (leftShoulder.y + rightShoulder.y) / 2;
                             const avgHandY = (leftWrist.y + rightWrist.y) / 2;
                             if (Math.abs(avgHandY - chestY) > 60) {
-                                corrections.push({message: "Hands: raise to heart level", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
+                                corrections.push({ message: "Hands: raise to heart level", affected: ['left_wrist', 'right_wrist'], color: 'yellow' });
                             }
                         }
                     }
@@ -977,97 +1355,97 @@
                     // 3. Straight posture (similar to Tadasana legs and hips)
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 165) corrections.push({message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'yellow'});
+                        if (leftKneeAngle < 165) corrections.push({ message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'yellow' });
                     }
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 165) corrections.push({message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'yellow'});
+                        if (rightKneeAngle < 165) corrections.push({ message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'yellow' });
                     }
                 } else if (poseName === 'Natarajasana') {
                     // Lord of the Dance Pose - Balancing on one leg, grabbing back foot
-                    
+
                     // Assume right leg standing, left leg bent back
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 170) corrections.push({message: "Straighten your standing (right) leg fully.", affected: ['right_knee', 'right_ankle'], color: 'red'});
+                        if (rightKneeAngle < 170) corrections.push({ message: "Straighten your standing (right) leg fully.", affected: ['right_knee', 'right_ankle'], color: 'red' });
                     }
-                    
+
                     if (leftHip && leftKnee && leftAnkle) {
                         // Back leg should be bent, knee angle around 90-120 degrees
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle > 140 || leftKneeAngle < 80) corrections.push({message: "Bend your back (left) leg more, aiming for a 90-degree knee bend.", affected: ['left_knee', 'left_ankle'], color: 'yellow'});
+                        if (leftKneeAngle > 140 || leftKneeAngle < 80) corrections.push({ message: "Bend your back (left) leg more, aiming for a 90-degree knee bend.", affected: ['left_knee', 'left_ankle'], color: 'yellow' });
                     }
-                    
+
                     // Arms extended
                     if (rightShoulder && rightElbow && rightWrist) {
                         const rightArmAngle = this.calculateAngle(rightShoulder, rightElbow, rightWrist);
-                        if (rightArmAngle < 160) corrections.push({message: "Extend your front arm straight forward.", affected: ['right_elbow', 'right_wrist'], color: 'yellow'});
+                        if (rightArmAngle < 160) corrections.push({ message: "Extend your front arm straight forward.", affected: ['right_elbow', 'right_wrist'], color: 'yellow' });
                     }
-                    
+
                     // Hips level for balance
                     if (leftHip && rightHip) {
                         const hipDifference = Math.abs(leftHip.y - rightHip.y);
-                        if (hipDifference > 40) corrections.push({message: "Keep hips level to maintain balance.", affected: ['left_hip', 'right_hip'], color: 'red'});
+                        if (hipDifference > 40) corrections.push({ message: "Keep hips level to maintain balance.", affected: ['left_hip', 'right_hip'], color: 'red' });
                     }
                 } else if (poseName === 'Vrikshasana') {
                     // Tree Pose - Foot on inner thigh, hands in prayer
-                    
+
                     // Standing leg straight
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 165) corrections.push({message: `Standing leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red'});
+                        if (leftKneeAngle < 165) corrections.push({ message: `Standing leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red' });
                     }
-                    
+
                     // Bent leg foot position
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 80) corrections.push({message: "Right foot: place higher on thigh", affected: ['right_knee', 'right_ankle'], color: 'yellow'});
+                        if (rightKneeAngle < 80) corrections.push({ message: "Right foot: place higher on thigh", affected: ['right_knee', 'right_ankle'], color: 'yellow' });
                     }
-                    
+
                     // Hands in prayer at chest
                     if (leftWrist && rightWrist) {
                         const handsDistance = Math.abs(leftWrist.x - rightWrist.x);
-                        if (handsDistance > 25) corrections.push({message: "Hands: press palms together", affected: ['left_wrist', 'right_wrist'], color: 'yellow'});
+                        if (handsDistance > 25) corrections.push({ message: "Hands: press palms together", affected: ['left_wrist', 'right_wrist'], color: 'yellow' });
                     }
-                    
+
                     // Hips forward
                     if (leftHip && rightHip) {
                         const hipAngle = Math.abs(leftHip.x - rightHip.x);
-                        if (hipAngle > 60) corrections.push({message: "Hips: square forward", affected: ['left_hip', 'right_hip'], color: 'yellow'});
+                        if (hipAngle > 60) corrections.push({ message: "Hips: square forward", affected: ['left_hip', 'right_hip'], color: 'yellow' });
                     }
                 } else if (poseName === 'Baddha Konasana') {
                     // Bound Angle Pose - Seated, soles together, knees out
-                    
+
                     // Knees should be lower than hips
                     if (leftHip && leftKnee) {
-                        if (leftKnee.y > leftHip.y) corrections.push({message: "Lower your left knee toward the floor.", affected: ['left_knee'], color: 'yellow'});
+                        if (leftKnee.y > leftHip.y) corrections.push({ message: "Lower your left knee toward the floor.", affected: ['left_knee'], color: 'yellow' });
                     }
                     if (rightHip && rightKnee) {
-                        if (rightKnee.y > rightHip.y) corrections.push({message: "Lower your right knee toward the floor.", affected: ['right_knee'], color: 'yellow'});
+                        if (rightKnee.y > rightHip.y) corrections.push({ message: "Lower your right knee toward the floor.", affected: ['right_knee'], color: 'yellow' });
                     }
-                    
+
                     // Feet close to pelvis - check ankle positions relative to hips
                     if (leftHip && leftAnkle && rightAnkle) {
                         const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
-                        if (feetDistance > 60) corrections.push({message: "Bring soles of feet closer to your pelvis.", affected: ['left_ankle', 'right_ankle'], color: 'yellow'});
+                        if (feetDistance > 60) corrections.push({ message: "Bring soles of feet closer to your pelvis.", affected: ['left_ankle', 'right_ankle'], color: 'yellow' });
                     }
-                    
+
                     // Back straight - shoulders over hips
                     if (leftShoulder && rightShoulder && leftHip && rightHip) {
                         const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
                         const avgHipY = (leftHip.y + rightHip.y) / 2;
-                        if (avgShoulderY > avgHipY + 20) corrections.push({message: "Lengthen your spine, lift chest forward.", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow'});
+                        if (avgShoulderY > avgHipY + 20) corrections.push({ message: "Lengthen your spine, lift chest forward.", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow' });
                     }
                 }
-                
+
                 // If no specific corrections, but all keypoints are visible, provide a positive message.
                 if (corrections.length === 0) {
-                    corrections.push({message: `You are holding ${poseName} well! Focus on your breath.`, color: 'green'});
+                    corrections.push({ message: `You are holding ${poseName} well! Focus on your breath.`, color: 'green' });
                 }
 
                 return corrections;
             },
-            
+
             /**
              * Initializes the camera and TensorFlow MoveNet model.
              */
@@ -1094,13 +1472,13 @@
                 };
 
                 updateStatus("Loading MoveNet model...");
-                
+
                 // Clear any running animation frame before starting a new one
                 if (this.animationFrameId) {
                     cancelAnimationFrame(this.animationFrameId);
                     this.animationFrameId = null;
                 }
-                
+
                 // Clean up previous video stream if it exists
                 if (this.videoStream) {
                     this.videoStream.getTracks().forEach(track => track.stop());
@@ -1126,35 +1504,35 @@
 
                 // 2. Get Camera Stream
                 navigator.mediaDevices.getUserMedia({ video: true })
-                .then((stream) => {
-                    this.videoStream = stream;
-                    video.srcObject = stream;
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        
-                        // Set canvas dimensions to match video stream
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        
-                        // Show video container
-                        const videoContainer = document.getElementById('video-container');
-                        const feedbackArea = document.getElementById('feedback-area');
-                        
-                        if (videoContainer) videoContainer.style.display = 'block';
-                        if (statusDiv) statusDiv.classList.add('hidden');
-                        if (feedbackArea) feedbackArea.style.display = 'block';
-                        if (feedbackText) feedbackText.textContent = `Starting ${this.currentPose} analysis... Stand in position!`;
-                        
-                        // Start the ML loop, passing video reference
-                        this.poseDetectionFrame(video, ctx, this.detector, feedbackText);
-                    };
-                })
-                .catch((err) => {
-                    console.error("Camera access error:", err);
-                    updateStatus("Permission denied or camera is in use. Please enable camera access.", true);
-                });
+                    .then((stream) => {
+                        this.videoStream = stream;
+                        video.srcObject = stream;
+                        video.onloadedmetadata = () => {
+                            video.play();
+
+                            // Set canvas dimensions to match video stream
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+
+                            // Show video container
+                            const videoContainer = document.getElementById('video-container');
+                            const feedbackArea = document.getElementById('feedback-area');
+
+                            if (videoContainer) videoContainer.style.display = 'block';
+                            if (statusDiv) statusDiv.classList.add('hidden');
+                            if (feedbackArea) feedbackArea.style.display = 'block';
+                            if (feedbackText) feedbackText.textContent = `Starting ${this.currentPose} analysis... Stand in position!`;
+
+                            // Start the ML loop, passing video reference
+                            this.poseDetectionFrame(video, ctx, this.detector, feedbackText);
+                        };
+                    })
+                    .catch((err) => {
+                        console.error("Camera access error:", err);
+                        updateStatus("Permission denied or camera is in use. Please enable camera access.", true);
+                    });
             },
-            
+
             /**
              * Main loop for MoveNet pose detection and drawing.
              */
@@ -1164,7 +1542,7 @@
 
                 if (detector && video.readyState === 4) {
                     const poses = await detector.estimatePoses(video);
-                    
+
                     // Clear the canvas
                     ctx.clearRect(0, 0, video.videoWidth, video.videoHeight);
 
@@ -1175,10 +1553,10 @@
                         // 1. Correction Logic - Get corrections with affected parts
                         let affectedKeypoints = new Set(); // Track all affected keypoints for coloring
                         let corrections = [];
-                        
+
                         if (this.currentPose) {
                             corrections = this.checkPose(keypoints, this.currentPose.split('(')[0].trim());
-                            
+
                             // Aggregate affected keypoints for drawing
                             corrections.forEach(c => {
                                 if (c.affected) {
@@ -1189,19 +1567,19 @@
                             // === STABILIZED SUGGESTIONS ===
                             // Only update suggestion every BUFFER_SIZE frames
                             correctionCounter++;
-                            
+
                             if (correctionCounter >= BUFFER_SIZE) {
                                 // Time to update the suggestion
                                 stableSuggestion = corrections.length > 0 ? corrections[0] : { message: "Great! Hold this pose.", color: 'green' };
                                 correctionCounter = 0; // Reset counter
                             }
-                            
+
                             // Use stable suggestion for display
                             const displayCorrection = stableSuggestion || corrections[0] || { message: "Analyzing pose...", color: 'gray' };
-                            
+
                             // Display stabilized feedback message
                             feedbackText.textContent = displayCorrection.message;
-                            
+
                             // Update feedback color based on stabilized suggestion
                             if (displayCorrection.color === 'red') {
                                 feedbackText.classList.remove('text-green-400', 'text-yellow-400', 'text-gray-400');
@@ -1216,11 +1594,11 @@
                                 feedbackText.classList.remove('text-red-400', 'text-yellow-400', 'text-green-400');
                                 feedbackText.classList.add('text-gray-400');
                             }
-                            
+
                             // === SCORING SYSTEM ===
                             // Calculate score based on number and severity of corrections
                             let frameScore = 100;
-                            
+
                             corrections.forEach(corr => {
                                 if (corr.color === 'red') {
                                     frameScore -= 15; // Major error
@@ -1228,49 +1606,49 @@
                                     frameScore -= 8; // Minor warning
                                 }
                             });
-                            
+
                             // Keep score between 0-100
                             frameScore = Math.max(0, Math.min(100, frameScore));
-                            
+
                             // Add to score history and calculate average
                             scoreHistory.push(frameScore);
                             if (scoreHistory.length > 30) { // Keep last 30 frames (about 1 second)
                                 scoreHistory.shift();
                             }
-                            
+
                             // Calculate average score for smoother display
                             poseScore = scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length;
-                            
+
                             // Update score display
                             this.updateScore(poseScore);
-                            
+
                             // === COURSE PROGRESS TRACKING ===
                             app.checkCourseProgress(poseScore);
-                            
+
                             // === MILESTONE TRACKING ===
                             // Track high accuracy for milestone rewards
                             if (poseScore >= 70 && milestonesEarned < 2) {
                                 highAccuracyTimer++;
-                                
+
                                 // 10 seconds at ~30fps = 300 frames
                                 if (highAccuracyTimer >= 300 && Date.now() - lastMilestoneTime > 1000) {
                                     milestonesEarned++;
                                     localStorage.setItem('milestonesEarned', milestonesEarned.toString());
                                     lastMilestoneTime = Date.now();
                                     highAccuracyTimer = 0;
-                                    
+
                                     // Show celebration message
                                     feedbackText.textContent = `🎉 Milestone ${milestonesEarned} Earned! Great job!`;
                                     feedbackText.classList.remove('text-red-400', 'text-yellow-400', 'text-gray-400');
                                     feedbackText.classList.add('text-green-400');
-                                    
+
                                     console.log(`Milestone ${milestonesEarned} achieved!`);
                                 }
                             } else {
                                 // Reset timer if accuracy drops below 70%
                                 highAccuracyTimer = 0;
                             }
-                            
+
                             // Log all corrections to the correction log panel (much less frequently for TTS)
                             // Update every 200 frames = ~6-7 seconds at 30fps
                             if (correctionCounter % 200 === 0) {
@@ -1284,29 +1662,29 @@
                         } else {
                             feedbackText.textContent = "Select a pose to begin tracking!";
                         }
-                        
+
                         // 2. Drawing Logic
                         this.drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections);
                         this.drawSkeleton(video, keypoints, ctx, affectedKeypoints, corrections);
-                        
+
                         // 3. Draw Score on Canvas (Fix mirrored text)
                         if (this.currentPose) {
                             // Save the current canvas state
                             ctx.save();
-                            
+
                             // Flip horizontally to un-mirror the text
                             ctx.scale(-1, 1);
-                            
+
                             ctx.font = 'bold 48px Inter, sans-serif';
                             ctx.textAlign = 'left';
                             ctx.textBaseline = 'top';
-                            
+
                             // Add shadow for better visibility
                             ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                             ctx.shadowBlur = 10;
                             ctx.shadowOffsetX = 2;
                             ctx.shadowOffsetY = 2;
-                            
+
                             // Color based on score
                             if (poseScore >= 85) {
                                 ctx.fillStyle = '#10B981'; // Green
@@ -1315,10 +1693,10 @@
                             } else {
                                 ctx.fillStyle = '#EF4444'; // Red
                             }
-                            
+
                             // Draw score (negative x because canvas is flipped)
                             ctx.fillText(Math.round(poseScore), -video.videoWidth + 20, 20);
-                            
+
                             // Restore the canvas state
                             ctx.restore();
                         }
@@ -1329,36 +1707,36 @@
                     }
                 }
             },
-            
+
             /**
              * Logs corrections to the correction log panel (max 5 recent corrections displayed).
              */
             logCorrections(corrections) {
                 if (!this.correctionHistory) this.correctionHistory = [];
-                
+
                 const correctionLog = document.getElementById('correction-log');
                 if (!correctionLog) return;
-                
+
                 // Add only non-duplicate corrections to history (avoid spamming same message)
                 corrections.forEach(corr => {
                     const corrText = corr.message;
                     const lastCorr = this.correctionHistory[this.correctionHistory.length - 1];
-                    
+
                     // Only add if it's different from the last logged correction
                     if (!lastCorr || lastCorr !== corrText) {
                         this.correctionHistory.push(corrText);
-                        
+
                         // Keep only last 5 corrections
                         if (this.correctionHistory.length > 5) {
                             this.correctionHistory.shift();
                         }
-                        
+
                         // Update the log display
                         const logHtml = '<p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>' +
                             this.correctionHistory.map((msg, idx) => {
                                 let icon = '•';
                                 let colorClass = 'text-gray-400';
-                                
+
                                 if (msg.includes('well') || msg.includes('perfect') || msg.includes('breath')) {
                                     icon = '✓';
                                     colorClass = 'text-green-400';
@@ -1372,12 +1750,12 @@
                                     icon = '⚠';
                                     colorClass = 'text-yellow-400';
                                 }
-                                
+
                                 return `<p class="text-xs ${colorClass} pl-2"><span class="font-bold">${icon}</span> ${msg}</p>`;
                             }).join('');
-                        
+
                         correctionLog.innerHTML = logHtml;
-                        
+
                         // Auto-scroll to latest correction
                         correctionLog.scrollTop = correctionLog.scrollHeight;
                     }
@@ -1391,7 +1769,7 @@
                 if (!keypoints || !ctx) return;
                 affectedKeypoints = affectedKeypoints || new Set();
                 corrections = corrections || [];
-                
+
                 keypoints.forEach((keypoint, index) => {
                     if (keypoint.score > MIN_CONFIDENCE) {
                         // Use coordinates directly since canvas is mirrored via CSS
@@ -1420,7 +1798,7 @@
                         ctx.arc(x, y, 5, 0, 2 * Math.PI);
                         ctx.fillStyle = fillColor;
                         ctx.fill();
-                        
+
                         // Add a subtle border for contrast
                         ctx.strokeStyle = '#FFFFFF';
                         ctx.lineWidth = 1;
@@ -1436,7 +1814,7 @@
                 if (!keypoints || !ctx) return;
                 affectedKeypoints = affectedKeypoints || new Set();
                 corrections = corrections || [];
-                
+
                 ctx.lineWidth = 3;
 
                 SKELETON_CONNECTIONS.forEach(([i, j]) => {
@@ -1444,7 +1822,7 @@
                     const kp2 = keypoints[j];
 
                     if (kp1 && kp2 && kp1.score > MIN_CONFIDENCE && kp2.score > MIN_CONFIDENCE) {
-                        
+
                         const kp1Name = Object.keys(keypointIndices).find(name => keypointIndices[name] === i);
                         const kp2Name = Object.keys(keypointIndices).find(name => keypointIndices[name] === j);
 
@@ -1453,10 +1831,10 @@
 
                         // Check if either keypoint in the connection is part of a severe correction (red or yellow)
                         if (affectedKeypoints.has(kp1Name) || affectedKeypoints.has(kp2Name)) {
-                            const relevantCorrections = corrections.filter(c => 
+                            const relevantCorrections = corrections.filter(c =>
                                 c.affected && (c.affected.includes(kp1Name) || c.affected.includes(kp2Name))
                             );
-                            
+
                             // Prioritize the worst color (red > yellow > green)
                             if (relevantCorrections.some(c => c.color === 'red')) {
                                 corrColor = 'red';
@@ -1490,7 +1868,7 @@
                     }
                 });
             },
-            
+
             /**
              * Stops the AR session and frees resources.
              */
@@ -1520,96 +1898,8 @@
                 this.correctionHistory = [];
                 console.log("AR assessment stopped.");
             },
-            
-            // --- Virtual Assistant Methods ---
-            setupAssistantListeners() {
-                const form = document.getElementById('assistant-form');
-                const input = document.getElementById('user-input');
-                const sendButton = document.getElementById('send-button');
-                
-                if (!form || !input || !sendButton) return; // Exit if elements are not rendered
 
-                // Clear previous listeners to prevent duplicates
-                form.removeEventListener('submit', this.handleAssistantSubmit);
-                
-                // Bind and store the handler to be able to remove it later
-                this.handleAssistantSubmit = (e) => this.processAssistantQuery(e, form, input, sendButton);
-                
-                form.addEventListener('submit', this.handleAssistantSubmit);
-            },
-            
-            async processAssistantQuery(e, form, input, sendButton) {
-                e.preventDefault();
-                const query = input.value.trim();
-                if (!query) return;
 
-                // 1. Display user message
-                this.addMessageToChat(query, 'user');
-                input.value = '';
-                
-                // 2. Show loading state on button
-                this.showLoading(sendButton);
-
-                // 3. Call Gemini API
-                const fullPrompt = `${VIRTUAL_ASSISTANT_SYSTEM_PROMPT} User Query: ${query}`;
-                const response = await callGeminiAssistant(fullPrompt);
-
-                // 4. Display AI response
-                this.addMessageToChat(response.text, 'ai', response.sources);
-                
-                // 5. Hide loading state
-                this.hideLoading(sendButton);
-            },
-            
-            /**
-             * Converts simple markdown (**, *) to HTML for display.
-             */
-            markdownToHtml(text) {
-                // Ensure text is a string
-                if (typeof text !== 'string') return '';
-                
-                let html = text;
-                // Bold: **text** -> <strong>text</strong>
-                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                // Italic: *text* -> <em>text</em>
-                html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-                // Simple Newlines to <br>
-                html = html.replace(/\n/g, '<br>');
-                // List items: - item -> <ul><li>item...
-                // This is a complex conversion and for simple markdown we'll rely on the whitespace-pre-wrap style.
-                // If a full markdown parser is needed, a library should be used.
-                return html;
-            },
-            
-            /**
-             * Adds a message bubble to the chat container.
-             */
-            addMessageToChat(text, sender, sources = []) {
-                const container = document.getElementById('chat-messages');
-                if (!container) return;
-
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
-                
-                const bubbleClasses = sender === 'user' 
-                    ? 'bg-secondary text-gray-100 p-3 rounded-xl rounded-br-none max-w-[80%] shadow-lg' 
-                    : 'bg-primary text-gray-900 p-3 rounded-xl rounded-bl-none max-w-[80%] shadow-lg';
-                
-                let sourcesHtml = '';
-                if (sources.length > 0) {
-                    sourcesHtml = '<div class="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">';
-                    sourcesHtml += 'Source(s): ';
-                    // Changed hover color to primary (blue)
-                    sources.slice(0, 1).forEach((s) => {
-                        sourcesHtml += `<a href="${s.uri}" target="_blank" class="text-primary hover:text-secondary hover:underline transition font-medium">${s.title}</a>`;
-                    });
-                    sourcesHtml += '</div>';
-                }
-
-                messageDiv.innerHTML = `<div class="${bubbleClasses} whitespace-pre-wrap">${this.markdownToHtml(text)} ${sourcesHtml}</div>`;
-                container.appendChild(messageDiv);
-                container.scrollTop = container.scrollHeight; // Auto-scroll to bottom
-            },
 
             showLoading(button) {
                 button.disabled = true;
@@ -1625,13 +1915,13 @@
                     </svg>
                 `;
             },
-            
+
             // --- Rendering Methods ---
             renderNav() {
                 this.navTabsEl.innerHTML = Object.keys(this.views).map(key => {
                     const view = this.views[key];
                     const isActive = this.currentView === key;
-                    
+
                     return `
                         <button onclick="app.navigate('${key}')" 
                                 class="flex flex-col items-center p-2 rounded-xl transition-all ${isActive ? 'text-primary bg-secondary/30' : 'text-gray-500 hover:text-gray-300'}">
@@ -1664,17 +1954,19 @@
                     default:
                         contentHTML = '<div class="text-center text-gray-500 py-10">404 | View Not Found</div>';
                 }
-                
+
                 this.contentEl.innerHTML = `
-                    <h2 class="text-3xl font-extrabold text-gray-100 mb-6 border-b pb-3 border-gray-700">${this.views[viewKey]?.name || 'SUNDAY'}</h2>
-                    ${contentHTML}
+                    <div class="view-fade-in">
+                        <h2 class="text-3xl font-extrabold text-white mb-6 border-b pb-3 border-gray-700 font-display">${this.views[viewKey]?.name || 'SUNDAY'}</h2>
+                        ${contentHTML}
+                    </div>
                 `;
             },
 
             renderDashboard() {
                 // Dashboard Cards with mock data and links to sections
                 const featureCards = [
-                    { key: 'asana', icon: '🧘', title: 'Pose Library', desc: 'Browse over 100 asanas with benefits and guidance.', status: null },
+                    { key: 'asana', icon: '<img src="/assets/logo.png" class="w-10 h-10 object-contain mx-auto">', title: 'Pose Library', desc: 'Browse over 100 asanas with benefits and guidance.', status: null },
                     { key: 'ar_correction', icon: '🤳', title: 'Posture Correction', desc: 'Get real-time AR feedback on your poses using your camera.', status: null },
                     { key: 'course', icon: '🎓', title: 'Course', desc: 'Complete pose challenges and earn your certification.', status: null },
                 ];
@@ -1733,37 +2025,96 @@
 
             renderAsanaLibrary() {
                 return `
-                    <div class="space-y-4">
-                        <div class="p-4 bg-accent/20 border-l-4 border-accent rounded-xl shadow-sm">
-                            <p class="text-gray-100 font-medium">✨ Tip: Use the Virtual Assistant for demo videos and detailed guides on any pose!</p>
-                        </div>
-                        ${asanaData.map(asana => `
-                            <div class="p-5 border rounded-xl shadow-lg bg-card card-effect">
-                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                                    <h3 class="text-xl font-extrabold text-gray-100">${asana.name} <span class="text-sm font-medium text-gray-500">${asana.sanskrit}</span></h3>
-                                    <span class="px-3 py-1 text-xs rounded-full font-semibold mt-2 sm:mt-0 ${asana.category === 'Beginner' ? 'bg-primary/40 text-gray-900 border-primary/60' : asana.category === 'Intermediate' ? 'bg-blue-600/50 text-blue-100 border-blue-600' : 'bg-red-600/50 text-red-100 border-red-600'}">${asana.category}</span>
-                                </div>
-                                
-                                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <p class="font-bold text-primary">Benefits:</p>
-                                        <p class="text-gray-300">${asana.benefits}</p>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-warning">Precautions:</p>
-                                        <p class="text-gray-300">${asana.precaution}</p>
-                                    </div>
-                                    <div class="md:col-span-2">
-                                        <p class="font-bold text-gray-400">Targeted Areas: <span class="font-normal">${asana.targeted}</span></p>
-                                    </div>
-                                </div>
+                    <div class="space-y-6">
+                        <div class="p-6 bg-primary/10 border border-primary/20 rounded-3xl backdrop-blur-md flex items-center space-x-4">
+                            <div class="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-2xl">✨</div>
+                            <div>
+                                <p class="text-white font-bold leading-tight">Interactive Library</p>
+                                <p class="text-primary-light/70 text-xs">Click any asana to see detailed guidance and practice steps.</p>
                             </div>
-                        `).join('')}
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${asanaData.map(asana => `
+                                <div onclick="app.showAsanaDetails('${asana.name}')" class="asana-card p-6 rounded-3xl cursor-pointer group relative overflow-hidden">
+                                    <div class="flex justify-between items-start mb-4 relative z-10">
+                                        <div class="w-14 h-14 bg-gray-800/80 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-500 shadow-xl border border-white/5">
+                                            ${asana.emoji || '🧘'}
+                                        </div>
+                                        <span class="px-3 py-1 text-[10px] uppercase tracking-widest rounded-full font-black ${asana.category === 'Beginner' ? 'bg-primary/20 text-primary-light border border-primary/20' : asana.category === 'Intermediate' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' : 'bg-red-500/20 text-red-300 border border-red-500/20'}">
+                                            ${asana.category}
+                                        </span>
+                                    </div>
+                                    
+                                    <h3 class="text-xl font-black text-white group-hover:text-primary transition-colors duration-300 relative z-10 leading-tight">
+                                        ${asana.name}
+                                    </h3>
+                                    <p class="text-xs text-gray-500 font-medium italic mb-4 relative z-10">${asana.sanskrit}</p>
+                                    
+                                    <div class="flex items-center text-primary text-[11px] font-bold tracking-wider relative z-10 opacity-0 group-hover:opacity-100 transform translate-x-1 group-hover:translate-x-0 transition-all duration-300">
+                                        <span>VIEW DETAILS</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </div>
+
+                                    <!-- Subtle Gradient Blur on Hover -->
+                                    <div class="absolute -bottom-10 -right-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-colors duration-500"></div>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 `;
             },
 
-            
+            showAsanaDetails(asanaName) {
+                const asana = asanaData.find(a => a.name === asanaName);
+                if (!asana) return;
+
+                const backdrop = document.getElementById('asana-modal-backdrop');
+                const name = document.getElementById('modal-asana-name');
+                const sanskrit = document.getElementById('modal-asana-sanskrit');
+                const benefits = document.getElementById('modal-asana-benefits');
+                const precaution = document.getElementById('modal-asana-precaution');
+                const steps = document.getElementById('modal-asana-steps');
+                const category = document.getElementById('modal-asana-category');
+                const targeted = document.getElementById('modal-asana-targeted');
+                const startBtn = document.getElementById('modal-start-btn');
+
+                name.textContent = asana.name;
+                sanskrit.textContent = asana.sanskrit;
+                benefits.textContent = asana.benefits;
+                precaution.textContent = asana.precaution;
+                category.textContent = asana.category;
+                targeted.textContent = asana.targeted;
+
+                category.className = `px-3 py-1 text-xs rounded-full font-bold ${asana.category === 'Beginner' ? 'bg-primary/20 text-primary-light border border-primary/20' : asana.category === 'Intermediate' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' : 'bg-red-500/20 text-red-300 border border-red-500/20'}`;
+
+                steps.innerHTML = asana.steps.map((step, idx) => `
+                    <li class="flex items-start space-x-3 group">
+                        <span class="w-6 h-6 rounded-lg bg-gray-800 border border-white/5 flex items-center justify-center text-[10px] font-black text-primary shrink-0 group-hover:bg-primary group-hover:text-background transition-colors duration-300">
+                            ${idx + 1}
+                        </span>
+                        <span class="text-sm leading-relaxed">${step}</span>
+                    </li>
+                `).join('');
+
+                startBtn.onclick = () => {
+                    this.closeAsanaDetails();
+                    this.selectAsanaAndStart(asana.name);
+                };
+
+                backdrop.classList.add('active');
+                document.body.style.overflow = 'hidden'; // Prevent scroll
+            },
+
+            closeAsanaDetails() {
+                const backdrop = document.getElementById('asana-modal-backdrop');
+                backdrop.classList.remove('active');
+                document.body.style.overflow = ''; // Restore scroll
+            },
+
+
             renderARCorrection() {
                 // AR Correction View with pose selection, video feed, reference image, and correction log
                 const isCourseMode = this.courseMode;
@@ -1771,16 +2122,20 @@
                     <div class="space-y-6">
                         ${isCourseMode ? `
                             <div class="p-4 bg-warning/20 border-l-4 border-warning rounded-xl shadow-sm">
-                                <p class="text-gray-100 font-medium">⚠️ <strong>Test Mode:</strong> No voice assistance or reference images. Complete the pose as per requirements.</p>
+                                <p class="text-gray-100 font-medium italic">⚠️ <strong>TEST MODE ACTIVE:</strong> No assistance allowed. Fullscreen required. 3 attempts per pose.</p>
                             </div>
-                            <div class="grid grid-cols-2 gap-4 p-4 bg-card rounded-xl border border-primary/30">
+                            <div class="grid grid-cols-3 gap-4 p-4 bg-card rounded-xl border border-primary/30">
                                 <div class="text-center">
-                                    <p class="text-sm text-gray-400">Time Remaining</p>
-                                    <p id="course-timer-display" class="text-2xl font-bold text-primary">5:00</p>
+                                    <p class="text-[10px] text-gray-500 uppercase font-black">Status</p>
+                                    <p id="course-timer-display" class="text-xl font-bold text-primary">MATCH POSE</p>
                                 </div>
                                 <div class="text-center">
-                                    <p class="text-sm text-gray-400">Hold Progress</p>
-                                    <p id="course-hold-display" class="text-2xl font-bold text-accent">0s / 10s</p>
+                                    <p class="text-[10px] text-gray-500 uppercase font-black">Hold</p>
+                                    <p id="course-hold-display" class="text-xl font-bold text-accent">0s / 10s</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-[10px] text-gray-500 uppercase font-black">Attempt</p>
+                                    <p class="text-xl font-bold text-white">${this.courseProgress.poses.find(p => p.name === this.currentPose)?.attemptsRemaining || 3}/3</p>
                                 </div>
                             </div>
                         ` : `
@@ -1801,8 +2156,8 @@
                         </div>
 
                         <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
-                            <div class="grid grid-cols-1 ${isCourseMode ? '' : 'md:grid-cols-2'} gap-4 mb-4">
-                                <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'};">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
+                                <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'};" class="relative">
                                     <video id="video-feed" autoplay playsinline class="rounded-xl"></video>
                                     <canvas id="ar-canvas"></canvas>
                                     <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 text-gray-400 rounded-xl">
@@ -1867,12 +2222,12 @@
                 `;
             },
 
-            
+
             renderCourse() {
                 const completedCount = this.courseProgress.poses.filter(p => p.completed).length;
                 const totalPoses = this.courseProgress.poses.length;
                 const progressPercent = (completedCount / totalPoses) * 100;
-                
+
                 return `
                     <div id="course-container" class="space-y-6">
                         <div class="p-6 bg-gray-900 border border-primary/50 rounded-2xl shadow-xl">
@@ -1896,7 +2251,10 @@
                                                 <span class="text-2xl">${pose.locked ? '🔒' : (pose.completed ? '✅' : '📝')}</span>
                                                 <h4 class="text-xl font-bold ${pose.completed ? 'text-success' : 'text-gray-100'}">${pose.name}</h4>
                                             </div>
-                                            ${pose.completed ? `<span class="text-xs font-semibold text-success bg-success/20 px-3 py-1 rounded-full">Completed</span>` : ''}
+                                            <div class="text-right">
+                                                ${pose.completed ? `<span class="text-xs font-semibold text-success bg-success/20 px-3 py-1 rounded-full">Completed</span>` :
+                        `<span class="text-[10px] font-bold ${pose.attemptsRemaining > 0 ? 'text-primary' : 'text-red-500'} bg-gray-800 px-2 py-1 rounded-md border border-white/5 uppercase">${pose.attemptsRemaining}/3 Attempts</span>`}
+                                            </div>
                                         </div>
                                         
                                         ${pose.bestAccuracy > 0 ? `
@@ -1907,13 +2265,15 @@
                                         ` : ''}
                                         
                                         ${!pose.locked && !pose.completed ? `
-                                            <button onclick="app.startCourseTest('${pose.name}')" class="w-full mt-2 px-4 py-2 bg-primary text-gray-900 font-bold rounded-lg hover:bg-primary/80 transition">
-                                                Start Test
+                                            <button onclick="app.startCourseTest('${pose.name}')" 
+                                                    class="w-full mt-2 px-4 py-3 ${pose.attemptsRemaining > 0 ? 'bg-primary hover:bg-primary/80 text-background' : 'bg-gray-800 text-gray-500 cursor-not-allowed'} font-black rounded-xl transition-all uppercase tracking-widest text-xs"
+                                                    ${pose.attemptsRemaining > 0 ? '' : 'disabled'}>
+                                                ${pose.attemptsRemaining > 0 ? 'Start Strict Test' : 'No Attempts Left'}
                                             </button>
                                         ` : ''}
                                         
                                         ${pose.locked ? `
-                                            <p class="text-xs text-gray-500 mt-2">Complete the previous pose to unlock</p>
+                                            <p class="text-xs text-gray-500 mt-2 font-medium italic">Complete the previous pose to unlock this challenge.</p>
                                         ` : ''}
                                     </div>
                                 `).join('')}
@@ -1931,192 +2291,238 @@
                         </div>
                         
                         <div class="p-6 bg-gray-900 border border-gray-700 rounded-2xl">
-                            <h3 class="text-lg font-bold text-gray-100 mb-3">Test Requirements</h3>
-                            <ul class="text-sm text-gray-400 space-y-2">
-                                <li>⏱️ Complete each pose within 5 minutes</li>
-                                <li>📊 Maintain 90% or higher accuracy</li>
-                                <li>⏳ Hold the pose for 10 seconds continuously</li>
-                                <li>🎯 No voice assistant or reference images during test</li>
-                                <li>🔓 Complete poses in order to unlock the next</li>
+                            <h3 class="text-lg font-bold text-gray-100 mb-3 uppercase tracking-tighter">Strict Test Protocols</h3>
+                            <ul class="text-sm text-gray-400 space-y-3">
+                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">1</span> <span>Test starts ONLY after a <b>90% posture match</b>.</span></li>
+                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">2</span> <span>You have <b>60 seconds</b> total to complete the hold.</span></li>
+                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">3</span> <span>Must hold for <b>10 continuous seconds</b> at 90%+ accuracy. Any drop resets the timer.</span></li>
+                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">4</span> <span><b>No assistance</b> (reference images or voice guide) in test mode.</span></li>
+                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">5</span> <span><b>3 attempts per pose</b>. Use them wisely!</span></li>
                             </ul>
                         </div>
                     </div>
                 `;
             },
-            
+
             startCourseTest(poseName) {
+                const poseProgress = this.courseProgress.poses.find(p => p.name === poseName);
+                if (!poseProgress || poseProgress.attemptsRemaining <= 0) {
+                    alert("No attempts remaining for this pose.");
+                    return;
+                }
+
+                // Request fullscreen for focus
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                }
+
                 this.courseMode = true;
+                this.testActive = false; // Phase 1: Waiting for initial match
                 this.currentPose = poseName;
                 this.courseTimer = 0;
                 this.courseHoldTime = 0;
                 this.courseStartTime = Date.now();
-                
+
                 this.ttsEnabled = false;
-                
+
                 this.navigate('ar_correction');
-                
+
                 setTimeout(() => {
                     this.startARAssessment();
-                    
+
                     this.courseTimerInterval = setInterval(() => {
+                        if (!this.testActive) return; // Don't start 60s timer until test is active
+
                         this.courseTimer++;
-                        const timeLeft = 300 - this.courseTimer;
-                        
+                        const timeLeft = 60 - this.courseTimer;
+
                         const timerEl = document.getElementById('course-timer-display');
                         if (timerEl) {
-                            timerEl.textContent = `Time: ${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`;
+                            timerEl.textContent = `Time Left: ${timeLeft}s`;
                         }
-                        
-                        if (this.courseTimer >= 300) {
-                            this.endCourseTest(false, 'Time limit exceeded');
+
+                        if (this.courseTimer >= 60) {
+                            this.endCourseTest(false, 'Time limit of 60s exceeded');
                         }
                     }, 1000);
-                    
+
                     const feedbackText = document.getElementById('current-feedback-text');
                     if (feedbackText) {
-                        feedbackText.textContent = `Course Test: ${poseName} - You have 5 minutes. Hold for 10s at 90%+ accuracy.`;
+                        feedbackText.textContent = `WAITING FOR INITIAL MATCH: Match ${poseName} at 90% accuracy to start the 60s test timer.`;
                     }
                 }, 500);
             },
-            
+
             checkCourseProgress(currentScore) {
                 if (!this.courseMode) return;
-                
+
+                const feedbackText = document.getElementById('current-feedback-text');
+                const holdEl = document.getElementById('course-hold-display');
+
+                // PHASE 1: Waiting for initial match
+                if (!this.testActive) {
+                    if (currentScore >= 90) {
+                        this.testActive = true;
+                        this.courseTimer = 0; // Reset timer to 0 for the 60s test
+                        if (feedbackText) feedbackText.textContent = "TEST STARTED! Hold for 10s. Do not drop below 90%!";
+                        if (feedbackText) feedbackText.classList.replace('text-gray-400', 'text-primary');
+                    }
+                    return;
+                }
+
+                // PHASE 2: Test is active, 60s timer is running
                 if (currentScore >= 90) {
                     if (!this.courseHoldTimer) {
                         this.courseHoldTimer = Date.now();
                     }
-                    
+
                     const holdDuration = (Date.now() - this.courseHoldTimer) / 1000;
-                    
-                    const holdEl = document.getElementById('course-hold-display');
+
                     if (holdEl) {
-                        holdEl.textContent = `Hold: ${Math.floor(holdDuration)}s / 10s`;
+                        holdEl.textContent = `${Math.floor(holdDuration)}s / 10s`;
                     }
-                    
+
                     if (holdDuration >= 10) {
-                        this.endCourseTest(true, 'Completed successfully!');
+                        this.endCourseTest(true, 'Pose Mastered! High Accuracy held for 10s.');
                     }
                 } else {
+                    // STRICTURE: Any drop below 90% resets the 10s hold timer immediately
                     this.courseHoldTimer = null;
-                    const holdEl = document.getElementById('course-hold-display');
                     if (holdEl) {
-                        holdEl.textContent = 'Hold: 0s / 10s';
+                        holdEl.textContent = '0s / 10s';
+                    }
+                    if (feedbackText && this.testActive) {
+                        feedbackText.textContent = "ACCURACY DROPPED! Hold progress reset. Get back above 90%!";
                     }
                 }
             },
-            
-     endCourseTest(success, message) {
-    if (this.courseTimerInterval) {
-        clearInterval(this.courseTimerInterval);
-        this.courseTimerInterval = null;
-    }
-    
-    this.courseMode = false;
-    this.courseHoldTimer = null;
-    
-    if (this.animationFrameId) {
-        cancelAnimationFrame(this.animationFrameId);
-        this.animationFrameId = null;
-    }
-    
-    if (this.videoStream) {
-        this.videoStream.getTracks().forEach(track => track.stop());
-    }
-    
-    if (success) {
-        // EXISTING LOCAL UPDATE
-        const poseIdx = this.courseProgress.poses.findIndex(p => p.name === this.currentPose);
-        if (poseIdx !== -1) {
-            this.courseProgress.poses[poseIdx].completed = true;
-            this.courseProgress.poses[poseIdx].timeHeld = Math.max(this.courseProgress.poses[poseIdx].timeHeld, 10);
-            this.courseProgress.poses[poseIdx].bestAccuracy = Math.max(this.courseProgress.poses[poseIdx].bestAccuracy, poseScore);  // Assume poseScore is in scope or pass it
-            
-            if (poseIdx + 1 < this.courseProgress.poses.length) {
-                this.courseProgress.poses[poseIdx + 1].locked = false;
-            }
-            
-            const allCompleted = this.courseProgress.poses.every(p => p.completed);
-            if (allCompleted) {
-                this.courseProgress.certificateEarned = true;
-            }
-            
-            localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress));
-        }
-        
-        // NEW: Sync to Backend (use this.currentPose, estimate accuracy/time)
-        fetch('/api/complete_pose', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                pose_name: this.currentPose,  // e.g., 'Tadasana'
-                accuracy: 95,  // Or use actual from detection (e.g., currentScore)
-                time_held: 10  // Min successful hold
-            })
-        }).then(res => res.json()).then(data => {
-            console.log('DB Update:', data);  // DEBUG: Check Network tab
-            if (data.success) {
-                alert(`${data.message} Logged to profile!`);  // Optional feedback
-            } else {
-                console.error('DB sync failed:', data);
-            }
-        }).catch(err => console.error('API error:', err));
-    }
-    
-    alert(message);
-    this.navigate('course');
-},
+
+            endCourseTest(success, message) {
+                if (this.courseTimerInterval) {
+                    clearInterval(this.courseTimerInterval);
+                    this.courseTimerInterval = null;
+                }
+
+                // Exit fullscreen
+                if (document.fullscreenElement) {
+                    document.exitFullscreen().catch(err => console.warn(err));
+                }
+
+                const poseProgress = this.courseProgress.poses.find(p => p.name === this.currentPose);
+
+                if (!success && this.courseMode && poseProgress) {
+                    poseProgress.attemptsRemaining--;
+                    localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress));
+                }
+
+                this.courseMode = false;
+                this.testActive = false;
+                this.courseHoldTimer = null;
+
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+
+                if (this.videoStream) {
+                    this.videoStream.getTracks().forEach(track => track.stop());
+                }
+
+                if (success) {
+                    // EXISTING LOCAL UPDATE
+                    const poseIdx = this.courseProgress.poses.findIndex(p => p.name === this.currentPose);
+                    if (poseIdx !== -1) {
+                        this.courseProgress.poses[poseIdx].completed = true;
+                        this.courseProgress.poses[poseIdx].timeHeld = Math.max(this.courseProgress.poses[poseIdx].timeHeld, 10);
+                        this.courseProgress.poses[poseIdx].bestAccuracy = Math.max(this.courseProgress.poses[poseIdx].bestAccuracy, poseScore);  // Assume poseScore is in scope or pass it
+
+                        if (poseIdx + 1 < this.courseProgress.poses.length) {
+                            this.courseProgress.poses[poseIdx + 1].locked = false;
+                        }
+
+                        const allCompleted = this.courseProgress.poses.every(p => p.completed);
+                        if (allCompleted) {
+                            this.courseProgress.certificateEarned = true;
+                        }
+
+                        localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress));
+                    }
+
+                    // NEW: Sync to Backend (use this.currentPose, estimate accuracy/time)
+                    fetch('/api/complete_pose', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            pose_name: this.currentPose,  // e.g., 'Tadasana'
+                            accuracy: 95,  // Or use actual from detection (e.g., currentScore)
+                            time_held: 10  // Min successful hold
+                        })
+                    }).then(res => res.json()).then(data => {
+                        console.log('DB Update:', data);  // DEBUG: Check Network tab
+                        if (data.success) {
+                            alert(`${data.message} Logged to profile!`);  // Optional feedback
+                        } else {
+                            console.error('DB sync failed:', data);
+                        }
+                    }).catch(err => console.error('API error:', err));
+                }
+
+                alert(message);
+                this.navigate('course');
+            },
 
             downloadCertificate() {
                 const canvas = document.createElement('canvas');
                 canvas.width = 800;
                 canvas.height = 600;
                 const ctx = canvas.getContext('2d');
-                
+
                 ctx.fillStyle = '#1E1E1E';
                 ctx.fillRect(0, 0, 800, 600);
-                
+
                 ctx.strokeStyle = '#42A5F5';
                 ctx.lineWidth = 10;
                 ctx.strokeRect(20, 20, 760, 560);
-                
+
                 ctx.fillStyle = '#42A5F5';
                 ctx.font = 'bold 48px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText('SUNDAY Yoga Certification', 400, 100);
-                
+
                 ctx.fillStyle = '#E0E0E0';
                 ctx.font = '24px Arial';
                 ctx.fillText('This certifies that', 400, 200);
-                
+
                 ctx.font = 'bold 36px Arial';
                 ctx.fillText('Yoga Student', 400, 260);
-                
+
                 ctx.font = '24px Arial';
                 ctx.fillText('has successfully completed the', 400, 320);
                 ctx.fillText('SUNDAY Yoga Course', 400, 360);
-                
+
                 ctx.font = '18px Arial';
                 ctx.fillStyle = '#9CA3AF';
                 const today = new Date().toLocaleDateString();
                 ctx.fillText(`Issued on: ${today}`, 400, 450);
-                
+
                 ctx.fillStyle = '#FFEB3B';
                 ctx.font = 'bold 24px Arial';
                 ctx.fillText('Poses Completed:', 400, 510);
                 ctx.fillText('Tadasana • Namastey • Vrikshasana', 400, 545);
-                
+
                 const link = document.createElement('a');
                 link.download = 'SUNDAY_Yoga_Certificate.png';
                 link.href = canvas.toDataURL();
                 link.click();
             },
         };
-    
+
         // --- Initialization on Window Load ---
-        window.onload = function() {
+        window.onload = function () {
             app.init();
-            
+
             // Cursor Glow Effect Logic
             const glow = document.getElementById('cursor-glow');
             document.addEventListener('mousemove', (e) => {
@@ -2125,8 +2531,9 @@
             });
         };
 
-    
-        
+
+
     </script>
 </body>
+
 </html>

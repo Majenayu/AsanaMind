@@ -5,13 +5,18 @@ from collections import defaultdict
 import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Change in production
+# Use environment variable for secret key, fallback ONLY for local dev
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-this-in-render')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # MongoDB connection
 db_connected = False
+# Priority: ENV variable for Render/Production
+mongodb_uri = os.environ.get('MONGO_URI', "mongodb+srv://anv:anv@anv.thrp6za.mongodb.net/?appName=anv")
+
 try:
-    client = pymongo.MongoClient("mongodb+srv://anv:anv@anv.thrp6za.mongodb.net/?appName=anv")
+    client = pymongo.MongoClient(mongodb_uri)
+    # Ensure the correct database name is used
     db = client.get_database("face_auth")
     users = db.users
     client.admin.command('ping')
@@ -28,103 +33,146 @@ INDEX_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUNDAY - Login or Register</title>
+    <title>SUNDAY - Yoga Wellness Platform</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/assets/logo.png">
+    <link rel="icon" type="image/png" href="/assets/logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        body { font-family: 'Outfit', sans-serif; }
+        .bg-mesh {
+            background-color: #0c0e12;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.15) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.15) 0, transparent 50%);
         }
-        .dark .glass-effect { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .fade-in { animation: fadeIn 0.6s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .slide-in { animation: slideIn 0.4s ease-out; }
-        @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .pulse-button { transition: all 0.3s ease; }
-        .pulse-button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); }
+        .glass {
+            background: rgba(30, 32, 38, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .input-glow:focus {
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+            border-color: #2563eb;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
     </style>
 </head>
-<body class="gradient-bg min-h-screen flex items-center justify-center px-4">
-    <!-- Loader -->
-    <div class="loader-wrap fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 z-50 hidden" id="loader">
-        <div class="relative">
-            <div class="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full animate-pulse"></div>
-        </div>
-    </div>
-    <!-- Main Container -->
-    <div class="w-full max-w-md fade-in">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <div class="inline-block p-4 rounded-full glass-effect mb-4">
-                <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 9.172V5L8 4z"></path>
-                </svg>
+<body class="bg-mesh min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-lg animate-fadeIn">
+        <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-3xl shadow-2xl shadow-blue-500/20 mb-6 rotate-3 overflow-hidden p-2">
+                <img src="/assets/logo.png" alt="SUNDAY Logo" class="w-full h-full object-contain">
             </div>
-            <h1 class="text-4xl font-bold text-white mb-2">Welcome to SUNDAY</h1>
-            <p class="text-white/70 text-lg">Your Yoga Journey Begins Here</p>
+            <h1 class="text-5xl font-extrabold text-white tracking-tight mb-2">SUNDAY</h1>
+            <p class="text-gray-400 text-lg">Your Personal Wellness Companion</p>
         </div>
-        <!-- Forms Container -->
-        <div class="glass-effect rounded-2xl p-8 shadow-2xl">
+
+        <div class="glass rounded-[2.5rem] p-10">
             <!-- Login Form -->
-            <div id="login-form" class="space-y-6">
-                <div class="text-center mb-6">
-                    <h2 class="text-2xl font-bold text-white mb-2">Login</h2>
-                    <div class="w-20 h-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full mx-auto"></div>
-                </div>
-                <form id="login-form-submit" class="space-y-5">
-                    <input id="login-name" type="text" placeholder="Enter your name" required
-                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <input id="login-email" type="email" placeholder="Enter your email" required
-                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl pulse-button">Login</button>
+            <div id="login-form">
+                <h2 class="text-3xl font-bold text-white mb-8">Welcome Back</h2>
+                <form id="login-form-submit" class="space-y-6">
+                    <div>
+                        <label class="block text-gray-400 text-sm font-medium mb-2 px-1">Full Name</label>
+                        <input id="login-name" type="text" placeholder="John Doe" required
+                            class="w-full px-5 py-4 bg-gray-900/50 border border-gray-700 rounded-2xl text-white placeholder-gray-600 focus:outline-none input-glow transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 text-sm font-medium mb-2 px-1">Email Address</label>
+                        <input id="login-email" type="email" placeholder="john@example.com" required
+                            class="w-full px-5 py-4 bg-gray-900/50 border border-gray-700 rounded-2xl text-white placeholder-gray-600 focus:outline-none input-glow transition-all">
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-600/20 transform hover:-translate-y-1">
+                        Sign In
+                    </button>
                 </form>
-                <div class="text-center">
-                    <span class="text-white/70">Don't have an account?</span>
-                    <button id="show-register" class="text-blue-300 hover:text-blue-200 font-semibold ml-2">Register</button>
-                </div>
-                <p id="login-error" class="text-center text-red-300 hidden bg-red-500/20 py-2 px-4 rounded-lg"></p>
+                <p class="text-center mt-8 text-gray-500">
+                    New to SUNDAY? 
+                    <button id="show-register" class="text-blue-400 hover:text-blue-300 font-semibold ml-1">Create Account</button>
+                </p>
+                <p id="login-error" class="mt-6 text-center text-red-400 hidden bg-red-400/10 py-3 rounded-xl border border-red-400/20 slide-in"></p>
             </div>
+
             <!-- Register Form -->
-            <div id="register-form" class="space-y-6 hidden">
-                <div class="text-center mb-6">
-                    <h2 class="text-2xl font-bold text-white mb-2">Register</h2>
-                    <div class="w-20 h-1 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full mx-auto"></div>
-                </div>
-                <form id="register-form-submit" class="space-y-5">
-                    <input id="register-name" type="text" placeholder="Enter your name" required
-                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                    <input id="register-email" type="email" placeholder="Enter your email" required
-                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold rounded-xl pulse-button">Register</button>
+            <div id="register-form" class="hidden">
+                <h2 class="text-3xl font-bold text-white mb-8">Start Journey</h2>
+                <form id="register-form-submit" class="space-y-6">
+                    <div>
+                        <label class="block text-gray-400 text-sm font-medium mb-2 px-1">Full Name</label>
+                        <input id="register-name" type="text" placeholder="John Doe" required
+                            class="w-full px-5 py-4 bg-gray-900/50 border border-gray-700 rounded-2xl text-white placeholder-gray-600 focus:outline-none input-glow transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 text-sm font-medium mb-2 px-1">Email Address</label>
+                        <input id="register-email" type="email" placeholder="john@example.com" required
+                            class="w-full px-5 py-4 bg-gray-900/50 border border-gray-700 rounded-2xl text-white placeholder-gray-600 focus:outline-none input-glow transition-all">
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-600/20 transform hover:-translate-y-1">
+                        Get Started
+                    </button>
                 </form>
-                <div class="text-center">
-                    <span class="text-white/70">Already have an account?</span>
-                    <button id="show-login" class="text-purple-300 hover:text-purple-200 font-semibold ml-2">Login</button>
-                </div>
-                <p id="register-error" class="text-center text-red-300 hidden bg-red-500/20 py-2 px-4 rounded-lg"></p>
+                <p class="text-center mt-8 text-gray-500">
+                    Already a member? 
+                    <button id="show-login" class="text-blue-400 hover:text-blue-300 font-semibold ml-1">Log In</button>
+                </p>
+                <p id="register-error" class="mt-6 text-center text-red-400 hidden bg-red-400/10 py-3 rounded-xl border border-red-400/20 slide-in"></p>
             </div>
         </div>
     </div>
-    <script>
-        function toggleForm(showRegister) {
-            document.getElementById('login-form').classList.toggle('hidden', showRegister);
-            document.getElementById('register-form').classList.toggle('hidden', !showRegister);
-        }
-        document.getElementById('show-register').addEventListener('click', () => toggleForm(true));
-        document.getElementById('show-login').addEventListener('click', () => toggleForm(false));
-        function toggleLoader(show) {
-            document.getElementById('loader').classList.toggle('hidden', !show);
-        }
-        // Handle login (redirect to /home)
-        document.getElementById('login-form-submit').addEventListener('submit', async (e) => {
+
+    <!-- Loader -->
+    <div id="loader" class="fixed inset-0 bg-mesh flex items-center justify-center z-50 hidden">
+        <div class="relative">
+            <div class="w-20 h-20 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <img src="/assets/logo.png" class="w-10 h-10 object-contain animate-pulse">
+            </div>
+        </div>
+    </div>
+
+        <script>
+            // Register Service Worker
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(reg => console.log('SW Registered', reg))
+                        .catch(err => console.log('SW Register Error', err));
+                });
+            }
+
+            const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const loader = document.getElementById('loader');
+
+        document.getElementById('show-register').onclick = () => {
+            loginForm.classList.add('hidden');
+            registerForm.classList.remove('hidden');
+        };
+
+        document.getElementById('show-login').onclick = () => {
+            registerForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+        };
+
+        function showLoader(show) { loader.classList.toggle('hidden', !show); }
+
+        document.getElementById('login-form-submit').onsubmit = async (e) => {
             e.preventDefault();
-            toggleLoader(true);
+            showLoader(true);
             const name = document.getElementById('login-name').value;
             const email = document.getElementById('login-email').value;
-            const errorEl = document.getElementById('login-error');
+            const error = document.getElementById('login-error');
+            
             try {
                 const res = await fetch('/login', {
                     method: 'POST',
@@ -132,26 +180,26 @@ INDEX_HTML = """
                     body: JSON.stringify({ name, email })
                 });
                 const data = await res.json();
-                toggleLoader(false);
-                if (data.success) {
-                    window.location.href = '/home';
-                } else {
-                    errorEl.textContent = data.error || 'Login failed';
-                    errorEl.classList.remove('hidden');
+                if (data.success) window.location.href = '/home';
+                else {
+                    showLoader(false);
+                    error.textContent = data.error;
+                    error.classList.remove('hidden');
                 }
             } catch {
-                toggleLoader(false);
-                errorEl.textContent = 'Login failed. Please try again.';
-                errorEl.classList.remove('hidden');
+                showLoader(false);
+                error.textContent = "Connection error. Please try again.";
+                error.classList.remove('hidden');
             }
-        });
-        // Handle register (redirect to /home)
-        document.getElementById('register-form-submit').addEventListener('submit', async (e) => {
+        };
+
+        document.getElementById('register-form-submit').onsubmit = async (e) => {
             e.preventDefault();
-            toggleLoader(true);
+            showLoader(true);
             const name = document.getElementById('register-name').value;
             const email = document.getElementById('register-email').value;
-            const errorEl = document.getElementById('register-error');
+            const error = document.getElementById('register-error');
+            
             try {
                 const res = await fetch('/register', {
                     method: 'POST',
@@ -159,19 +207,18 @@ INDEX_HTML = """
                     body: JSON.stringify({ name, email })
                 });
                 const data = await res.json();
-                toggleLoader(false);
-                if (data.success) {
-                    window.location.href = '/home';
-                } else {
-                    errorEl.textContent = data.error || 'Registration failed';
-                    errorEl.classList.remove('hidden');
+                if (data.success) window.location.href = '/home';
+                else {
+                    showLoader(false);
+                    error.textContent = data.error;
+                    error.classList.remove('hidden');
                 }
             } catch {
-                toggleLoader(false);
-                errorEl.textContent = 'Registration failed. Please try again.';
-                errorEl.classList.remove('hidden');
+                showLoader(false);
+                error.textContent = "Registration failed. Try again.";
+                error.classList.remove('hidden');
             }
-        });
+        };
     </script>
 </body>
 </html>
@@ -320,6 +367,15 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
+# Serve PWA Static Assets (Manifest & Service Worker)
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('.', 'manifest.json')
+
+@app.route('/sw.js')
+def serve_sw():
+    return send_from_directory('.', 'sw.js')
+
 # Serve static assets
 @app.route('/assets/<path:filename>')
 def serve_asset(filename):
@@ -329,4 +385,6 @@ def serve_asset(filename):
         return "Asset not found.", 404
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    # Use dynamic port for Render
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=True, port=port, host='0.0.0.0')

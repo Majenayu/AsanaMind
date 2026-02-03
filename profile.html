@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUNDAY - Profile</title>
+    <title>SUNDAY - Yoga Wellness Platform</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/assets/logo.png">
+    <link rel="icon" type="image/png" href="/assets/logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Custom Tailwind Configuration
         tailwind.config = {
             theme: {
                 extend: {
@@ -28,270 +32,373 @@
         }
     </script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+
         body {
             background-color: #121212;
             color: #E0E0E0;
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
+            overflow-x: hidden;
         }
-        /* PERFECTED GitHub Contribution Graph: Green mark now in Nov 2025 (week 53, row 7) */
-        .contribution-graph {
+
+        .glass-card {
+            background: rgba(30, 30, 30, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .stat-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(66, 165, 245, 0.2);
+        }
+
+        /* Contribution Graph */
+        .contribution-graph-grid {
             display: grid;
-            grid-template-columns: 30px repeat(53, 12px); /* Left labels + 53 weeks */
-            grid-template-rows: repeat(7, 12px) 25px; /* 7 day rows + bottom months row */
-            gap: 0 1px; /* Tight spacing */
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 10px;
-            margin: 20px 0;
-            width: fit-content;
-            max-width: 100%;
-            justify-items: stretch;
-            align-items: stretch;
+            grid-template-columns: 30px repeat(53, 12px);
+            grid-template-rows: repeat(7, 12px);
+            gap: 3px;
+            padding: 15px;
+            overflow-x: auto;
+            scrollbar-width: thin;
         }
+
         .graph-day {
             width: 12px;
             height: 12px;
-            background: #161b22;
-            border: 1px solid #30363d;
+            background: #1e2227;
             border-radius: 2px;
             transition: all 0.2s ease;
-            cursor: pointer;
-            margin: 0;
-            padding: 0;
-            display: block;
-            box-sizing: border-box;
         }
+
         .graph-day.active {
-            background-color: #238636 !important;
-            border-color: #238636 !important;
+            background-color: #42A5F5 !important;
+            box-shadow: 0 0 8px #42A5F5;
         }
+
+        .graph-day.active-low {
+            background-color: rgba(66, 165, 245, 0.3);
+        }
+
         .graph-day:hover {
-            border-color: #f0f6fc;
-            background-color: rgba(240, 246, 252, 0.1);
+            transform: scale(1.3);
+            z-index: 10;
+            cursor: help;
         }
-        .graph-label {
-            grid-column: 1;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            font-size: 11px;
-            color: #8b949e;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transform: rotate(180deg);
-            padding: 0;
-            margin: 0;
-            height: 100%;
-            border: none;
-            background: transparent;
+
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
         }
-        .graph-month {
-            grid-row: 8;
-            font-size: 11px;
-            color: #8b949e;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            writing-mode: horizontal-tb;
-            transform: none;
-            padding: 0 2px;
-            margin: 0;
-            border: none;
-            background: transparent;
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        /* Force exact sizing */
-        .contribution-graph > *:not(.graph-label):not(.graph-month) {
-            min-height: 12px;
-            min-width: 12px;
-            box-sizing: border-box;
+
+        #cursor-glow {
+            position: fixed;
+            pointer-events: none;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(66, 165, 245, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: -1;
         }
     </style>
 </head>
-<body class="bg-background p-4">
-    <!-- Navbar with Back Button -->
-    <nav class="bg-card p-4 rounded-lg mb-6 flex justify-between items-center">
-        <a href="/home" class="text-primary hover:underline flex items-center">
-            ← Back to Home
-        </a>
-        <h1 class="text-2xl font-bold text-primary">Your Profile</h1>
-        <a href="/logout" class="bg-warning text-black px-4 py-2 rounded hover:bg-accent">Logout</a>
-    </nav>
 
-    <div class="max-w-4xl mx-auto space-y-6">
-        <div id="profileInfo" class="p-4 bg-gray-800 rounded-lg"></div>
-        
-        <section>
-            <h3 class="text-xl font-semibold mb-4 text-success">Active Days (GitHub Style)</h3>
-            <div id="contributionGraph" class="contribution-graph"></div>
-            <p class="text-sm text-gray-400 mt-2">Green squares indicate days you completed a pose (9s+ hold & 90%+ accuracy). Hover for details.</p>
-        </section>
-        
-        <section>
-            <h3 class="text-xl font-semibold mb-4 text-primary">Asana Completion Stats</h3>
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <canvas id="asanaChart" class="w-full h-64"></canvas>
+<body class="p-4 md:p-8">
+    <div id="cursor-glow"></div>
+
+    <div class="max-w-6xl mx-auto space-y-8 fade-in">
+        <!-- Header Section -->
+        <header
+            class="flex flex-col md:flex-row justify-between items-center bg-card/80 p-6 rounded-[2.5rem] glass-card gap-6">
+            <div
+                class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 text-center sm:text-left">
+                <div
+                    class="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center overflow-hidden p-2 shadow-lg shadow-primary/20 shrink-0 border border-primary/20">
+                    <img src="/assets/logo.png" alt="SUNDAY Logo" class="w-full h-full object-contain">
+                </div>
+                <div>
+                    <h1 id="user-name-title" class="text-3xl font-extrabold text-white tracking-tight">Loading...</h1>
+                    <p id="user-email-subtitle" class="text-gray-400">Fetching your profile</p>
+                </div>
             </div>
-            <p class="text-sm text-gray-400 mt-2">Bar height shows number of successful completions per asana (all poses counted).</p>
-        </section>
+            <div class="flex flex-wrap justify-center gap-3 w-full md:w-auto">
+                <a href="/home"
+                    class="flex-1 md:flex-none text-center px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl transition font-semibold">Dashboard</a>
+                <a href="/logout"
+                    class="flex-1 md:flex-none text-center px-6 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl transition font-semibold text-white">Logout</a>
+            </div>
+        </header>
+
+        <!-- Stats Overview Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="p-4 sm:p-6 rounded-2xl glass-card stat-card border-l-4 border-primary">
+                <p class="text-gray-400 text-[10px] sm:text-sm font-medium uppercase tracking-wider">Streak</p>
+                <h2 id="stat-streak" class="text-2xl sm:text-3xl font-black text-white mt-1">--</h2>
+                <p class="text-[10px] sm:text-xs text-primary mt-2">Days active</p>
+            </div>
+            <div class="p-4 sm:p-6 rounded-2xl glass-card stat-card border-l-4 border-success">
+                <p class="text-gray-400 text-[10px] sm:text-sm font-medium uppercase tracking-wider">Mastered</p>
+                <h2 id="stat-poses" class="text-2xl sm:text-3xl font-black text-white mt-1">--</h2>
+                <p class="text-[10px] sm:text-xs text-success mt-2">Successful targets</p>
+            </div>
+            <div class="p-4 sm:p-6 rounded-2xl glass-card stat-card border-l-4 border-warning">
+                <p class="text-gray-400 text-[10px] sm:text-sm font-medium uppercase tracking-wider">Exp</p>
+                <h2 id="stat-days" class="text-2xl sm:text-3xl font-black text-white mt-1">--</h2>
+                <p class="text-[10px] sm:text-xs text-warning mt-2">Since joining</p>
+            </div>
+            <div class="p-4 sm:p-6 rounded-2xl glass-card stat-card border-l-4 border-accent">
+                <p class="text-gray-400 text-[10px] sm:text-sm font-medium uppercase tracking-wider">Rank</p>
+                <h2 id="stat-rank" class="text-2xl sm:text-3xl font-black text-white mt-1 italic">Novice</h2>
+                <p class="text-[10px] sm:text-xs text-accent mt-2">Yoga Practitioner</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Contribution & Activity -->
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Heatmap Graph -->
+                <section class="p-6 rounded-3xl glass-card">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-white">Your Consistency Heatmap</h3>
+                        <div class="flex space-x-2 text-[10px] text-gray-500">
+                            <span>Less</span>
+                            <div class="w-3 h-3 bg-[#1e2227] rounded-sm"></div>
+                            <div class="w-3 h-3 bg-[#42A5F5] opacity-50 rounded-sm"></div>
+                            <div class="w-3 h-3 bg-[#42A5F5] rounded-sm"></div>
+                            <span>More</span>
+                        </div>
+                    </div>
+                    <div id="graph-container" class="overflow-x-auto pb-4">
+                        <div id="contributionGraph" class="contribution-graph-grid"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4 italic">Reflects your daily attendance and yoga sessions.</p>
+                </section>
+
+                <!-- Mastery Chart -->
+                <section class="p-6 rounded-3xl glass-card overflow-hidden">
+                    <h3 class="text-xl font-bold text-white mb-8">Pose Mastery Distribution</h3>
+                    <div class="h-64 sm:h-80 relative">
+                        <canvas id="asanaChart"></canvas>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Recent Activity & Milestones -->
+            <div class="space-y-8">
+                <section class="p-6 rounded-3xl glass-card">
+                    <h3 class="text-xl font-bold text-white mb-6">Recent Achievements</h3>
+                    <div id="achievements-list" class="space-y-4">
+                        <!-- Dynamic achievements -->
+                        <div
+                            class="p-4 bg-gray-800/40 rounded-xl flex items-center space-x-4 border border-gray-700/50">
+                            <span class="text-2xl">🌟</span>
+                            <div>
+                                <h4 class="font-bold text-sm">Welcome Onboard</h4>
+                                <p class="text-xs text-gray-400">Started your journey</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="p-6 rounded-3xl glass-card">
+                    <h3 class="text-xl font-bold text-white mb-6">Account Details</h3>
+                    <div class="space-y-4 text-sm">
+                        <div class="flex justify-between border-b border-gray-700 pb-3">
+                            <span class="text-gray-500">Member Since</span>
+                            <span id="detail-joined" class="text-gray-300 font-medium">--</span>
+                        </div>
+                        <div class="flex justify-between border-b border-gray-700 pb-3">
+                            <span class="text-gray-500">Unique Poses</span>
+                            <span id="detail-poses" class="text-gray-300 font-medium">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Current Goal</span>
+                            <span class="text-primary font-bold">10 Day Streak</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
     </div>
 
     <script>
         let profileData = null;
         let asanaChart = null;
 
-        // Auto-load on page load
-        window.onload = async function() {
+        // Mouse glow effect
+        const glow = document.getElementById('cursor-glow');
+        window.addEventListener('mousemove', e => {
+            glow.style.left = e.clientX + 'px';
+            glow.style.top = e.clientY + 'px';
+        });
+
+        window.onload = async function () {
+            // Register Service Worker for PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW Registered', reg))
+                    .catch(err => console.log('SW Register Error', err));
+            }
             try {
                 const res = await fetch('/api/profile');
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
+
                 profileData = data;
-                console.log('Profile data:', profileData); // DEBUG: Check in console
-                renderProfile();
+                renderUI();
             } catch (err) {
-                document.getElementById('profileInfo').innerHTML = `<p class="text-warning">Failed to load profile: ${err.message}</p>`;
-                console.error('Profile load error:', err); // DEBUG
+                console.error('Failed to load profile:', err);
+                document.getElementById('user-name-title').textContent = "Connection Error";
             }
         };
 
-        function renderProfile() {
-            if (!profileData) return;
+        function renderUI() {
+            // Basic UI Info
+            document.getElementById('user-name-title').textContent = profileData.name;
+            document.getElementById('user-email-subtitle').textContent = profileData.email;
 
-            // User Info
-            document.getElementById('profileInfo').innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <p><strong>Name:</strong> ${profileData.name}</p>
-                        <p><strong>Email:</strong> ${profileData.email}</p>
-                    </div>
-                    <div>
-                        <p><strong>Total Active Days:</strong> ${profileData.total_active_days}</p>
-                        <p><strong>Joined:</strong> ${new Date(profileData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
-                    </div>
-                </div>
-            `;
+            // Stats
+            const joinDate = new Date(profileData.created_at);
+            const today = new Date();
+            const diffTime = Math.abs(today - joinDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Asana Bar Chart
+            document.getElementById('stat-streak').textContent = profileData.total_active_days + " d";
+            document.getElementById('stat-days').textContent = diffDays + " d";
+            document.getElementById('detail-joined').textContent = joinDate.toLocaleDateString();
+
+            const totalPosesCount = Object.values(profileData.completed_asanas || {}).reduce((a, b) => a + b, 0);
+            const uniquePosesCount = Object.keys(profileData.completed_asanas || {}).length;
+
+            document.getElementById('stat-poses').textContent = totalPosesCount;
+            document.getElementById('detail-poses').textContent = uniquePosesCount;
+
+            // Rank logic
+            let rank = "Novice";
+            if (totalPosesCount > 50) rank = "Master";
+            else if (totalPosesCount > 20) rank = "Expert";
+            else if (totalPosesCount > 5) rank = "Regular";
+            document.getElementById('stat-rank').textContent = rank;
+
+            // Charts
+            renderAsanaChart();
+            renderHeatmap();
+            renderAchievements();
+        }
+
+        function renderAsanaChart() {
             const ctx = document.getElementById('asanaChart').getContext('2d');
+            const labels = Object.keys(profileData.completed_asanas || []);
+            const counts = Object.values(profileData.completed_asanas || []);
+
             if (asanaChart) asanaChart.destroy();
-            const asanaLabels = Object.keys(profileData.completed_asanas || {});
-            const asanaData = Object.values(profileData.completed_asanas || {});
-            console.log('Asana data for chart:', { labels: asanaLabels, data: asanaData }); // DEBUG
+
             asanaChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: asanaLabels.length ? asanaLabels : ['No completions yet'],
+                    labels: labels.length ? labels : ['No Poses Yet'],
                     datasets: [{
-                        label: 'Successful Completions (9s+ & 90%+)',
-                        data: asanaData.length ? asanaData : [0],
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                        borderColor: '#059669',
-                        borderWidth: 1,
-                        borderRadius: 4
+                        label: 'Completions',
+                        data: counts.length ? counts : [0],
+                        backgroundColor: '#42A5F5',
+                        borderRadius: 12,
+                        barThickness: 30,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: { 
-                            beginAtZero: true,
-                            ticks: { color: '#E0E0E0', stepSize: 1 },
-                            grid: { color: '#333' }
-                        },
-                        x: {
-                            ticks: { color: '#E0E0E0' },
-                            grid: { color: '#333' }
-                        }
-                    },
-                    plugins: {
-                        legend: { 
-                            display: false,
-                            labels: { color: '#E0E0E0' }
-                        }
+                        y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#888' } },
+                        x: { grid: { display: false }, ticks: { color: '#aaa', font: { weight: 'bold' } } }
                     }
                 }
             });
-
-            // FIXED Contribution Graph: Starts Nov 11, 2024; Nov 16, 2025 in week 53, row 7
-            renderContributionGraph(profileData.activity_log);
         }
 
-        function renderContributionGraph(activeDates) {
+        function renderHeatmap() {
             const graph = document.getElementById('contributionGraph');
             graph.innerHTML = '';
 
-            // FIXED: Start from Monday Nov 11, 2024 for 53 weeks to cover up to Nov 2025
-            const startDate = new Date(2024, 10, 11); // Nov 11, 2024 Monday
-            const totalWeeks = 53;
-            const now = new Date(2025, 10, 16); // Nov 16, 2025
+            // 7x53 Grid: Days(rows) x Weeks(cols)
+            const today = new Date();
+            const startDate = new Date();
+            startDate.setDate(today.getDate() - 364);
+            while (startDate.getDay() !== 1) { startDate.setDate(startDate.getDate() - 1); }
 
-            // FIXED: Day labels (M/W/F on rows 1,3,5)
-            const dayRows = [1, 3, 5];
-            const dayLabels = ['M', 'W', 'F'];
-            dayRows.forEach((row, idx) => {
-                const labelDiv = document.createElement('div');
-                labelDiv.className = 'graph-label';
-                labelDiv.textContent = dayLabels[idx];
-                labelDiv.style.gridRow = row;
-                labelDiv.style.gridColumn = 1;
-                graph.appendChild(labelDiv);
-            });
+            const activitySet = new Set(profileData.activity_log || []);
 
-            // FIXED: Month labels hardcoded to match screenshot positions (Nov left to Nov right)
-            const monthPositions = [
-                { name: 'Nov', col: 2 }, // Nov 2024 (cols 2-5)
-                { name: 'Dec', col: 6 },
-                { name: 'Jan', col: 10 },
-                { name: 'Feb', col: 14 },
-                { name: 'Mar', col: 18 },
-                { name: 'Apr', col: 22 },
-                { name: 'May', col: 26 },
-                { name: 'Jun', col: 30 },
-                { name: 'Jul', col: 34 },
-                { name: 'Aug', col: 38 },
-                { name: 'Sep', col: 42 },
-                { name: 'Oct', col: 46 },
-                { name: 'Nov', col: 50 } // Nov 2025 (cols 50-53)
-            ];
-            monthPositions.forEach(({ name, col }) => {
-                const monthDiv = document.createElement('div');
-                monthDiv.className = 'graph-month';
-                monthDiv.textContent = name;
-                monthDiv.style.gridRow = 8;
-                monthDiv.style.gridColumn = col;
-                graph.appendChild(monthDiv);
-            });
-
-            // FIXED: Generate cells: Advance date by 1 day per cell, row=day of week, col=week+1
-            let currentDate = new Date(startDate);
-            for (let week = 0; week < totalWeeks; week++) {
-                for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
-                    const row = dayOfWeek + 1; // Mon=1, Sun=7
-                    const col = week + 2; // Week 0=col2, up to week52=col54
-                    const cellDiv = document.createElement('div');
-                    cellDiv.className = 'graph-day';
-                    cellDiv.style.gridRow = row;
-                    cellDiv.style.gridColumn = col;
-                    const dateStr = currentDate.toISOString().split('T')[0];
-                    if (activeDates.includes(dateStr)) {
-                        cellDiv.classList.add('active');
-                        cellDiv.title = `Active on ${currentDate.toLocaleDateString()}`;
-                    } else {
-                        cellDiv.title = dateStr;
-                    }
-                    graph.appendChild(cellDiv);
-                    currentDate.setDate(currentDate.getDate() + 1);
-                    if (currentDate > now) break; // Stop after today
-                }
-                if (currentDate > now) break;
+            // 1. Render Day Labels (M/W/F)
+            const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+            for (let r = 0; r < 7; r++) {
+                const label = document.createElement('div');
+                label.className = 'text-[9px] text-gray-600 flex items-center h-[12px]';
+                label.textContent = dayLabels[r];
+                label.style.gridRow = r + 1;
+                label.style.gridColumn = 1;
+                graph.appendChild(label);
             }
 
-            console.log(`Graph rendered: Start ${startDate.toDateString()}, End ~${now.toDateString()}, Active:`, activeDates); // DEBUG
+            // 2. Render 53 Weeks
+            let currentDate = new Date(startDate);
+            for (let week = 0; week < 53; week++) {
+                for (let day = 0; day < 7; day++) {
+                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const cell = document.createElement('div');
+                    cell.className = 'graph-day';
+                    cell.style.gridRow = day + 1;
+                    cell.style.gridColumn = week + 2;
+
+                    if (activitySet.has(dateStr)) {
+                        cell.classList.add('active');
+                    } else if (currentDate > today) {
+                        cell.style.opacity = '0.1';
+                    }
+
+                    cell.title = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    graph.appendChild(cell);
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            }
+        }
+
+        function renderAchievements() {
+            const list = document.getElementById('achievements-list');
+            const poses = Object.keys(profileData.completed_asanas || {}).length;
+
+            if (poses >= 1) {
+                list.innerHTML += `
+                    <div class="p-4 bg-primary/10 rounded-xl flex items-center space-x-4 border border-primary/30">
+                        <span class="text-2xl">🔥</span>
+                        <div>
+                            <h4 class="font-bold text-sm">First Step</h4>
+                            <p class="text-xs text-gray-400">Mastered your first pose</p>
+                        </div>
+                    </div>
+                `;
+            }
+            // Add more achievement logic as needed
         }
     </script>
 </body>
+
 </html>
