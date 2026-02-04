@@ -250,7 +250,125 @@
             background: rgba(66, 165, 245, 0.3);
             border-radius: 10px;
         }
+
+        /* ========================================
+           MOBILE RESPONSIVENESS FIXES
+           ======================================== */
+
+        /* Base reset for all screens */
+        * {
+            box-sizing: border-box;
+        }
+
+        /* Mobile-first media queries */
+        @media screen and (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
+
+            #app {
+                padding: 12px !important;
+            }
+
+            header {
+                flex-direction: column !important;
+                gap: 16px !important;
+                padding-bottom: 16px !important;
+                margin-bottom: 16px !important;
+            }
+
+            header h1 {
+                font-size: 2rem !important;
+            }
+
+            header .text-left p {
+                font-size: 9px !important;
+            }
+
+            /* Navigation buttons */
+            header .flex.items-center.space-x-3 {
+                flex-wrap: wrap;
+                gap: 8px !important;
+            }
+
+            header button,
+            header a {
+                padding: 8px 12px !important;
+                font-size: 11px !important;
+            }
+
+            /* Main content area */
+            main#content {
+                padding: 16px !important;
+                border-radius: 20px !important;
+                min-height: 50vh !important;
+            }
+
+            /* Feature cards grid */
+            .grid.md\\:grid-cols-2 {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* Bottom navigation */
+            nav.fixed {
+                padding-bottom: env(safe-area-inset-bottom, 8px);
+            }
+
+            #nav-tabs {
+                gap: 4px !important;
+            }
+
+            #nav-tabs button {
+                flex-direction: column !important;
+                padding: 8px 6px !important;
+                font-size: 9px !important;
+                gap: 2px !important;
+            }
+
+            #nav-tabs button svg {
+                width: 20px !important;
+                height: 20px !important;
+            }
+
+            #nav-tabs button span {
+                font-size: 9px !important;
+            }
+
+            /* Asana cards */
+            .asana-card {
+                padding: 12px !important;
+            }
+
+            /* Modal adjustments */
+            #asana-modal-content {
+                margin: 12px !important;
+                max-height: 85vh !important;
+            }
+        }
+
+        /* Extra small screens */
+        @media screen and (max-width: 400px) {
+            header h1 {
+                font-size: 1.5rem !important;
+            }
+
+            header .w-12 {
+                width: 40px !important;
+                height: 40px !important;
+            }
+
+            header button,
+            header a {
+                padding: 6px 10px !important;
+                font-size: 10px !important;
+            }
+
+            #nav-tabs button {
+                padding: 6px 4px !important;
+            }
+        }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 
 <body class="gradient-bg min-h-screen flex flex-col items-center pb-20 md:pb-8 text-gray-200">
@@ -649,7 +767,7 @@
                     console.error(`Attempt ${i + 1} failed:`, error);
                     if (i === retries - 1) {
                         // Fallback message for other errors after all retries fail
-                        return { text: "My sensors seem to be offline. Could you check your internet connection or try again shortly?", sources: [] };
+                        return { text: "I'm having trouble connecting right now. Please check your internet connection or try again in a moment.", sources: [] };
                     }
                     // Exponential backoff
                     await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
