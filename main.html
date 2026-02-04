@@ -717,14 +717,38 @@
 
             /**
              * Calls the OpenRouter API for the Virtual Assistant feature.
+             * Enhanced with better error handling, logging, and fallback responses.
              */
             async callGeminiAssistant(prompt, retries = 3) {
-                // OpenRouter API key (hardcoded for production reliability)
+                // OpenRouter API key
                 const OPENROUTER_API_KEY = "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";
                 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+                // Fallback responses for common yoga questions when API is unavailable
+                const fallbackResponses = {
+                    'tadasana': 'Tadasana (Mountain Pose) is a foundational standing pose that improves posture and balance. Stand with feet together, arms at sides, and focus on grounding through your feet.',
+                    'downward': 'Adho Mukha Svanasana (Downward Dog) stretches the hamstrings, calves, and spine. Start on hands and knees, then lift hips up and back.',
+                    'warrior': 'Virabhadrasana (Warrior Pose) builds strength and stamina. It strengthens legs, opens hips and chest, and improves focus.',
+                    'breathing': 'Pranayama (breathing exercises) are essential in yoga. Try Ujjayi breath: inhale and exhale through your nose with a slight constriction in the throat.',
+                    'meditation': 'Start with 5 minutes of seated meditation. Focus on your breath, and gently return attention when the mind wanders.',
+                    'beginner': 'For beginners, start with Tadasana, Cat-Cow stretches, and Child\'s Pose. Practice 10-15 minutes daily and focus on breath.',
+                    'stress': 'For stress relief, try Child\'s Pose, Legs Up the Wall, and slow deep breathing. Hold each pose for 1-2 minutes.',
+                    'default': 'I\'m here to help with your yoga practice! Try asking about specific poses like Tadasana or Downward Dog, or about breathing techniques and meditation.'
+                };
+
+                // Check for fallback match
+                const getFallback = (text) => {
+                    const lowerPrompt = text.toLowerCase();
+                    for (const [key, response] of Object.entries(fallbackResponses)) {
+                        if (lowerPrompt.includes(key)) return response;
+                    }
+                    return fallbackResponses.default;
+                };
+
                 for (let i = 0; i < retries; i++) {
                     try {
+                        console.log(`[SUNDAY API] Attempt ${i + 1}/${retries} - Sending request...`);
+
                         const response = await fetch(API_URL, {
                             method: 'POST',
                             headers: {
@@ -744,20 +768,45 @@
                             })
                         });
 
+                        console.log(`[SUNDAY API] Response status: ${response.status}`);
+
                         if (!response.ok) {
+                            const errorBody = await response.text();
+                            console.error(`[SUNDAY API] Error response: ${errorBody}`);
+
+                            // Handle specific error codes
+                            if (response.status === 401) {
+                                console.error('[SUNDAY API] API key invalid or expired');
+                                return { text: getFallback(prompt) + " (Note: Live AI is temporarily unavailable)" };
+                            }
+                            if (response.status === 429) {
+                                console.error('[SUNDAY API] Rate limit exceeded');
+                                if (i === retries - 1) {
+                                    return { text: getFallback(prompt) + " (Note: AI is busy, using cached response)" };
+                                }
+                                await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
+                                continue;
+                            }
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
 
                         const result = await response.json();
-                        const text = result.choices?.[0]?.message?.content || "Sorry, I couldn't process that. Please try again.";
+                        console.log('[SUNDAY API] Success:', result);
+                        const text = result.choices?.[0]?.message?.content || getFallback(prompt);
                         return { text };
 
                     } catch (error) {
-                        console.error(`Attempt ${i + 1} failed:`, error);
-                        if (i === retries - 1) return { text: "I'm having trouble connecting right now." };
+                        console.error(`[SUNDAY API] Attempt ${i + 1} failed:`, error.message);
+
+                        if (i === retries - 1) {
+                            console.warn('[SUNDAY API] All retries failed, using fallback response');
+                            return { text: getFallback(prompt) };
+                        }
                         await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
                     }
                 }
+
+                return { text: getFallback(prompt) };
             },
 
             // --- Voice Command Integration ---
