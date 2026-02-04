@@ -420,20 +420,23 @@
         </nav>
     </div>
 
-    <!-- Asana Details Modal -->
-    <div id="asana-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+    <!-- Asana Details Modal Backdrop -->
+    <div id="asana-modal-backdrop" onclick="if(event.target === this) app.closeAsanaDetails()"
+        class="fixed inset-0 bg-black/80 backdrop-blur-xl z-[60] flex items-center justify-center p-4 md:p-8 opacity-0 pointer-events-none transition-all duration-500">
+        <!-- Modal Container -->
         <div id="asana-modal-content"
-            class="bg-card w-full max-w-2xl rounded-[2rem] sm:rounded-3xl overflow-hidden shadow-2xl border border-gray-700 relative h-full sm:h-auto max-h-[90vh] flex flex-col">
+            class="bg-[#1a1a1a] w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden flex flex-col md:flex-row relative transform scale-95 transition-all duration-500 overflow-y-auto md:overflow-hidden">
+            <!-- Close Button (Mobile/Top) -->
+            <button onclick="app.closeAsanaDetails()"
+                class="absolute top-6 right-6 z-20 w-10 h-10 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 transition-all active:scale-90">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
             <!-- Modal Header with Background Pattern -->
             <div
                 class="h-24 sm:h-32 bg-gradient-to-br from-primary/30 to-secondary/30 relative flex items-end p-5 sm:p-6">
-                <button onclick="app.closeAsanaDetails()"
-                    class="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white w-10 h-10 rounded-full flex items-center justify-center transition-all backdrop-blur-md border border-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
-                        stroke="currentColor" class="w-6 h-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
                 <div class="z-10">
                     <h3 id="modal-asana-name" class="text-3xl font-black text-white leading-tight">Asana Name</h3>
                     <p id="modal-asana-sanskrit" class="text-primary-light font-medium opacity-90 italic">Sanskrit Name
@@ -677,66 +680,9 @@
         const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. Always format your advice clearly. Keep responses brief (2-3 sentences max).";
 
         /**
-         * Calls the OpenRouter API for the Virtual Assistant feature.
+         * Global App State and Routing
+         * Defined early so DOM event handlers can find it.
          */
-        async function callGeminiAssistant(prompt, retries = 3) {
-            // OpenRouter API key (hardcoded for production reliability)
-            const OPENROUTER_API_KEY = "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";
-            const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                            'HTTP-Referer': window.location.origin,
-                            'X-Title': 'SUNDAY Yoga Assistant'
-                        },
-                        body: JSON.stringify({
-                            model: OPENROUTER_MODEL,
-                            messages: [
-                                { role: "system", content: VIRTUAL_ASSISTANT_SYSTEM_PROMPT },
-                                { role: "user", content: prompt }
-                            ],
-                            max_tokens: 200,
-                            temperature: 0.7
-                        })
-                    });
-
-                    if (!response.ok) {
-                        let errorDetails = `HTTP error! status: ${response.status}`;
-                        try {
-                            const errorBody = await response.json();
-                            if (errorBody && errorBody.error && errorBody.error.message) {
-                                errorDetails = errorBody.error.message;
-                            }
-                            console.error(`OpenRouter API Error (${response.status}):`, errorBody);
-                        } catch (e) {
-                            console.error(`OpenRouter API Error (${response.status}): Could not parse error body.`);
-                        }
-                        throw new Error(errorDetails);
-                    }
-
-                    const result = await response.json();
-                    const text = result.choices?.[0]?.message?.content || "Sorry, I couldn't process that. Please try again.";
-
-                    return { text, sources: [] };
-
-                } catch (error) {
-                    console.error(`Attempt ${i + 1} failed:`, error);
-                    if (i === retries - 1) {
-                        return { text: "I'm having trouble connecting right now. Please try again in a moment.", sources: [] };
-                    }
-                    // Exponential backoff
-                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-                }
-            }
-        }
-
-
-        // --- App State and Routing ---
         window.app = {
             currentView: 'dashboard',
             views: {
@@ -746,15 +692,14 @@
                 course: { name: 'Course', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M11.7 2.805a.75.75 0 0 1 .6 0A60.65 60.65 0 0 1 22.83 8.72a.75.75 0 0 1-.231 1.337 49.948 49.948 0 0 0-9.902 3.912l-.003.002c-.114.06-.227.119-.34.18a.75.75 0 0 1-.707 0A50.88 50.88 0 0 0 7.5 12.173v-.224c0-.131.067-.248.172-.311a54.615 54.615 0 0 1 4.653-2.52.75.75 0 0 0-.65-1.352 56.123 56.123 0 0 0-4.78 2.589 1.858 1.858 0 0 0-.859 1.228 49.803 49.803 0 0 0-4.634-1.527.75.75 0 0 1-.231-1.337A60.653 60.653 0 0 1 11.7 2.805Z" /><path d="M13.06 15.473a48.45 48.45 0 0 1 7.666-3.282c.134 1.414.22 2.843.255 4.284a.75.75 0 0 1-.46.711 47.87 47.87 0 0 0-8.105 4.342.75.75 0 0 1-.832 0 47.87 47.87 0 0 0-8.104-4.342.75.75 0 0 1-.461-.71c.035-1.442.121-2.87.255-4.286.921.304 1.83.634 2.726.99v1.27a1.5 1.5 0 0 0-.14 2.508c-.09.38-.222.753-.397 1.11.452.213.901.434 1.346.66a6.727 6.727 0 0 0 .551-1.607 1.5 1.5 0 0 0 .14-2.67v-.645a48.549 48.549 0 0 1 3.44 1.667 2.25 2.25 0 0 0 2.12 0Z" /></svg>' }
             },
 
-
-
             // Elements
-            contentEl: document.getElementById('content'),
-            navTabsEl: document.getElementById('nav-tabs'),
+            contentEl: null, // Init in init()
+            navTabsEl: null, // Init in init()
 
             // Voice Command State
             isListening: false,
             recognitionInstance: null,
+            audioWarmedUp: false,
 
             // TTS State
             ttsEnabled: false,
@@ -763,26 +708,56 @@
             // Course State
             courseProgress: JSON.parse(localStorage.getItem('courseProgress') || '{"poses": [{"name": "Tadasana", "completed": false, "locked": false, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Namastey", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Vrikshasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Adho Mukha Svanasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Virabhadrasana III", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Natarajasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}, {"name": "Baddha Konasana", "completed": false, "locked": true, "timeHeld": 0, "bestAccuracy": 0, "attemptsRemaining": 3}], "certificateEarned": false}'),
             courseMode: false,
-            testActive: false, // Starts true only when 90%+ match is hit
+            testActive: false,
             courseTimer: 0,
             courseTimerInterval: null,
             courseStartTime: null,
             courseHoldTime: 0,
             courseHoldTimer: null,
 
-            // Methods
-            init() {
-                // Register Service Worker for PWA
-                if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('/sw.js')
-                            .then(reg => console.log('SW Registered', reg))
-                            .catch(err => console.log('SW Register Error', err));
-                    });
+            /**
+             * Calls the OpenRouter API for the Virtual Assistant feature.
+             */
+            async callGeminiAssistant(prompt, retries = 3) {
+                // OpenRouter API key (hardcoded for production reliability)
+                const OPENROUTER_API_KEY = "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";
+                const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(API_URL, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                                'HTTP-Referer': window.location.origin,
+                                'X-Title': 'SUNDAY Yoga Assistant'
+                            },
+                            body: JSON.stringify({
+                                model: OPENROUTER_MODEL,
+                                messages: [
+                                    { role: "system", content: VIRTUAL_ASSISTANT_SYSTEM_PROMPT },
+                                    { role: "user", content: prompt }
+                                ],
+                                max_tokens: 200,
+                                temperature: 0.7
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        const text = result.choices?.[0]?.message?.content || "Sorry, I couldn't process that. Please try again.";
+                        return { text };
+
+                    } catch (error) {
+                        console.error(`Attempt ${i + 1} failed:`, error);
+                        if (i === retries - 1) return { text: "I'm having trouble connecting right now." };
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                    }
                 }
-                this.renderNav();
-                this.navigate(this.currentView);
-                this.setupVoiceCommands(); // Setup the voice command system
             },
 
             // --- Voice Command Integration ---
@@ -912,6 +887,12 @@
 
             toggleVoiceControl() {
                 const micStatusText = document.getElementById('mic-status-text');
+
+                // Warm up audio on first click to unlock TTS
+                if (!this.audioWarmedUp) {
+                    this.warmUpAudio();
+                }
+
                 if (this.isListening) {
                     this.isListening = false;
                     this.recognitionInstance.stop();
@@ -926,6 +907,15 @@
                         micStatusText.textContent = "Error";
                     }
                 }
+            },
+
+            warmUpAudio() {
+                // Silently play a blank utterance to unlock audio context on mobile/safari
+                const warmUp = new SpeechSynthesisUtterance('');
+                warmUp.volume = 0;
+                window.speechSynthesis.speak(warmUp);
+                this.audioWarmedUp = true;
+                console.log("Audio warmed up and unlocked.");
             },
 
             // --- Navigation and Rendering ---
@@ -967,31 +957,17 @@
             navigate(viewKey) {
                 // The following logic block checking for 'music' is now removed.
 
-                // If voice control is active, stop it before navigating to prevent lingering mic use
-                if (this.recognitionInstance && this.isListening) {
-                    this.recognitionInstance.stop();
-                    this.isListening = false;
-                    // Update UI manually since .onend might not fire immediately after .stop()
-                    document.getElementById('mic-status-text').textContent = "Voice Off";
-                    document.getElementById('mic-icon').classList.remove('text-primary', 'animate-pulse');
-                    document.getElementById('mic-icon').classList.add('text-red-500');
-                }
+                // Mic persistence: DO NOT stop recognition here. 
+                // Let it continue across views unless manually toggled.
 
                 this.currentView = viewKey;
                 this.renderNav();
                 this.renderContent();
 
-                // Start camera and ML model only after rendering the AR view
-                if (viewKey === 'ar_correction') {
-                    // Don't start immediately, wait for asana selection
-                }
-
                 // Update milestone UI when navigating to dashboard
                 if (viewKey === 'dashboard') {
                     setTimeout(() => this.updateMilestoneUI(), 50);
                 }
-
-                // Setup music listeners block removed.
             },
 
             // --- Milestone Tracking Functions ---
@@ -2619,8 +2595,23 @@
         };
 
         // --- Initialization on Window Load ---
+        // --- Initialization on Window Load ---
         window.onload = function () {
+            // Locate essential elements
+            app.contentEl = document.getElementById('content');
+            app.navTabsEl = document.getElementById('nav-tabs');
+
+            // Initialize App
             app.init();
+
+            // Hide Premium Loader after a short delay to ensure assets are ready
+            setTimeout(() => {
+                const loader = document.getElementById('app-loader');
+                if (loader) {
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.remove(), 800);
+                }
+            }, 1500);
 
             // Cursor Glow Effect Logic
             const glow = document.getElementById('cursor-glow');
