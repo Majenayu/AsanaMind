@@ -902,8 +902,8 @@
                         const envApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
                         if (!envApiKey) {
                             console.warn("Gemini API key is missing. AI response disabled.");
-                            updateMicStatus(true, "Key Missing");
-                            this.speakCorrection("I can't answer that because your Gemini API key is not set. Please add it to your environment variables.", true);
+                            updateMicStatus(true, "API Key Missing");
+                            // Don't speak error - just show status
                             return;
                         }
 
@@ -914,12 +914,19 @@
                             const response = await callGeminiAssistant(transcript);
                             const text = response.text || "I'm not sure about that.";
 
-                            // Speak the response back (forcing it to interrupt any background guidance)
-                            this.speakCorrection(text, true);
-                            updateMicStatus(true, "Speaking...");
+                            // Only speak if we got a real response (not an error message)
+                            if (!text.includes("trouble connecting") && !text.includes("API key")) {
+                                this.speakCorrection(text, true);
+                                updateMicStatus(true, "Speaking...");
+                            } else {
+                                // For connection errors, just show status without speaking
+                                console.warn("AI returned error:", text);
+                                updateMicStatus(true, "Connection Issue");
+                            }
                         } catch (error) {
                             console.error("AI Voice Error:", error);
-                            this.speakCorrection("I'm sorry, I'm having trouble connecting to my brain right now.", true);
+                            // Don't speak the error - just update status
+                            updateMicStatus(true, "Try Again");
                         }
                     }
                 };
