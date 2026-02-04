@@ -839,7 +839,8 @@
                         updateMicStatus(true, "Thinking...");
 
                         try {
-                            const response = await callGeminiAssistant(transcript);
+                            // Correctly call the method on the app instance
+                            const response = await app.callGeminiAssistant(transcript);
                             const text = response.text || "I'm not sure about that.";
 
                             // Speak the AI response
