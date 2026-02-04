@@ -889,10 +889,12 @@
                     for (const phrase in commandMap) {
                         if (transcript.includes(phrase)) {
                             const targetView = commandMap[phrase];
-                            this.recognitionInstance.stop();
-                            this.isListening = false;
+                            // Don't stop the mic permanently - just navigate
                             this.navigate(targetView);
                             navigated = true;
+                            // Give voice feedback for navigation
+                            this.speakCorrection(`Going to ${targetView.replace('_', ' ')}.`, true);
+                            updateMicStatus(true, `Navigating to ${targetView}...`);
                             return;
                         }
                     }
