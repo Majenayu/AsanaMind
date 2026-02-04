@@ -852,9 +852,11 @@
                     // Acknowledge the command via UI/Console
                     updateMicStatus(true, `Heard: "${transcript}"`);
 
-                    // Simple command mapping logic to match the Python backend
-                    let navigated = false;
-                    const commandMap = {
+                    // === COMMAND HANDLING ===
+                    let commandExecuted = false;
+
+                    // Navigation commands
+                    const navigationMap = {
                         'home': 'dashboard',
                         'dashboard': 'dashboard',
                         'pose library': 'asana',
@@ -863,41 +865,110 @@
                         'poses': 'asana',
                         'ar correction': 'ar_correction',
                         'posture correction': 'ar_correction',
+                        'posture': 'ar_correction',
                         'camera': 'ar_correction',
                         'course': 'course',
                         'test': 'course',
-                        'certification': 'course'
-
+                        'certification': 'course',
+                        'assistant': 'assistant',
+                        'chat': 'assistant',
+                        'help': 'assistant'
                     };
 
-                    for (const phrase in commandMap) {
-                        if (transcript.includes(phrase)) {
-                            const targetView = commandMap[phrase];
-                            // Don't stop the mic permanently - just navigate
-                            this.navigate(targetView);
-                            navigated = true;
-                            // Give voice feedback for navigation
-                            this.speakCorrection(`Going to ${targetView.replace('_', ' ')}.`, true);
-                            updateMicStatus(true, `Navigating to ${targetView}...`);
+                    // Profile command
+                    if (transcript.includes('profile') || transcript.includes('my profile') || transcript.includes('show profile')) {
+                        window.location.href = '/profile';
+                        this.speakCorrection('Opening your profile.', true);
+                        updateMicStatus(true, 'Done');
+                        commandExecuted = true;
+                        return;
+                    }
+
+                    // Logout command
+                    if (transcript.includes('logout') || transcript.includes('log out') || transcript.includes('sign out') || transcript.includes('signout')) {
+                        this.speakCorrection('Logging you out. Goodbye!', true);
+                        updateMicStatus(true, 'Done');
+                        setTimeout(() => { window.location.href = '/logout'; }, 1500);
+                        commandExecuted = true;
+                        return;
+                    }
+
+                    // Voice off command
+                    if (transcript.includes('stop listening') || transcript.includes('voice off') || transcript.includes('turn off') ||
+                        transcript.includes('mute') || transcript.includes('silence') || transcript.includes('shut up')) {
+                        this.isListening = false;
+                        this.recognitionInstance.stop();
+                        this.speakCorrection('Voice assistant turned off. Click the mic button to turn me back on.', true);
+                        updateMicStatus(false, 'Done');
+                        commandExecuted = true;
+                        return;
+                    }
+
+                    // Pose-specific AR correction commands (detects pose names and starts AR session)
+                    const poseKeywords = {
+                        'tadasana': 'Tadasana (Mountain Pose)',
+                        'mountain pose': 'Tadasana (Mountain Pose)',
+                        'namaste': 'Namastey (Prayer Position)',
+                        'prayer': 'Namastey (Prayer Position)',
+                        'vrikshasana': 'Vrikshasana (Tree Pose)',
+                        'tree pose': 'Vrikshasana (Tree Pose)',
+                        'warrior': 'Virabhadrasana (Warrior Pose)',
+                        'virabhadrasana': 'Virabhadrasana (Warrior Pose)',
+                        'downward dog': 'Adho Mukha Svanasana (Downward Dog)',
+                        'downward': 'Adho Mukha Svanasana (Downward Dog)',
+                        'child pose': 'Balasana (Child Pose)',
+                        'balasana': 'Balasana (Child Pose)'
+                    };
+
+                    for (const [keyword, poseName] of Object.entries(poseKeywords)) {
+                        if (transcript.includes(keyword) && (transcript.includes('start') || transcript.includes('practice') ||
+                            transcript.includes('do') || transcript.includes('correct') || transcript.includes('ar'))) {
+                            this.navigate('ar_correction');
+                            setTimeout(() => {
+                                this.selectAsanaAndStart(poseName.split('(')[0].trim());
+                            }, 500);
+                            this.speakCorrection(`Starting AR correction for ${poseName}. Get ready!`, true);
+                            updateMicStatus(true, 'Done');
+                            commandExecuted = true;
                             return;
                         }
                     }
 
-                    if (!navigated) {
-                        // Use OpenRouter AI as Voice Assistant
-                        updateMicStatus(true, "Thinking...");
+                    // Standard navigation
+                    for (const phrase in navigationMap) {
+                        if (transcript.includes(phrase)) {
+                            const targetView = navigationMap[phrase];
+                            this.navigate(targetView);
+                            this.speakCorrection(`Done. Navigated to ${targetView.replace('_', ' ')}.`, true);
+                            updateMicStatus(true, 'Done');
+                            commandExecuted = true;
+                            return;
+                        }
+                    }
 
-                        try {
-                            // Correctly call the method on the app instance
-                            const response = await app.callGeminiAssistant(transcript);
-                            const text = response.text || "I'm not sure about that.";
+                    // If no command recognized, try AI assistant or say "no command"
+                    if (!commandExecuted) {
+                        // Check if it's a question (contains question words)
+                        const isQuestion = transcript.includes('what') || transcript.includes('how') || transcript.includes('why') ||
+                            transcript.includes('when') || transcript.includes('where') || transcript.includes('who') ||
+                            transcript.includes('tell me') || transcript.includes('explain') || transcript.includes('?');
 
-                            // Speak the AI response
-                            this.speakCorrection(text, true);
-                            updateMicStatus(true, "Speaking...");
-                        } catch (error) {
-                            console.error("AI Voice Error:", error);
-                            updateMicStatus(true, "Try Again");
+                        if (isQuestion || transcript.length > 15) {
+                            // Longer text or questions go to AI
+                            updateMicStatus(true, "Thinking...");
+                            try {
+                                const response = await app.callGeminiAssistant(transcript);
+                                const text = response.text || "I'm not sure about that.";
+                                this.speakCorrection(text, true);
+                                updateMicStatus(true, "Done");
+                            } catch (error) {
+                                console.error("AI Voice Error:", error);
+                                updateMicStatus(true, "Try Again");
+                            }
+                        } else {
+                            // Short unrecognized text = no command
+                            this.speakCorrection("No command recognized. Try saying: home, library, profile, or logout.", true);
+                            updateMicStatus(true, "No Command");
                         }
                     }
                 };
