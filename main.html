@@ -672,102 +672,62 @@
             [12, 14], [14, 16] // Right leg
         ];
 
-
         // --- API Configuration and Helper (Moved outside app object) ---
-        const GEMINI_MODEL = "gemini-1.5-flash";
-        const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. You have access to real-time information. Always format your advice clearly using simple markdown (bold, lists).";
+        const OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
+        const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. Always format your advice clearly. Keep responses brief (2-3 sentences max).";
 
         /**
-         * Calls the Gemini API for the Virtual Assistant feature.
+         * Calls the OpenRouter API for the Virtual Assistant feature.
          */
         async function callGeminiAssistant(prompt, retries = 3) {
-            // Use the key provided by the user if the environment key is not available, to fix the 401 error.
-            const envApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
-
-            // Use environment key if present, otherwise use the user's fallback key.
-            const apiKey = envApiKey;
-
-            // Construct API URL: Ensure the key is used if available.
-            let API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-            if (apiKey) {
-                API_URL += `?key=${apiKey}`;
-            }
+            // OpenRouter API key (hardcoded for production reliability)
+            const OPENROUTER_API_KEY = "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";
+            const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(API_URL, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                            'HTTP-Referer': window.location.origin,
+                            'X-Title': 'SUNDAY Yoga Assistant'
+                        },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            tools: [{ "google_search": {} }],
-                            systemInstruction: {
-                                parts: [{ text: VIRTUAL_ASSISTANT_SYSTEM_PROMPT }]
-                            },
+                            model: OPENROUTER_MODEL,
+                            messages: [
+                                { role: "system", content: VIRTUAL_ASSISTANT_SYSTEM_PROMPT },
+                                { role: "user", content: prompt }
+                            ],
+                            max_tokens: 200,
+                            temperature: 0.7
                         })
                     });
 
                     if (!response.ok) {
                         let errorDetails = `HTTP error! status: ${response.status}`;
-                        let isOverloaded = false;
-
                         try {
                             const errorBody = await response.json();
                             if (errorBody && errorBody.error && errorBody.error.message) {
                                 errorDetails = errorBody.error.message;
                             }
-                            // Check for 503 UNAVAILABLE status in the error code
-                            if (response.status === 503 || errorDetails.includes("model is overloaded")) {
-                                isOverloaded = true;
-                                console.error(`API Error Response (503):`, errorBody);
-                            } else {
-                                console.error(`API Error Response (${response.status}):`, errorBody);
-                            }
+                            console.error(`OpenRouter API Error (${response.status}):`, errorBody);
                         } catch (e) {
-                            console.error(`API Error Response (${response.status}): Could not parse error body.`);
+                            console.error(`OpenRouter API Error (${response.status}): Could not parse error body.`);
                         }
-
-                        if (isOverloaded) {
-                            throw new Error("Model Unavailable (503). Please wait and try again.");
-                        }
-
                         throw new Error(errorDetails);
                     }
 
                     const result = await response.json();
-                    const candidate = result.candidates?.[0];
-                    const text = candidate?.content?.parts?.[0]?.text || "Sorry, I couldn't find an answer for that right now. Please try rephrasing.";
+                    const text = result.choices?.[0]?.message?.content || "Sorry, I couldn't process that. Please try again.";
 
-                    let sources = [];
-                    const groundingMetadata = candidate?.groundingMetadata;
-                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
-                        sources = groundingMetadata.groundingAttributions
-                            .map(attribution => ({
-                                uri: attribution.web?.uri,
-                                title: attribution.web?.title,
-                            }))
-                            .filter(source => source.uri && source.title);
-                    }
-
-                    return { text, sources };
+                    return { text, sources: [] };
 
                 } catch (error) {
-                    // Check for 401 error
-                    if (error.message && error.message.includes('401')) {
-                        console.error("Authentication Error. Please ensure the Gemini API key is correctly provided by the environment.");
-                        return { text: "I can't access my brain right now. Please make sure you have added your Gemini API key to the Render environment variables.", sources: [] };
-                    }
-
-                    // Check for 503 error after all retries fail
-                    if (error.message && error.message.includes('503') && i === retries - 1) {
-                        // FIX: Provide a single, clear, user-friendly message upon final 503 failure.
-                        return { text: "The AI service is currently overloaded or undergoing maintenance. This is a temporary issue. Please wait a few moments and try your query again!", sources: [] };
-                    }
-
                     console.error(`Attempt ${i + 1} failed:`, error);
                     if (i === retries - 1) {
-                        // Fallback message for other errors after all retries fail
-                        return { text: "I'm having trouble connecting right now. Please check your internet connection or try again in a moment.", sources: [] };
+                        return { text: "I'm having trouble connecting right now. Please try again in a moment.", sources: [] };
                     }
                     // Exponential backoff
                     await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
@@ -900,34 +860,18 @@
                     }
 
                     if (!navigated) {
-                        // Check if API key exists
-                        const envApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
-                        if (!envApiKey) {
-                            console.warn("Gemini API key is missing. AI response disabled.");
-                            updateMicStatus(true, "API Key Missing");
-                            // Don't speak error - just show status
-                            return;
-                        }
-
-                        // Use Gemini AI as Voice Assistant
+                        // Use OpenRouter AI as Voice Assistant
                         updateMicStatus(true, "Thinking...");
 
                         try {
                             const response = await callGeminiAssistant(transcript);
                             const text = response.text || "I'm not sure about that.";
 
-                            // Only speak if we got a real response (not an error message)
-                            if (!text.includes("trouble connecting") && !text.includes("API key")) {
-                                this.speakCorrection(text, true);
-                                updateMicStatus(true, "Speaking...");
-                            } else {
-                                // For connection errors, just show status without speaking
-                                console.warn("AI returned error:", text);
-                                updateMicStatus(true, "Connection Issue");
-                            }
+                            // Speak the AI response
+                            this.speakCorrection(text, true);
+                            updateMicStatus(true, "Speaking...");
                         } catch (error) {
                             console.error("AI Voice Error:", error);
-                            // Don't speak the error - just update status
                             updateMicStatus(true, "Try Again");
                         }
                     }
