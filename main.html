@@ -1435,29 +1435,272 @@
                 }
 
                 if (poseName === 'Tadasana') {
-                    // Mountain Pose - Standing Straight
+                    // Mountain Pose - Perfect Standing Posture with Comprehensive Analysis
+                    
+                    // === FOUNDATION: FEET & ANKLES ===
+                    if (leftAnkle && rightAnkle) {
+                        // 1. Feet parallel and hip-width apart (not too close, not too wide)
+                        const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
+                        const idealFeetDistance = 50; // Hip-width apart in pixels
+                        const tolerance = 25;
+                        
+                        if (feetDistance < idealFeetDistance - tolerance) {
+                            corrections.push({ 
+                                message: "Feet: step wider to hip-width apart for better foundation", 
+                                affected: ['left_ankle', 'right_ankle'], 
+                                color: 'yellow' 
+                            });
+                        } else if (feetDistance > idealFeetDistance + tolerance) {
+                            corrections.push({ 
+                                message: "Feet: step closer together, hip-width apart", 
+                                affected: ['left_ankle', 'right_ankle'], 
+                                color: 'yellow' 
+                            });
+                        }
+                        
+                        // 2. Weight distribution - ankles should be level
+                        const ankleHeightDiff = Math.abs(leftAnkle.y - rightAnkle.y);
+                        if (ankleHeightDiff > 15) {
+                            corrections.push({ 
+                                message: "Weight: distribute evenly on both feet", 
+                                affected: ['left_ankle', 'right_ankle'], 
+                                color: 'red' 
+                            });
+                        }
+                    }
 
-                    // 1. Leg Straightness
+                    // === LEGS: STRENGTH & ALIGNMENT ===
+                    // 3. Left leg straightness and engagement
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
-                        if (leftKneeAngle < 165) corrections.push({ message: `Left leg: straighten (${Math.round(leftKneeAngle)}°)`, affected: ['left_knee', 'left_ankle'], color: 'red' });
+                        if (leftKneeAngle < 170) {
+                            corrections.push({ 
+                                message: `Left leg: engage thigh muscles, straighten knee (${Math.round(leftKneeAngle)}°)`, 
+                                affected: ['left_hip', 'left_knee', 'left_ankle'], 
+                                color: 'red' 
+                            });
+                        } else if (leftKneeAngle > 185) {
+                            corrections.push({ 
+                                message: "Left leg: avoid locking knee, keep micro-bend", 
+                                affected: ['left_knee'], 
+                                color: 'yellow' 
+                            });
+                        }
                     }
 
+                    // 4. Right leg straightness and engagement
                     if (rightHip && rightKnee && rightAnkle) {
                         const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        if (rightKneeAngle < 165) corrections.push({ message: `Right leg: straighten (${Math.round(rightKneeAngle)}°)`, affected: ['right_knee', 'right_ankle'], color: 'red' });
+                        if (rightKneeAngle < 170) {
+                            corrections.push({ 
+                                message: `Right leg: engage thigh muscles, straighten knee (${Math.round(rightKneeAngle)}°)`, 
+                                affected: ['right_hip', 'right_knee', 'right_ankle'], 
+                                color: 'red' 
+                            });
+                        } else if (rightKneeAngle > 185) {
+                            corrections.push({ 
+                                message: "Right leg: avoid locking knee, keep micro-bend", 
+                                affected: ['right_knee'], 
+                                color: 'yellow' 
+                            });
+                        }
                     }
 
-                    // 2. Hip/Torso Alignment (Simple vertical check)
+                    // === PELVIS & HIPS: STABILITY ===
                     if (leftHip && rightHip) {
-                        const hipDifference = Math.abs(leftHip.y - rightHip.y);
-                        if (hipDifference > 40) corrections.push({ message: "Hips: keep level", affected: ['left_hip', 'right_hip'], color: 'yellow' });
+                        // 5. Hip level alignment (crucial for Tadasana)
+                        const hipHeightDiff = Math.abs(leftHip.y - rightHip.y);
+                        if (hipHeightDiff > 25) {
+                            corrections.push({ 
+                                message: "Hips: level your pelvis, engage core muscles", 
+                                affected: ['left_hip', 'right_hip'], 
+                                color: 'red' 
+                            });
+                        }
+                        
+                        // 6. Hip width alignment (should be parallel)
+                        const hipWidthDiff = Math.abs(leftHip.x - rightHip.x);
+                        const expectedHipWidth = 40; // Normal hip width
+                        if (hipWidthDiff > expectedHipWidth + 20) {
+                            corrections.push({ 
+                                message: "Hips: square your pelvis forward", 
+                                affected: ['left_hip', 'right_hip'], 
+                                color: 'yellow' 
+                            });
+                        }
                     }
 
-                    // 3. Shoulder Alignment (Simple vertical check)
+                    // === SPINE & TORSO: ELONGATION ===
+                    if (leftShoulder && rightShoulder && leftHip && rightHip) {
+                        // 7. Spine elongation - shoulders over hips
+                        const avgShoulderX = (leftShoulder.x + rightShoulder.x) / 2;
+                        const avgHipX = (leftHip.x + rightHip.x) / 2;
+                        const spinalAlignment = Math.abs(avgShoulderX - avgHipX);
+                        
+                        if (spinalAlignment > 30) {
+                            if (avgShoulderX < avgHipX) {
+                                corrections.push({ 
+                                    message: "Posture: bring shoulders back over hips, lengthen spine", 
+                                    affected: ['left_shoulder', 'right_shoulder'], 
+                                    color: 'red' 
+                                });
+                            } else {
+                                corrections.push({ 
+                                    message: "Posture: bring shoulders forward over hips", 
+                                    affected: ['left_shoulder', 'right_shoulder'], 
+                                    color: 'red' 
+                                });
+                            }
+                        }
+                        
+                        // 8. Torso length - check for slouching
+                        const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+                        const avgHipY = (leftHip.y + rightHip.y) / 2;
+                        const torsoLength = avgHipY - avgShoulderY;
+                        
+                        // If torso appears compressed (shoulders too close to hips)
+                        if (torsoLength < 80) {
+                            corrections.push({ 
+                                message: "Spine: lengthen through crown of head, lift chest", 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow' 
+                            });
+                        }
+                    }
+
+                    // === SHOULDERS: RELAXATION & ALIGNMENT ===
                     if (leftShoulder && rightShoulder) {
-                        const shoulderDifference = Math.abs(leftShoulder.y - rightShoulder.y);
-                        if (shoulderDifference > 40) corrections.push({ message: "Shoulders: relax and level", affected: ['left_shoulder', 'right_shoulder'], color: 'yellow' });
+                        // 9. Shoulder level alignment
+                        const shoulderHeightDiff = Math.abs(leftShoulder.y - rightShoulder.y);
+                        if (shoulderHeightDiff > 25) {
+                            corrections.push({ 
+                                message: "Shoulders: relax and level, release tension", 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow' 
+                            });
+                        }
+                        
+                        // 10. Shoulder width - check for hunching
+                        const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                        if (shoulderWidth < 60) {
+                            corrections.push({ 
+                                message: "Shoulders: broaden across chest, roll shoulders back", 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow' 
+                            });
+                        }
+                    }
+
+                    // === ARMS: NATURAL POSITIONING ===
+                    if (leftShoulder && leftElbow && leftWrist && rightShoulder && rightElbow && rightWrist) {
+                        // 11. Arm positioning - should hang naturally
+                        const leftArmAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
+                        const rightArmAngle = this.calculateAngle(rightShoulder, rightElbow, rightWrist);
+                        
+                        if (leftArmAngle < 160) {
+                            corrections.push({ 
+                                message: "Left arm: let it hang naturally, relax elbow", 
+                                affected: ['left_elbow', 'left_wrist'], 
+                                color: 'yellow' 
+                            });
+                        }
+                        
+                        if (rightArmAngle < 160) {
+                            corrections.push({ 
+                                message: "Right arm: let it hang naturally, relax elbow", 
+                                affected: ['right_elbow', 'right_wrist'], 
+                                color: 'yellow' 
+                            });
+                        }
+                        
+                        // 12. Wrist position - should be by sides
+                        const leftWristPosition = leftWrist.x - leftShoulder.x;
+                        const rightWristPosition = rightShoulder.x - rightWrist.x;
+                        
+                        if (Math.abs(leftWristPosition) > 50) {
+                            corrections.push({ 
+                                message: "Left arm: bring closer to your side", 
+                                affected: ['left_wrist'], 
+                                color: 'yellow' 
+                            });
+                        }
+                        
+                        if (Math.abs(rightWristPosition) > 50) {
+                            corrections.push({ 
+                                message: "Right arm: bring closer to your side", 
+                                affected: ['right_wrist'], 
+                                color: 'yellow' 
+                            });
+                        }
+                    }
+
+                    // === HEAD & NECK: CROWN REACHING ===
+                    if (nose && leftShoulder && rightShoulder) {
+                        // 13. Head alignment over shoulders
+                        const avgShoulderX = (leftShoulder.x + rightShoulder.x) / 2;
+                        const headAlignment = Math.abs(nose.x - avgShoulderX);
+                        
+                        if (headAlignment > 40) {
+                            if (nose.x < avgShoulderX) {
+                                corrections.push({ 
+                                    message: "Head: bring back over shoulders, lengthen neck", 
+                                    affected: ['nose'], 
+                                    color: 'red' 
+                                });
+                            } else {
+                                corrections.push({ 
+                                    message: "Head: center over shoulders", 
+                                    affected: ['nose'], 
+                                    color: 'red' 
+                                });
+                            }
+                        }
+                        
+                        // 14. Neck length - head should be lifted
+                        const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+                        const neckLength = avgShoulderY - nose.y;
+                        
+                        if (neckLength < 40) {
+                            corrections.push({ 
+                                message: "Crown: reach up through top of head, lengthen neck", 
+                                affected: ['nose'], 
+                                color: 'yellow' 
+                            });
+                        }
+                    }
+
+                    // === OVERALL STABILITY CHECK ===
+                    // 15. Overall body alignment - create a stability score
+                    let stabilityScore = 100;
+                    let majorIssues = 0;
+                    let minorIssues = 0;
+                    
+                    corrections.forEach(correction => {
+                        if (correction.color === 'red') majorIssues++;
+                        if (correction.color === 'yellow') minorIssues++;
+                    });
+                    
+                    stabilityScore -= (majorIssues * 15) + (minorIssues * 8);
+                    
+                    // Add encouraging feedback for good alignment
+                    if (corrections.length === 0) {
+                        corrections.push({ 
+                            message: "Perfect Tadasana! Feel the strength and stability. Breathe deeply.", 
+                            affected: [], 
+                            color: 'green' 
+                        });
+                    } else if (stabilityScore >= 85) {
+                        corrections.unshift({ 
+                            message: "Excellent foundation! Minor adjustments will perfect your Mountain Pose.", 
+                            affected: [], 
+                            color: 'green' 
+                        });
+                    } else if (stabilityScore >= 70) {
+                        corrections.unshift({ 
+                            message: "Good alignment! Focus on the key adjustments below.", 
+                            affected: [], 
+                            color: 'blue' 
+                        });
                     }
 
                 } else if (poseName === 'Adho Mukha Svanasana') {
@@ -1787,16 +2030,63 @@
                             }
 
                             // === SCORING SYSTEM ===
-                            // Calculate score based on number and severity of corrections
+                            // Enhanced scoring system for Tadasana with weighted criteria
                             let frameScore = 100;
+                            let majorErrors = 0;
+                            let minorErrors = 0;
+                            let criticalErrors = 0;
 
-                            corrections.forEach(corr => {
-                                if (corr.color === 'red') {
-                                    frameScore -= 15; // Major error
-                                } else if (corr.color === 'yellow') {
-                                    frameScore -= 8; // Minor warning
+                            if (this.currentPose && this.currentPose.includes('Tadasana')) {
+                                // Tadasana-specific scoring with weighted importance
+                                corrections.forEach(corr => {
+                                    if (corr.color === 'red') {
+                                        // Critical alignment issues
+                                        if (corr.message.includes('Weight') || corr.message.includes('Hips: level') || 
+                                            corr.message.includes('Head: bring back') || corr.message.includes('Posture: bring shoulders')) {
+                                            criticalErrors++;
+                                            frameScore -= 20; // Major deduction for critical alignment
+                                        } else if (corr.message.includes('engage thigh muscles')) {
+                                            majorErrors++;
+                                            frameScore -= 15; // Leg strength is important
+                                        } else {
+                                            majorErrors++;
+                                            frameScore -= 12; // Other red corrections
+                                        }
+                                    } else if (corr.color === 'yellow') {
+                                        // Minor adjustments
+                                        if (corr.message.includes('Feet:') || corr.message.includes('micro-bend')) {
+                                            minorErrors++;
+                                            frameScore -= 5; // Small deduction for minor foot adjustments
+                                        } else if (corr.message.includes('Shoulders:') || corr.message.includes('Crown:')) {
+                                            minorErrors++;
+                                            frameScore -= 8; // Medium deduction for posture refinements
+                                        } else {
+                                            minorErrors++;
+                                            frameScore -= 6; // Other yellow corrections
+                                        }
+                                    } else if (corr.color === 'green') {
+                                        // Bonus for perfect alignment
+                                        if (corr.message.includes('Perfect Tadasana')) {
+                                            frameScore = Math.min(100, frameScore + 5);
+                                        }
+                                    }
+                                });
+                                
+                                // Additional bonus for overall stability (no critical errors)
+                                if (criticalErrors === 0 && majorErrors <= 1) {
+                                    frameScore = Math.min(100, frameScore + 3);
                                 }
-                            });
+                                
+                            } else {
+                                // Default scoring for other poses
+                                corrections.forEach(corr => {
+                                    if (corr.color === 'red') {
+                                        frameScore -= 15; // Major error
+                                    } else if (corr.color === 'yellow') {
+                                        frameScore -= 8; // Minor warning
+                                    }
+                                });
+                            }
 
                             // Keep score between 0-100
                             frameScore = Math.max(0, Math.min(100, frameScore));
@@ -1954,7 +2244,7 @@
             },
 
             /**
-             * Draws circles on the keypoints detected by MoveNet with color coding.
+             * Draws circles on the keypoints detected by MoveNet with enhanced color coding for Tadasana.
              */
             drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections) {
                 if (!keypoints || !ctx) return;
@@ -1967,46 +2257,89 @@
                         const x = keypoint.x;
                         const y = keypoint.y;
 
-                        // Determine color: red for error, yellow for warning, green for good, default blue/white
+                        // Enhanced color determination for Tadasana
                         let fillColor = '#42A5F5'; // Default blue
+                        let strokeColor = '#FFFFFF'; // Default white border
+                        let radius = 5; // Default radius
+                        
                         const keypointName = Object.keys(keypointIndices).find(name => keypointIndices[name] === index);
 
                         if (keypointName && affectedKeypoints.has(keypointName)) {
-                            // Check if it's marked as error or warning
+                            // Check correction severity and type
                             const corr = corrections.find(c => c.affected && c.affected.includes(keypointName));
-                            if (corr && corr.color === 'red') {
-                                fillColor = '#EF4444'; // Red for error
-                            } else if (corr && corr.color === 'yellow') {
-                                fillColor = '#F59E0B'; // Yellow for warning
-                            } else {
-                                fillColor = '#10B981'; // Green for good if perfect
+                            if (corr) {
+                                if (corr.color === 'red') {
+                                    // Critical errors - larger, pulsing red
+                                    fillColor = '#EF4444';
+                                    strokeColor = '#FCA5A5';
+                                    radius = 7;
+                                    
+                                    // Add pulsing effect for critical errors
+                                    const pulseIntensity = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
+                                    ctx.globalAlpha = pulseIntensity;
+                                } else if (corr.color === 'yellow') {
+                                    // Minor warnings - amber/orange
+                                    fillColor = '#F59E0B';
+                                    strokeColor = '#FCD34D';
+                                    radius = 6;
+                                } else if (corr.color === 'green') {
+                                    // Perfect alignment - bright green with glow
+                                    fillColor = '#10B981';
+                                    strokeColor = '#6EE7B7';
+                                    radius = 6;
+                                    
+                                    // Add subtle glow for perfect points
+                                    ctx.shadowColor = '#10B981';
+                                    ctx.shadowBlur = 10;
+                                }
                             }
                         } else if (keypoint.score > 0.8) {
-                            fillColor = 'white'; // High confidence white
+                            // High confidence points - bright white
+                            fillColor = '#FFFFFF';
+                            strokeColor = '#E5E7EB';
+                        } else if (keypoint.score > 0.6) {
+                            // Medium confidence - light blue
+                            fillColor = '#60A5FA';
+                            strokeColor = '#DBEAFE';
                         }
 
+                        // Draw the keypoint
                         ctx.beginPath();
-                        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                        ctx.arc(x, y, radius, 0, 2 * Math.PI);
                         ctx.fillStyle = fillColor;
                         ctx.fill();
 
-                        // Add a subtle border for contrast
-                        ctx.strokeStyle = '#FFFFFF';
-                        ctx.lineWidth = 1;
+                        // Add border for contrast
+                        ctx.strokeStyle = strokeColor;
+                        ctx.lineWidth = 2;
                         ctx.stroke();
+                        
+                        // Reset effects
+                        ctx.globalAlpha = 1.0;
+                        ctx.shadowBlur = 0;
+                        
+                        // Add keypoint labels for critical points in Tadasana
+                        if (this.currentPose && this.currentPose.includes('Tadasana') && 
+                            ['left_ankle', 'right_ankle', 'left_hip', 'right_hip', 'left_shoulder', 'right_shoulder', 'nose'].includes(keypointName)) {
+                            
+                            ctx.font = '10px Inter, sans-serif';
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(keypointName.split('_')[1] || keypointName, x, y - radius - 5);
+                        }
                     }
                 });
             },
 
             /**
-             * Draws lines connecting the keypoints detected by MoveNet with color coding.
+             * Draws lines connecting the keypoints detected by MoveNet with enhanced color coding for Tadasana.
              */
             drawSkeleton(video, keypoints, ctx, affectedKeypoints, corrections) {
                 if (!keypoints || !ctx) return;
                 affectedKeypoints = affectedKeypoints || new Set();
                 corrections = corrections || [];
 
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 4; // Slightly thicker for better visibility
 
                 SKELETON_CONNECTIONS.forEach(([i, j]) => {
                     const kp1 = keypoints[i];
@@ -2018,9 +2351,10 @@
                         const kp2Name = Object.keys(keypointIndices).find(name => keypointIndices[name] === j);
 
                         let lineColor = '#1E88E5'; // Default line color (Secondary Blue)
+                        let lineWidth = 4;
                         let corrColor = null;
 
-                        // Check if either keypoint in the connection is part of a severe correction (red or yellow)
+                        // Check if either keypoint in the connection is part of a correction
                         if (affectedKeypoints.has(kp1Name) || affectedKeypoints.has(kp2Name)) {
                             const relevantCorrections = corrections.filter(c =>
                                 c.affected && (c.affected.includes(kp1Name) || c.affected.includes(kp2Name))
@@ -2036,15 +2370,43 @@
                             }
                         }
 
+                        // Enhanced color and styling based on correction type
                         if (corrColor === 'red') {
-                            lineColor = '#EF4444'; // Red
+                            lineColor = '#EF4444'; // Red for critical errors
+                            lineWidth = 5; // Thicker for emphasis
+                            
+                            // Add pulsing effect for critical connections
+                            const pulseIntensity = Math.sin(Date.now() * 0.008) * 0.3 + 0.7;
+                            ctx.globalAlpha = pulseIntensity;
                         } else if (corrColor === 'yellow') {
-                            lineColor = '#F59E0B'; // Yellow
+                            lineColor = '#F59E0B'; // Amber for warnings
+                            lineWidth = 4;
                         } else if (corrColor === 'green') {
-                            lineColor = '#10B981'; // Green
+                            lineColor = '#10B981'; // Green for perfect alignment
+                            lineWidth = 4;
+                            
+                            // Add subtle glow for perfect connections
+                            ctx.shadowColor = '#10B981';
+                            ctx.shadowBlur = 8;
+                        }
+
+                        // Special highlighting for key Tadasana connections
+                        if (this.currentPose && this.currentPose.includes('Tadasana')) {
+                            // Highlight spine (hip to shoulder connections)
+                            if ((kp1Name === 'left_hip' && kp2Name === 'left_shoulder') ||
+                                (kp1Name === 'right_hip' && kp2Name === 'right_shoulder')) {
+                                lineWidth += 1; // Extra emphasis on spine alignment
+                            }
+                            
+                            // Highlight leg alignment (hip to ankle connections)
+                            if ((kp1Name === 'left_hip' && kp2Name === 'left_ankle') ||
+                                (kp1Name === 'right_hip' && kp2Name === 'right_ankle')) {
+                                lineWidth += 1; // Extra emphasis on leg alignment
+                            }
                         }
 
                         ctx.strokeStyle = lineColor;
+                        ctx.lineWidth = lineWidth;
                         ctx.beginPath();
 
                         // Use coordinates directly since canvas is mirrored via CSS
@@ -2056,6 +2418,10 @@
                         ctx.moveTo(p1x, p1y);
                         ctx.lineTo(p2x, p2y);
                         ctx.stroke();
+                        
+                        // Reset effects
+                        ctx.globalAlpha = 1.0;
+                        ctx.shadowBlur = 0;
                     }
                 });
             },
