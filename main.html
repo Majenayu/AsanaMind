@@ -164,17 +164,16 @@
             border: 1px solid #60A5FA !important;
         }
 
-        /* Enhanced Styles for AR/Video Feed with Mobile Optimization */
+        /* Styles for the AR/Video Feed */
         #video-container {
             position: relative;
             width: 100%;
-            max-width: 100%;
-            padding-top: 56.25%; /* 16:9 Aspect Ratio for better mobile experience */
+            padding-top: 75%;
+            /* 4:3 Aspect Ratio */
             background-color: #000;
             border-radius: 1rem;
             overflow: hidden;
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
-            margin: 0 auto;
         }
 
         #video-feed {
@@ -186,11 +185,6 @@
             object-fit: cover;
             transform: scaleX(-1);
             /* Mirror the video feed for natural user experience */
-            /* Enhanced mobile optimization */
-            -webkit-transform: scaleX(-1);
-            -moz-transform: scaleX(-1);
-            -ms-transform: scaleX(-1);
-            -o-transform: scaleX(-1);
         }
 
         #ar-canvas {
@@ -201,43 +195,6 @@
             height: 100%;
             transform: scaleX(-1);
             /* Mirror the canvas to match the mirrored video */
-            -webkit-transform: scaleX(-1);
-            -moz-transform: scaleX(-1);
-            -ms-transform: scaleX(-1);
-            -o-transform: scaleX(-1);
-            pointer-events: none; /* Allow touch events to pass through */
-        }
-
-        /* Mobile-specific video optimizations */
-        @media (max-width: 768px) {
-            #video-container {
-                padding-top: 75%; /* 4:3 for mobile to capture more body */
-                border-radius: 0.75rem;
-                margin: 0 -1rem; /* Extend to screen edges on mobile */
-                width: calc(100% + 2rem);
-            }
-            
-            #video-feed, #ar-canvas {
-                border-radius: 0.75rem;
-            }
-        }
-
-        /* Fullscreen video for course mode */
-        .fullscreen-video #video-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            padding-top: 0;
-            border-radius: 0;
-            z-index: 1000;
-            background: #000;
-        }
-
-        .fullscreen-video #video-feed,
-        .fullscreen-video #ar-canvas {
-            border-radius: 0;
         }
 
         /* --- Premium Asana Library Styles --- */
@@ -704,7 +661,7 @@
             'left_wrist': 9, 'right_wrist': 10, 'left_hip': 11, 'right_hip': 12,
             'left_knee': 13, 'right_knee': 14, 'left_ankle': 15, 'right_ankle': 16
         };
-        const MIN_CONFIDENCE = 0.25; // Lowered for better keypoint detection with Thunder model
+        const MIN_CONFIDENCE = 0.3; // Minimum score for a keypoint to be considered valid
 
         // The correct connections for MoveNet's 17 keypoints (indices 0-16)
         const SKELETON_CONNECTIONS = [
@@ -1446,63 +1403,6 @@
             },
 
             /**
-             * Smooths keypoints over time to reduce jitter and improve stability
-             */
-            smoothKeypoints(keypoints) {
-                if (!this.keypointHistory) {
-                    this.keypointHistory = {};
-                }
-
-                const smoothedKeypoints = keypoints.map((keypoint, index) => {
-                    const keypointName = Object.keys(keypointIndices).find(name => keypointIndices[name] === index);
-                    
-                    if (!keypointName || keypoint.score < MIN_CONFIDENCE) {
-                        return keypoint;
-                    }
-
-                    // Initialize history for this keypoint
-                    if (!this.keypointHistory[keypointName]) {
-                        this.keypointHistory[keypointName] = { x: keypoint.x, y: keypoint.y };
-                        return keypoint;
-                    }
-
-                    // Apply exponential smoothing
-                    const history = this.keypointHistory[keypointName];
-                    const smoothed = {
-                        ...keypoint,
-                        x: history.x * this.smoothingFactor + keypoint.x * (1 - this.smoothingFactor),
-                        y: history.y * this.smoothingFactor + keypoint.y * (1 - this.smoothingFactor)
-                    };
-
-                    // Update history
-                    this.keypointHistory[keypointName] = { x: smoothed.x, y: smoothed.y };
-
-                    return smoothed;
-                });
-
-                return smoothedKeypoints;
-            },
-             * Returns the angle in degrees.
-             */
-            calculateAngle(A, B, C) {
-                if (!A || !B || !C) return 180; // Return 180 (straight line) if points are missing for lenient check
-
-                const AB = Math.sqrt(Math.pow(B.x - A.x, 2) + Math.pow(B.y - A.y, 2));
-                const BC = Math.sqrt(Math.pow(C.x - B.x, 2) + Math.pow(C.y - B.y, 2));
-                const AC = Math.sqrt(Math.pow(C.x - A.x, 2) + Math.pow(C.y - A.y, 2));
-
-                if (AB === 0 || BC === 0) return 180;
-
-                // Law of Cosines
-                const cosAngle = (Math.pow(AB, 2) + Math.pow(BC, 2) - Math.pow(AC, 2)) / (2 * AB * BC);
-                // Clamp the value to the range [-1, 1] to prevent NaN due to floating point inaccuracies
-                const clampedCosAngle = Math.max(-1, Math.min(1, cosAngle));
-
-                const angleRad = Math.acos(clampedCosAngle);
-                return (angleRad * 180) / Math.PI;
-            },
-
-            /**
              * Checks the detected keypoints against the expected form for the current pose.
              * Returns an array of correction messages.
              */
@@ -1535,279 +1435,412 @@
                 }
 
                 if (poseName === 'Tadasana') {
-                    // Mountain Pose - Systematic Analysis in Priority Order
-                    // Order: Right Hand → Right Leg → Left Hand → Left Leg → Back/Spine → Head
+                    // Mountain Pose - Perfect Standing Posture with Advanced Biomechanical Analysis
                     
-                    let priorityCorrections = [];
-                    let currentPriority = 1;
-                    
-                    // === PHASE 1: RIGHT HAND ALIGNMENT ===
-                    if (rightShoulder && rightElbow && rightWrist) {
-                        const rightArmAngle = this.calculateAngle(rightShoulder, rightElbow, rightWrist);
-                        const rightWristPosition = rightWrist.x - rightShoulder.x;
+                    // === FOUNDATION: FEET & GROUND CONNECTION ===
+                    if (leftAnkle && rightAnkle) {
+                        // 1. Optimal foot spacing - hip-width apart for stability
+                        const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
+                        const hipWidth = leftHip && rightHip ? Math.abs(leftHip.x - rightHip.x) : 45;
+                        const idealFeetDistance = Math.max(40, hipWidth * 0.9); // Adaptive to body size
+                        const tolerance = 20;
                         
-                        // Check if right arm needs fixing first
-                        if (rightArmAngle < 160) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Right arm - Let it hang naturally, relax your elbow`, 
-                                affected: ['right_elbow', 'right_wrist'], 
-                                color: 'red',
-                                priority: currentPriority,
-                                phase: 'right_hand'
-                            });
-                        } else if (Math.abs(rightWristPosition) > 50) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Right arm - Bring closer to your side`, 
-                                affected: ['right_wrist'], 
+                        if (feetDistance < idealFeetDistance - tolerance) {
+                            corrections.push({ 
+                                message: "Feet: step wider apart for stable foundation (hip-width)", 
+                                affected: ['left_ankle', 'right_ankle'], 
                                 color: 'yellow',
-                                priority: currentPriority,
-                                phase: 'right_hand'
+                                priority: 3
+                            });
+                        } else if (feetDistance > idealFeetDistance + tolerance + 15) {
+                            corrections.push({ 
+                                message: "Feet: step closer together, align under hips", 
+                                affected: ['left_ankle', 'right_ankle'], 
+                                color: 'yellow',
+                                priority: 3
                             });
                         }
                         
-                        if (priorityCorrections.length > 0) currentPriority++;
-                    }
-                    
-                    // === PHASE 2: RIGHT LEG ALIGNMENT ===
-                    if (rightHip && rightKnee && rightAnkle) {
-                        const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
-                        
-                        if (rightKneeAngle < 170) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Right leg - Engage thigh muscles, straighten knee (${Math.round(rightKneeAngle)}°)`, 
-                                affected: ['right_hip', 'right_knee', 'right_ankle'], 
+                        // 2. Weight distribution - critical for balance
+                        const ankleHeightDiff = Math.abs(leftAnkle.y - rightAnkle.y);
+                        if (ankleHeightDiff > 12) {
+                            corrections.push({ 
+                                message: "Balance: distribute weight evenly on both feet", 
+                                affected: ['left_ankle', 'right_ankle'], 
                                 color: 'red',
-                                priority: currentPriority,
-                                phase: 'right_leg'
-                            });
-                        } else if (rightKneeAngle > 185) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Right leg - Avoid locking knee, keep micro-bend`, 
-                                affected: ['right_knee'], 
-                                color: 'yellow',
-                                priority: currentPriority,
-                                phase: 'right_leg'
+                                priority: 1
                             });
                         }
                         
-                        if (priorityCorrections.filter(c => c.phase === 'right_leg').length > 0) currentPriority++;
-                    }
-                    
-                    // === PHASE 3: LEFT HAND ALIGNMENT ===
-                    if (leftShoulder && leftElbow && leftWrist) {
-                        const leftArmAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
-                        const leftWristPosition = leftWrist.x - leftShoulder.x;
-                        
-                        if (leftArmAngle < 160) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Left arm - Let it hang naturally, relax your elbow`, 
-                                affected: ['left_elbow', 'left_wrist'], 
-                                color: 'red',
-                                priority: currentPriority,
-                                phase: 'left_hand'
-                            });
-                        } else if (Math.abs(leftWristPosition) > 50) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Left arm - Bring closer to your side`, 
-                                affected: ['left_wrist'], 
+                        // 3. Foot parallel alignment
+                        const footAngleCheck = Math.abs(leftAnkle.x - rightAnkle.x) / Math.abs(leftAnkle.y - rightAnkle.y);
+                        if (footAngleCheck > 0.3) { // Feet should be roughly parallel
+                            corrections.push({ 
+                                message: "Feet: keep parallel, toes pointing forward", 
+                                affected: ['left_ankle', 'right_ankle'], 
                                 color: 'yellow',
-                                priority: currentPriority,
-                                phase: 'left_hand'
+                                priority: 4
                             });
                         }
-                        
-                        if (priorityCorrections.filter(c => c.phase === 'left_hand').length > 0) currentPriority++;
                     }
-                    
-                    // === PHASE 4: LEFT LEG ALIGNMENT ===
+
+                    // === LEGS: STRENGTH & MUSCULAR ENGAGEMENT ===
+                    // 4. Left leg analysis - strength and alignment
                     if (leftHip && leftKnee && leftAnkle) {
                         const leftKneeAngle = this.calculateAngle(leftHip, leftKnee, leftAnkle);
                         
-                        if (leftKneeAngle < 170) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Left leg - Engage thigh muscles, straighten knee (${Math.round(leftKneeAngle)}°)`, 
+                        if (leftKneeAngle < 165) {
+                            corrections.push({ 
+                                message: `Left leg: engage quadriceps, straighten knee (${Math.round(leftKneeAngle)}°)`, 
                                 affected: ['left_hip', 'left_knee', 'left_ankle'], 
                                 color: 'red',
-                                priority: currentPriority,
-                                phase: 'left_leg'
+                                priority: 1
                             });
-                        } else if (leftKneeAngle > 185) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Left leg - Avoid locking knee, keep micro-bend`, 
+                        } else if (leftKneeAngle > 190) {
+                            corrections.push({ 
+                                message: "Left leg: soften knee slightly, avoid hyperextension", 
                                 affected: ['left_knee'], 
                                 color: 'yellow',
-                                priority: currentPriority,
-                                phase: 'left_leg'
+                                priority: 3
                             });
                         }
                         
-                        if (priorityCorrections.filter(c => c.phase === 'left_leg').length > 0) currentPriority++;
+                        // Check for knee tracking over ankle
+                        const kneeAnkleAlignment = Math.abs(leftKnee.x - leftAnkle.x);
+                        if (kneeAnkleAlignment > 25) {
+                            corrections.push({ 
+                                message: "Left knee: track over ankle, engage inner thigh", 
+                                affected: ['left_knee', 'left_ankle'], 
+                                color: 'yellow',
+                                priority: 3
+                            });
+                        }
                     }
-                    
-                    // === PHASE 5: BACK/SPINE ALIGNMENT ===
+
+                    // 5. Right leg analysis - strength and alignment
+                    if (rightHip && rightKnee && rightAnkle) {
+                        const rightKneeAngle = this.calculateAngle(rightHip, rightKnee, rightAnkle);
+                        
+                        if (rightKneeAngle < 165) {
+                            corrections.push({ 
+                                message: `Right leg: engage quadriceps, straighten knee (${Math.round(rightKneeAngle)}°)`, 
+                                affected: ['right_hip', 'right_knee', 'right_ankle'], 
+                                color: 'red',
+                                priority: 1
+                            });
+                        } else if (rightKneeAngle > 190) {
+                            corrections.push({ 
+                                message: "Right leg: soften knee slightly, avoid hyperextension", 
+                                affected: ['right_knee'], 
+                                color: 'yellow',
+                                priority: 3
+                            });
+                        }
+                        
+                        // Check for knee tracking over ankle
+                        const kneeAnkleAlignment = Math.abs(rightKnee.x - rightAnkle.x);
+                        if (kneeAnkleAlignment > 25) {
+                            corrections.push({ 
+                                message: "Right knee: track over ankle, engage inner thigh", 
+                                affected: ['right_knee', 'right_ankle'], 
+                                color: 'yellow',
+                                priority: 3
+                            });
+                        }
+                    }
+
+                    // === PELVIS & CORE: STABILITY CENTER ===
+                    if (leftHip && rightHip) {
+                        // 6. Hip level alignment - foundation of good posture
+                        const hipHeightDiff = Math.abs(leftHip.y - rightHip.y);
+                        if (hipHeightDiff > 20) {
+                            const higherSide = leftHip.y < rightHip.y ? "left" : "right";
+                            corrections.push({ 
+                                message: `Pelvis: level hips, lower ${higherSide} hip slightly`, 
+                                affected: ['left_hip', 'right_hip'], 
+                                color: 'red',
+                                priority: 1
+                            });
+                        }
+                        
+                        // 7. Hip width and pelvic alignment
+                        const hipWidth = Math.abs(leftHip.x - rightHip.x);
+                        if (hipWidth < 30) {
+                            corrections.push({ 
+                                message: "Pelvis: widen stance slightly, ground through both legs", 
+                                affected: ['left_hip', 'right_hip'], 
+                                color: 'yellow',
+                                priority: 4
+                            });
+                        }
+                        
+                        // 8. Pelvic tilt assessment
+                        if (leftKnee && rightKnee) {
+                            const avgHipY = (leftHip.y + rightHip.y) / 2;
+                            const avgKneeY = (leftKnee.y + rightKnee.y) / 2;
+                            const hipKneeRatio = (avgHipY - avgKneeY);
+                            
+                            if (hipKneeRatio < 60) {
+                                corrections.push({ 
+                                    message: "Pelvis: lengthen tailbone down, engage core gently", 
+                                    affected: ['left_hip', 'right_hip'], 
+                                    color: 'yellow',
+                                    priority: 3
+                                });
+                            }
+                        }
+                    }
+
+                    // === SPINE & TORSO: AXIAL ELONGATION ===
                     if (leftShoulder && rightShoulder && leftHip && rightHip) {
-                        // Spine alignment - shoulders over hips
+                        // 9. Spinal alignment - shoulders over hips
                         const avgShoulderX = (leftShoulder.x + rightShoulder.x) / 2;
                         const avgHipX = (leftHip.x + rightHip.x) / 2;
                         const spinalAlignment = Math.abs(avgShoulderX - avgHipX);
                         
-                        if (spinalAlignment > 30) {
+                        if (spinalAlignment > 25) {
                             if (avgShoulderX < avgHipX) {
-                                priorityCorrections.push({ 
-                                    message: `STEP ${currentPriority}: Back - Bring shoulders back over hips, lengthen spine`, 
+                                corrections.push({ 
+                                    message: "Spine: bring chest forward, shoulders over hips", 
                                     affected: ['left_shoulder', 'right_shoulder'], 
                                     color: 'red',
-                                    priority: currentPriority,
-                                    phase: 'back'
+                                    priority: 1
                                 });
                             } else {
-                                priorityCorrections.push({ 
-                                    message: `STEP ${currentPriority}: Back - Bring shoulders forward over hips`, 
+                                corrections.push({ 
+                                    message: "Spine: draw shoulders back over hips", 
                                     affected: ['left_shoulder', 'right_shoulder'], 
                                     color: 'red',
-                                    priority: currentPriority,
-                                    phase: 'back'
+                                    priority: 1
                                 });
                             }
                         }
                         
-                        // Hip level alignment
-                        const hipHeightDiff = Math.abs(leftHip.y - rightHip.y);
-                        if (hipHeightDiff > 25) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Back - Level your pelvis, engage core muscles`, 
-                                affected: ['left_hip', 'right_hip'], 
-                                color: 'red',
-                                priority: currentPriority,
-                                phase: 'back'
-                            });
-                        }
+                        // 10. Torso length and chest opening
+                        const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+                        const avgHipY = (leftHip.y + rightHip.y) / 2;
+                        const torsoLength = avgHipY - avgShoulderY;
                         
-                        // Shoulder level alignment
-                        const shoulderHeightDiff = Math.abs(leftShoulder.y - rightShoulder.y);
-                        if (shoulderHeightDiff > 25) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Back - Relax and level shoulders`, 
+                        if (torsoLength < 70) {
+                            corrections.push({ 
+                                message: "Chest: lift sternum, lengthen through crown of head", 
                                 affected: ['left_shoulder', 'right_shoulder'], 
                                 color: 'yellow',
-                                priority: currentPriority,
-                                phase: 'back'
+                                priority: 2
                             });
                         }
                         
-                        if (priorityCorrections.filter(c => c.phase === 'back').length > 0) currentPriority++;
+                        // 11. Rib cage alignment
+                        const shoulderHipRatio = torsoLength / Math.abs(avgShoulderX - avgHipX);
+                        if (shoulderHipRatio < 2.5) {
+                            corrections.push({ 
+                                message: "Ribs: draw front ribs down, lengthen back of neck", 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow',
+                                priority: 3
+                            });
+                        }
                     }
-                    
-                    // === PHASE 6: HEAD ALIGNMENT ===
+
+                    // === SHOULDERS: RELAXED STRENGTH ===
+                    if (leftShoulder && rightShoulder) {
+                        // 12. Shoulder level and relaxation
+                        const shoulderHeightDiff = Math.abs(leftShoulder.y - rightShoulder.y);
+                        if (shoulderHeightDiff > 20) {
+                            const higherShoulder = leftShoulder.y < rightShoulder.y ? "left" : "right";
+                            corrections.push({ 
+                                message: `Shoulders: relax ${higherShoulder} shoulder down, release tension`, 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow',
+                                priority: 2
+                            });
+                        }
+                        
+                        // 13. Shoulder blade engagement
+                        const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                        if (shoulderWidth < 55) {
+                            corrections.push({ 
+                                message: "Shoulders: broaden collarbones, draw shoulder blades down back", 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow',
+                                priority: 2
+                            });
+                        } else if (shoulderWidth > 90) {
+                            corrections.push({ 
+                                message: "Shoulders: soften shoulder blades toward spine", 
+                                affected: ['left_shoulder', 'right_shoulder'], 
+                                color: 'yellow',
+                                priority: 3
+                            });
+                        }
+                    }
+
+                    // === ARMS: NATURAL EXTENSION ===
+                    if (leftShoulder && leftElbow && leftWrist && rightShoulder && rightElbow && rightWrist) {
+                        // 14. Arm positioning and energy
+                        const leftArmAngle = this.calculateAngle(leftShoulder, leftElbow, leftWrist);
+                        const rightArmAngle = this.calculateAngle(rightShoulder, rightElbow, rightWrist);
+                        
+                        if (leftArmAngle < 155) {
+                            corrections.push({ 
+                                message: "Left arm: lengthen, let energy flow through fingertips", 
+                                affected: ['left_elbow', 'left_wrist'], 
+                                color: 'yellow',
+                                priority: 4
+                            });
+                        }
+                        
+                        if (rightArmAngle < 155) {
+                            corrections.push({ 
+                                message: "Right arm: lengthen, let energy flow through fingertips", 
+                                affected: ['right_elbow', 'right_wrist'], 
+                                color: 'yellow',
+                                priority: 4
+                            });
+                        }
+                        
+                        // 15. Hand positioning relative to body
+                        const leftHandOffset = Math.abs(leftWrist.x - leftShoulder.x);
+                        const rightHandOffset = Math.abs(rightWrist.x - rightShoulder.x);
+                        
+                        if (leftHandOffset > 45) {
+                            corrections.push({ 
+                                message: "Left arm: draw closer to side body, palms face forward", 
+                                affected: ['left_wrist'], 
+                                color: 'yellow',
+                                priority: 4
+                            });
+                        }
+                        
+                        if (rightHandOffset > 45) {
+                            corrections.push({ 
+                                message: "Right arm: draw closer to side body, palms face forward", 
+                                affected: ['right_wrist'], 
+                                color: 'yellow',
+                                priority: 4
+                            });
+                        }
+                        
+                        // 16. Arm symmetry
+                        const armSymmetry = Math.abs(leftArmAngle - rightArmAngle);
+                        if (armSymmetry > 15) {
+                            corrections.push({ 
+                                message: "Arms: create symmetry, both arms equally engaged", 
+                                affected: ['left_wrist', 'right_wrist'], 
+                                color: 'yellow',
+                                priority: 3
+                            });
+                        }
+                    }
+
+                    // === HEAD & NECK: CROWN ENERGY ===
                     if (nose && leftShoulder && rightShoulder) {
+                        // 17. Head positioning over shoulders
                         const avgShoulderX = (leftShoulder.x + rightShoulder.x) / 2;
                         const headAlignment = Math.abs(nose.x - avgShoulderX);
                         
-                        if (headAlignment > 40) {
+                        if (headAlignment > 35) {
                             if (nose.x < avgShoulderX) {
-                                priorityCorrections.push({ 
-                                    message: `STEP ${currentPriority}: Head - Bring back over shoulders, lengthen neck`, 
+                                corrections.push({ 
+                                    message: "Head: draw chin back, lengthen back of neck", 
                                     affected: ['nose'], 
                                     color: 'red',
-                                    priority: currentPriority,
-                                    phase: 'head'
+                                    priority: 1
                                 });
                             } else {
-                                priorityCorrections.push({ 
-                                    message: `STEP ${currentPriority}: Head - Center over shoulders`, 
+                                corrections.push({ 
+                                    message: "Head: center over shoulders, neutral neck", 
                                     affected: ['nose'], 
                                     color: 'red',
-                                    priority: currentPriority,
-                                    phase: 'head'
+                                    priority: 1
                                 });
                             }
                         }
                         
-                        // Neck length - head should be lifted
+                        // 18. Neck length and crown reach
                         const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
                         const neckLength = avgShoulderY - nose.y;
                         
-                        if (neckLength < 40) {
-                            priorityCorrections.push({ 
-                                message: `STEP ${currentPriority}: Head - Reach up through crown, lengthen neck`, 
+                        if (neckLength < 35) {
+                            corrections.push({ 
+                                message: "Crown: reach up through top of head, lift from base of skull", 
                                 affected: ['nose'], 
                                 color: 'yellow',
-                                priority: currentPriority,
-                                phase: 'head'
+                                priority: 2
+                            });
+                        }
+                        
+                        // 19. Jaw and facial relaxation
+                        if (neckLength > 65) {
+                            corrections.push({ 
+                                message: "Neck: soften, avoid over-lifting chin", 
+                                affected: ['nose'], 
+                                color: 'yellow',
+                                priority: 3
                             });
                         }
                     }
-                    
-                    // === FOUNDATION CHECKS (Always check but lower priority) ===
-                    if (leftAnkle && rightAnkle) {
-                        // Feet positioning
-                        const feetDistance = Math.abs(leftAnkle.x - rightAnkle.x);
-                        const idealFeetDistance = 50;
-                        const tolerance = 25;
+
+                    // === ENERGETIC ALIGNMENT & BREATH ===
+                    // 20. Overall body line assessment
+                    if (leftAnkle && rightAnkle && leftHip && rightHip && leftShoulder && rightShoulder && nose) {
+                        const avgAnkleX = (leftAnkle.x + rightAnkle.x) / 2;
+                        const avgHipX = (leftHip.x + rightHip.x) / 2;
+                        const avgShoulderX = (leftShoulder.x + rightShoulder.x) / 2;
                         
-                        if (feetDistance < idealFeetDistance - tolerance) {
-                            priorityCorrections.push({ 
-                                message: "Foundation: Step wider to hip-width apart", 
-                                affected: ['left_ankle', 'right_ankle'], 
-                                color: 'yellow',
-                                priority: 99,
-                                phase: 'foundation'
-                            });
-                        } else if (feetDistance > idealFeetDistance + tolerance) {
-                            priorityCorrections.push({ 
-                                message: "Foundation: Step closer together, hip-width apart", 
-                                affected: ['left_ankle', 'right_ankle'], 
-                                color: 'yellow',
-                                priority: 99,
-                                phase: 'foundation'
-                            });
-                        }
+                        const ankleHipAlignment = Math.abs(avgAnkleX - avgHipX);
+                        const hipShoulderAlignment = Math.abs(avgHipX - avgShoulderX);
+                        const shoulderHeadAlignment = Math.abs(avgShoulderX - nose.x);
                         
-                        // Weight distribution
-                        const ankleHeightDiff = Math.abs(leftAnkle.y - rightAnkle.y);
-                        if (ankleHeightDiff > 15) {
-                            priorityCorrections.push({ 
-                                message: "Foundation: Distribute weight evenly on both feet", 
-                                affected: ['left_ankle', 'right_ankle'], 
+                        const totalAlignment = ankleHipAlignment + hipShoulderAlignment + shoulderHeadAlignment;
+                        
+                        if (totalAlignment > 80) {
+                            corrections.push({ 
+                                message: "Alignment: create one line from crown to feet, engage core", 
+                                affected: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip'], 
                                 color: 'red',
-                                priority: 98,
-                                phase: 'foundation'
+                                priority: 1
                             });
                         }
                     }
+
+                    // === PRIORITY-BASED FEEDBACK SYSTEM ===
+                    // Sort corrections by priority (1 = most critical, 4 = refinement)
+                    corrections.sort((a, b) => (a.priority || 5) - (b.priority || 5));
                     
-                    // Sort corrections by priority (lower number = higher priority)
-                    priorityCorrections.sort((a, b) => a.priority - b.priority);
+                    // Limit to top 3 most important corrections to avoid overwhelm
+                    if (corrections.length > 3) {
+                        corrections = corrections.slice(0, 3);
+                    }
                     
-                    // Only show the most important correction (first in priority)
-                    if (priorityCorrections.length > 0) {
-                        corrections = [priorityCorrections[0]];
-                        
-                        // Add progress indicator
-                        const totalPhases = 6;
-                        const completedPhases = currentPriority - 1;
-                        const progressPercent = Math.round((completedPhases / totalPhases) * 100);
-                        
-                        if (completedPhases === totalPhases) {
-                            corrections = [{ 
-                                message: "🎉 Perfect Tadasana! All alignment complete. Feel the strength and stability.", 
-                                affected: [], 
-                                color: 'green',
-                                priority: 0,
-                                phase: 'complete'
-                            }];
-                        } else {
-                            // Add progress to the main correction
-                            corrections[0].message += ` (Progress: ${progressPercent}%)`;
-                        }
-                    } else {
-                        corrections = [{ 
-                            message: "🎉 Excellent Tadasana! Hold this position and breathe deeply.", 
+                    // === POSITIVE REINFORCEMENT ===
+                    if (corrections.length === 0) {
+                        corrections.push({ 
+                            message: "Perfect Tadasana! Feel the mountain's strength. Breathe deeply and hold.", 
                             affected: [], 
                             color: 'green',
-                            priority: 0,
-                            phase: 'complete'
-                        }];
+                            priority: 0
+                        });
+                    } else {
+                        // Count critical vs minor issues
+                        const criticalIssues = corrections.filter(c => c.color === 'red').length;
+                        const minorIssues = corrections.filter(c => c.color === 'yellow').length;
+                        
+                        if (criticalIssues === 0 && minorIssues <= 2) {
+                            corrections.unshift({ 
+                                message: "Excellent foundation! Small refinements will perfect your Mountain Pose.", 
+                                affected: [], 
+                                color: 'green',
+                                priority: 0
+                            });
+                        } else if (criticalIssues <= 1) {
+                            corrections.unshift({ 
+                                message: "Good alignment! Focus on these key adjustments:", 
+                                affected: [], 
+                                color: 'blue',
+                                priority: 0
+                            });
+                        }
                     }
 
                 } else if (poseName === 'Adho Mukha Svanasana') {
@@ -2026,93 +2059,34 @@
                 }
 
 
-                // 1. Load Better Model for Higher Accuracy
+                // 1. Load Model
                 if (!this.detector) {
                     try {
                         const model = poseDetection.SupportedModels.MoveNet;
                         const detectorConfig = {
-                            // Use THUNDER model for better accuracy (vs LIGHTNING)
-                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
-                            defaultUrl: 'https://tfhub.dev/google/movenet/singlepose/thunder/4',
-                            // Enhanced configuration for better keypoint stability
-                            enableSmoothing: true,
-                            minPoseScore: 0.25,
-                            multiPoseMaxDimension: 256
+                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+                            defaultUrl: 'https://tfhub.dev/google/movenet/singlepose/lightning/4',
                         };
                         this.detector = await poseDetection.createDetector(model, detectorConfig);
-                        updateStatus("High-accuracy model loaded. Requesting camera access...");
+                        updateStatus("Model loaded. Requesting camera access...");
                     } catch (e) {
-                        // Fallback to Lightning if Thunder fails
-                        console.warn("Thunder model failed, falling back to Lightning:", e);
-                        try {
-                            const detectorConfig = {
-                                modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-                                defaultUrl: 'https://tfhub.dev/google/movenet/singlepose/lightning/4',
-                                enableSmoothing: true,
-                                minPoseScore: 0.25
-                            };
-                            this.detector = await poseDetection.createDetector(model, detectorConfig);
-                            updateStatus("Model loaded. Requesting camera access...");
-                        } catch (e2) {
-                            updateStatus(`Failed to load pose detection model: ${e2.message}`, true);
-                            console.error(e2);
-                            return;
-                        }
+                        updateStatus(`Failed to load MoveNet model: ${e.message}`, true);
+                        console.error(e);
+                        return;
                     }
                 }
 
-                // 2. Enhanced Camera Stream with Mobile Optimization
-                const videoConstraints = {
-                    video: {
-                        width: { ideal: 1280, min: 640 },
-                        height: { ideal: 720, min: 480 },
-                        frameRate: { ideal: 30, min: 15 },
-                        facingMode: 'user', // Front camera for mobile
-                        // Enhanced mobile camera settings
-                        aspectRatio: { ideal: 16/9 },
-                        // Request wide-angle if available for better full-body capture
-                        advanced: [
-                            { zoom: 0.5 }, // Zoom out for better full-body view
-                            { focusMode: 'continuous' },
-                            { exposureMode: 'continuous' },
-                            { whiteBalanceMode: 'continuous' }
-                        ]
-                    }
-                };
-
-                navigator.mediaDevices.getUserMedia(videoConstraints)
+                // 2. Get Camera Stream
+                navigator.mediaDevices.getUserMedia({ video: true })
                     .then((stream) => {
                         this.videoStream = stream;
                         video.srcObject = stream;
                         video.onloadedmetadata = () => {
                             video.play();
 
-                            // Enhanced canvas setup for better mobile experience
-                            const containerWidth = video.parentElement.clientWidth;
-                            const containerHeight = video.parentElement.clientHeight;
-                            
-                            // Maintain aspect ratio while fitting container
-                            const videoAspect = video.videoWidth / video.videoHeight;
-                            const containerAspect = containerWidth / containerHeight;
-                            
-                            let displayWidth, displayHeight;
-                            if (videoAspect > containerAspect) {
-                                displayWidth = containerWidth;
-                                displayHeight = containerWidth / videoAspect;
-                            } else {
-                                displayHeight = containerHeight;
-                                displayWidth = containerHeight * videoAspect;
-                            }
-
                             // Set canvas dimensions to match video stream
                             canvas.width = video.videoWidth;
                             canvas.height = video.videoHeight;
-                            
-                            // Style for responsive display
-                            canvas.style.width = displayWidth + 'px';
-                            canvas.style.height = displayHeight + 'px';
-                            video.style.width = displayWidth + 'px';
-                            video.style.height = displayHeight + 'px';
 
                             // Show video container
                             const videoContainer = document.getElementById('video-container');
@@ -2121,11 +2095,7 @@
                             if (videoContainer) videoContainer.style.display = 'block';
                             if (statusDiv) statusDiv.classList.add('hidden');
                             if (feedbackArea) feedbackArea.style.display = 'block';
-                            if (feedbackText) feedbackText.textContent = `Starting ${this.currentPose} analysis... Step back for full body view!`;
-
-                            // Initialize keypoint smoothing for stability
-                            this.keypointHistory = {};
-                            this.smoothingFactor = 0.7; // Higher = more smoothing
+                            if (feedbackText) feedbackText.textContent = `Starting ${this.currentPose} analysis... Stand in position!`;
 
                             // Start the ML loop, passing video reference
                             this.poseDetectionFrame(video, ctx, this.detector, feedbackText);
@@ -2133,36 +2103,12 @@
                     })
                     .catch((err) => {
                         console.error("Camera access error:", err);
-                        // Fallback to basic camera constraints
-                        navigator.mediaDevices.getUserMedia({ video: true })
-                            .then((stream) => {
-                                this.videoStream = stream;
-                                video.srcObject = stream;
-                                video.onloadedmetadata = () => {
-                                    video.play();
-                                    canvas.width = video.videoWidth;
-                                    canvas.height = video.videoHeight;
-                                    
-                                    const videoContainer = document.getElementById('video-container');
-                                    const feedbackArea = document.getElementById('feedback-area');
-                                    if (videoContainer) videoContainer.style.display = 'block';
-                                    if (statusDiv) statusDiv.classList.add('hidden');
-                                    if (feedbackArea) feedbackArea.style.display = 'block';
-                                    if (feedbackText) feedbackText.textContent = `Starting ${this.currentPose} analysis... Stand in position!`;
-                                    
-                                    this.keypointHistory = {};
-                                    this.smoothingFactor = 0.7;
-                                    this.poseDetectionFrame(video, ctx, this.detector, feedbackText);
-                                };
-                            })
-                            .catch((err2) => {
-                                updateStatus("Camera access denied or not available. Please enable camera permissions.", true);
-                            });
+                        updateStatus("Permission denied or camera is in use. Please enable camera access.", true);
                     });
             },
 
             /**
-             * Main loop for MoveNet pose detection with enhanced stability and smoothing.
+             * Main loop for MoveNet pose detection and drawing.
              */
             async poseDetectionFrame(video, ctx, detector, feedbackText) {
                 // Request next frame first to allow browser to manage repaint speed
@@ -2176,10 +2122,7 @@
 
                     if (poses.length > 0) {
                         const pose = poses[0];
-                        let keypoints = pose.keypoints;
-
-                        // Apply keypoint smoothing for stability
-                        keypoints = this.smoothKeypoints(keypoints);
+                        const keypoints = pose.keypoints;
 
                         // 1. Correction Logic - Get corrections with affected parts
                         let affectedKeypoints = new Set(); // Track all affected keypoints for coloring
@@ -2234,44 +2177,61 @@
                             let criticalErrors = 0;
 
                             if (this.currentPose && this.currentPose.includes('Tadasana')) {
-                                // Tadasana-specific scoring with weighted importance
+                                // Tadasana-specific scoring with weighted importance based on priority
                                 corrections.forEach(corr => {
+                                    const priority = corr.priority || 5;
+                                    
                                     if (corr.color === 'red') {
-                                        // Critical alignment issues
-                                        if (corr.message.includes('Weight') || corr.message.includes('Hips: level') || 
-                                            corr.message.includes('Head: bring back') || corr.message.includes('Posture: bring shoulders')) {
+                                        if (priority === 1) {
+                                            // Critical alignment issues (balance, major postural problems)
                                             criticalErrors++;
-                                            frameScore -= 20; // Major deduction for critical alignment
-                                        } else if (corr.message.includes('engage thigh muscles')) {
-                                            majorErrors++;
-                                            frameScore -= 15; // Leg strength is important
+                                            frameScore -= 25; // Heavy penalty for critical issues
                                         } else {
                                             majorErrors++;
-                                            frameScore -= 12; // Other red corrections
+                                            frameScore -= 15; // Standard red correction penalty
                                         }
                                     } else if (corr.color === 'yellow') {
-                                        // Minor adjustments
-                                        if (corr.message.includes('Feet:') || corr.message.includes('micro-bend')) {
+                                        if (priority <= 2) {
+                                            // Important refinements
                                             minorErrors++;
-                                            frameScore -= 5; // Small deduction for minor foot adjustments
-                                        } else if (corr.message.includes('Shoulders:') || corr.message.includes('Crown:')) {
+                                            frameScore -= 10; // Medium penalty for important refinements
+                                        } else if (priority === 3) {
+                                            // Moderate refinements
                                             minorErrors++;
-                                            frameScore -= 8; // Medium deduction for posture refinements
+                                            frameScore -= 6; // Small penalty for moderate issues
                                         } else {
+                                            // Minor refinements (priority 4+)
                                             minorErrors++;
-                                            frameScore -= 6; // Other yellow corrections
+                                            frameScore -= 3; // Minimal penalty for minor adjustments
                                         }
                                     } else if (corr.color === 'green') {
                                         // Bonus for perfect alignment
-                                        if (corr.message.includes('Perfect Tadasana')) {
-                                            frameScore = Math.min(100, frameScore + 5);
+                                        if (corr.message.includes('Perfect Tadasana') || corr.message.includes('Excellent foundation')) {
+                                            frameScore = Math.min(100, frameScore + 8);
                                         }
+                                    } else if (corr.color === 'blue') {
+                                        // Good alignment bonus
+                                        frameScore = Math.min(100, frameScore + 3);
                                     }
                                 });
                                 
-                                // Additional bonus for overall stability (no critical errors)
-                                if (criticalErrors === 0 && majorErrors <= 1) {
-                                    frameScore = Math.min(100, frameScore + 3);
+                                // Additional stability bonuses for Tadasana
+                                if (criticalErrors === 0) {
+                                    frameScore = Math.min(100, frameScore + 5); // Bonus for no critical errors
+                                    
+                                    if (majorErrors === 0) {
+                                        frameScore = Math.min(100, frameScore + 5); // Additional bonus for no major errors
+                                        
+                                        if (minorErrors <= 1) {
+                                            frameScore = Math.min(100, frameScore + 5); // Perfect or near-perfect pose
+                                        }
+                                    }
+                                }
+                                
+                                // Penalize multiple issues more heavily (compound effect)
+                                const totalIssues = criticalErrors + majorErrors + minorErrors;
+                                if (totalIssues > 3) {
+                                    frameScore -= (totalIssues - 3) * 3; // Additional penalty for multiple issues
                                 }
                                 
                             } else {
@@ -2529,14 +2489,14 @@
             },
 
             /**
-             * Draws lines connecting the keypoints detected by MoveNet with enhanced color coding for Tadasana.
+             * Draws lines connecting the keypoints detected by MoveNet with color coding.
              */
             drawSkeleton(video, keypoints, ctx, affectedKeypoints, corrections) {
                 if (!keypoints || !ctx) return;
                 affectedKeypoints = affectedKeypoints || new Set();
                 corrections = corrections || [];
 
-                ctx.lineWidth = 4; // Slightly thicker for better visibility
+                ctx.lineWidth = 3;
 
                 SKELETON_CONNECTIONS.forEach(([i, j]) => {
                     const kp1 = keypoints[i];
@@ -2548,10 +2508,9 @@
                         const kp2Name = Object.keys(keypointIndices).find(name => keypointIndices[name] === j);
 
                         let lineColor = '#1E88E5'; // Default line color (Secondary Blue)
-                        let lineWidth = 4;
                         let corrColor = null;
 
-                        // Check if either keypoint in the connection is part of a correction
+                        // Check if either keypoint in the connection is part of a severe correction (red or yellow)
                         if (affectedKeypoints.has(kp1Name) || affectedKeypoints.has(kp2Name)) {
                             const relevantCorrections = corrections.filter(c =>
                                 c.affected && (c.affected.includes(kp1Name) || c.affected.includes(kp2Name))
@@ -2567,43 +2526,15 @@
                             }
                         }
 
-                        // Enhanced color and styling based on correction type
                         if (corrColor === 'red') {
-                            lineColor = '#EF4444'; // Red for critical errors
-                            lineWidth = 5; // Thicker for emphasis
-                            
-                            // Add pulsing effect for critical connections
-                            const pulseIntensity = Math.sin(Date.now() * 0.008) * 0.3 + 0.7;
-                            ctx.globalAlpha = pulseIntensity;
+                            lineColor = '#EF4444'; // Red
                         } else if (corrColor === 'yellow') {
-                            lineColor = '#F59E0B'; // Amber for warnings
-                            lineWidth = 4;
+                            lineColor = '#F59E0B'; // Yellow
                         } else if (corrColor === 'green') {
-                            lineColor = '#10B981'; // Green for perfect alignment
-                            lineWidth = 4;
-                            
-                            // Add subtle glow for perfect connections
-                            ctx.shadowColor = '#10B981';
-                            ctx.shadowBlur = 8;
-                        }
-
-                        // Special highlighting for key Tadasana connections
-                        if (this.currentPose && this.currentPose.includes('Tadasana')) {
-                            // Highlight spine (hip to shoulder connections)
-                            if ((kp1Name === 'left_hip' && kp2Name === 'left_shoulder') ||
-                                (kp1Name === 'right_hip' && kp2Name === 'right_shoulder')) {
-                                lineWidth += 1; // Extra emphasis on spine alignment
-                            }
-                            
-                            // Highlight leg alignment (hip to ankle connections)
-                            if ((kp1Name === 'left_hip' && kp2Name === 'left_ankle') ||
-                                (kp1Name === 'right_hip' && kp2Name === 'right_ankle')) {
-                                lineWidth += 1; // Extra emphasis on leg alignment
-                            }
+                            lineColor = '#10B981'; // Green
                         }
 
                         ctx.strokeStyle = lineColor;
-                        ctx.lineWidth = lineWidth;
                         ctx.beginPath();
 
                         // Use coordinates directly since canvas is mirrored via CSS
@@ -2615,10 +2546,6 @@
                         ctx.moveTo(p1x, p1y);
                         ctx.lineTo(p2x, p2y);
                         ctx.stroke();
-                        
-                        // Reset effects
-                        ctx.globalAlpha = 1.0;
-                        ctx.shadowBlur = 0;
                     }
                 });
             },
