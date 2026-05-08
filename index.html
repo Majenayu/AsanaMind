@@ -1,327 +1,255 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sunday — A quieter way to practice</title>
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1E2E1F">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="/assets/logo.png">
-    <link rel="icon" type="image/png" href="/assets/logo.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        cream: '#FAF7F2',
-                        paper: '#F3EEE5',
-                        sand: '#E8DFCF',
-                        stone: '#D9CFBB',
-                        ink: { 900: '#1A1814', 700: '#3D3A33', 500: '#6B6657', 300: '#A8A294' },
-                        forest: { 900: '#1E2E1F', 700: '#2F4A31', 500: '#4A6B4D', 300: '#8BA88D', 100: '#D4E0D5' },
-                        terracotta: { 600: '#B8573E', 400: '#D4866F', 100: '#F2D9CE' },
-                        saffron: { 500: '#D4A04A', 300: '#E6C489' },
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
-                        display: ['Fraunces', 'ui-serif', 'Georgia'],
-                    }
-                }
-            }
-        }
-    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Sunday · AsanaMind</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0F3D2E" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/assets/logo.png" />
+    <link rel="icon" type="image/png" href="/assets/logo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
     <style>
-        :root {
-            color-scheme: light;
-        }
+    /* =========================================================
+       Sunday · AsanaMind design tokens
+       ========================================================= */
+    :root {
+        --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
+        --text-1:#14120E; --text-2:#4A453B; --text-3:#7A7364; --text-4:#A8A294;
+        --primary:#0F3D2E; --primary-2:#1F5A44; --primary-3:#6FA089; --primary-4:#C7DBCE;
+        --accent:#C2552F; --accent-soft:#F6DACB; --highlight:#E0A23F; --highlight-2:#F3D58C;
+        --success:#3E8A52; --warning:#E0A23F; --danger:#C2552F;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text-1);min-height:100vh;
+        font-family:"Inter",system-ui,sans-serif;font-size:16px;line-height:1.6;
+        -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+    .font-display{font-family:"Fraunces",serif;letter-spacing:-0.02em}
+    .kicker{font-family:"Inter",sans-serif;font-weight:500;font-size:11px;line-height:14px;
+        letter-spacing:0.22em;text-transform:uppercase}
+    .blob{position:absolute;border-radius:9999px;pointer-events:none;filter:blur(120px)}
 
-        html,
-        body {
-            background: #FAF7F2;
-            color: #1A1814;
-            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
+    /* =========================================================
+       Layout
+       ========================================================= */
+    .auth-shell{min-height:100vh;display:grid;grid-template-columns:1fr}
+    @media(min-width:980px){.auth-shell{grid-template-columns:1fr 1fr}}
 
-        .display {
-            font-family: 'Fraunces', ui-serif, Georgia, serif;
-            font-optical-sizing: auto;
-            letter-spacing: -0.025em;
-        }
+    .auth-left{position:relative;overflow:hidden;background:var(--primary);color:var(--bg);
+        padding:32px 24px;min-height:340px;display:flex;flex-direction:column;justify-content:space-between}
+    @media(min-width:980px){.auth-left{padding:56px;min-height:100vh}}
 
-        .kicker {
-            font-family: 'Inter', sans-serif;
-            letter-spacing: 0.22em;
-            text-transform: uppercase;
-            font-weight: 500;
-        }
+    .auth-right{background:var(--bg);padding:40px 24px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    @media(min-width:980px){.auth-right{padding:56px 72px;min-height:100vh}}
 
-        .blob {
-            position: absolute;
-            border-radius: 9999px;
-            filter: blur(90px);
-            pointer-events: none;
-        }
+    .auth-form{width:100%;max-width:480px;display:flex;flex-direction:column;gap:24px}
 
-        .fadeup {
-            opacity: 0;
-            transform: translateY(14px);
-            animation: fadeUp 0.8s cubic-bezier(0.22, 0.8, 0.3, 1) forwards;
-        }
+    /* =========================================================
+       Typography utilities
+       ========================================================= */
+    .t-display-l{font-family:"Fraunces",serif;font-weight:300;font-size:42px;line-height:48px;letter-spacing:-0.02em}
+    @media(min-width:980px){.t-display-l{font-size:56px;line-height:64px;letter-spacing:-0.025em}}
+    .t-display-xl{font-family:"Fraunces",serif;font-weight:300;font-size:48px;line-height:52px;letter-spacing:-0.03em}
+    @media(min-width:980px){.t-display-xl{font-size:64px;line-height:68px}}
+    .t-body{font-size:15px;line-height:24px;color:var(--text-3)}
+    .t-body-s{font-size:13px;line-height:20px;color:var(--text-3)}
 
-        .fadeup-2 {
-            animation-delay: 0.1s;
-        }
+    /* =========================================================
+       Brand row
+       ========================================================= */
+    .brand{display:flex;align-items:center;gap:10px;position:relative;z-index:2}
+    .brand-dot{width:8px;height:8px;border-radius:999px;background:var(--highlight)}
 
-        .fadeup-3 {
-            animation-delay: 0.2s;
-        }
+    /* =========================================================
+       Editorial quote on dark panel
+       ========================================================= */
+    .quote-wrap{position:relative;z-index:2;max-width:580px;margin:24px 0}
+    .quote-rule{height:1px;background:rgba(212,224,213,0.25);margin:28px 0 14px}
 
-        .fadeup-4 {
-            animation-delay: 0.3s;
-        }
+    /* =========================================================
+       Stats row
+       ========================================================= */
+    .stats-row{display:flex;gap:28px;flex-wrap:wrap;position:relative;z-index:2}
+    .stat-n{font-family:"Fraunces",serif;font-weight:300;font-size:32px;line-height:1;letter-spacing:-0.02em;color:var(--bg)}
+    @media(min-width:980px){.stat-n{font-size:36px}}
+    .stat-l{color:var(--primary-3);margin-top:6px}
 
-        @keyframes fadeUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+    /* =========================================================
+       Form controls
+       ========================================================= */
+    .field{display:flex;flex-direction:column;gap:8px}
+    .field label{color:var(--text-3)}
+    .field input{height:56px;border-radius:14px;border:1px solid var(--border);background:var(--surface);
+        padding:0 18px;font-size:16px;color:var(--text-1);font-family:"Inter",sans-serif;outline:none;
+        transition:border-color .2s, box-shadow .2s}
+    .field input::placeholder{color:var(--text-4)}
+    .field input:focus{border-color:var(--primary-2);box-shadow:0 0 0 4px rgba(31,90,68,0.10)}
 
-        .field input:focus {
-            outline: none;
-            border-color: #2F4A31;
-            box-shadow: 0 0 0 4px rgba(47, 74, 49, 0.08);
-        }
+    .btn-primary,.btn-accent,.btn-secondary,.btn-ghost{
+        height:58px;border-radius:9999px;padding:0 28px;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+        font-family:"Inter",sans-serif;font-weight:600;font-size:14px;letter-spacing:0;
+        border:0;cursor:pointer;transition:transform .12s ease, background .2s, box-shadow .2s;width:100%}
+    .btn-primary{background:var(--primary);color:var(--bg);box-shadow:0 8px 24px rgba(15,61,46,0.18)}
+    .btn-primary:hover{background:var(--primary-2)}
+    .btn-accent{background:var(--accent);color:var(--bg);box-shadow:0 8px 24px rgba(194,85,47,0.22)}
+    .btn-accent:hover{filter:brightness(1.05)}
+    .btn-primary:active,.btn-accent:active{transform:scale(0.99)}
 
-        .pressable {
-            transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
-        }
+    .link-btn{background:transparent;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;font-size:15px;font-family:"Inter",sans-serif}
+    .link-btn:hover{text-decoration:underline}
 
-        .pressable:active {
-            transform: translateY(1px) scale(0.99);
-        }
+    /* Error banner */
+    .err{display:none;background:var(--accent-soft);border:1px solid var(--accent);border-radius:14px;
+        padding:12px 16px;color:var(--text-1);font-size:13px;line-height:1.55;margin-top:-4px}
+    .err.show{display:block}
 
-        .loader {
-            width: 76px;
-            height: 76px;
-            border-radius: 9999px;
-            border: 2px solid rgba(26, 24, 20, 0.08);
-            border-top-color: #2F4A31;
-            animation: spin 0.9s cubic-bezier(0.55, 0, 0.45, 1) infinite;
-        }
+    /* Loader overlay */
+    .loader{position:fixed;inset:0;z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:20px;background:rgba(245,242,235,0.96);backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .2s}
+    .loader.show{opacity:1;pointer-events:auto}
+    .loader .ring{width:76px;height:76px;border:2px solid rgba(31,90,68,0.15);border-top-color:var(--primary-2);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
+    .foot-row{display:none;position:absolute;left:56px;right:56px;bottom:40px;align-items:center;justify-content:space-between}
+    @media(min-width:980px){.foot-row{display:flex}}
     </style>
 </head>
+<body>
+    <div class="auth-shell">
+        <!-- LEFT: editorial panel -->
+        <aside class="auth-left">
+            <div class="blob" style="width:360px;height:360px;top:-120px;right:-80px;background:rgba(224,162,63,0.35)"></div>
+            <div class="blob" style="width:320px;height:320px;bottom:-100px;left:-80px;background:rgba(194,85,47,0.28)"></div>
 
-<body class="min-h-screen">
+            <div class="brand">
+                <span class="brand-dot"></span>
+                <span class="kicker" style="color:var(--highlight)">Sunday · AsanaMind</span>
+            </div>
 
-    <!-- Shell -->
-    <div class="min-h-screen w-full md:grid md:grid-cols-2">
+            <div class="quote-wrap">
+                <h2 class="font-display" style="font-size:42px;font-weight:300;color:var(--bg);line-height:1.15;letter-spacing:-0.02em;margin:0">
+                    A quieter place<br />to practice.
+                </h2>
+                <div class="quote-rule"></div>
+                <span class="kicker" style="color:var(--primary-3)">Morning practice</span>
+            </div>
 
-        <!-- Left: editorial panel (desktop only for largest impact; mobile gets a compact hero) -->
-        <aside class="relative overflow-hidden bg-forest-900 text-cream h-[360px] md:h-auto md:min-h-screen">
-            <div class="blob" style="width:900px;height:900px;background:rgba(74,107,77,0.5);top:-200px;right:-200px;"></div>
-            <div class="blob" style="width:500px;height:500px;background:rgba(184,87,62,0.35);bottom:-120px;left:-120px;"></div>
-
-            <div class="relative z-10 h-full px-7 md:px-14 py-10 md:py-14 flex flex-col justify-between">
-                <div class="flex items-center gap-3 fadeup">
-                    <div class="w-7 h-7 rounded-full bg-saffron-500"></div>
-                    <span class="kicker text-[11px] text-saffron-500">Sunday · AsanaMind</span>
-                </div>
-
-                <div class="max-w-[560px] fadeup fadeup-2 hidden md:block">
-                    <h1 class="display text-[56px] lg:text-[64px] leading-[1.05] text-cream font-light">
-                        A quieter place to practice, measure, and return to your breath.
-                    </h1>
-                    <div class="mt-10 flex items-center gap-4 text-forest-300">
-                        <span class="h-px w-8 bg-forest-300"></span>
-                        <span class="kicker text-[11px]">Morning practice</span>
-                    </div>
-                </div>
-
-                <!-- Mobile inline headline -->
-                <div class="md:hidden fadeup fadeup-2">
-                    <h1 class="display text-[42px] leading-[1.05] text-cream font-light mt-2">
-                        A quieter place to practice.
-                    </h1>
-                </div>
-
-                <div class="hidden md:grid grid-cols-4 gap-8 fadeup fadeup-3">
-                    <div>
-                        <p class="display text-4xl text-cream font-light">7</p>
-                        <p class="kicker text-[10px] text-forest-300 mt-1">Asanas</p>
-                    </div>
-                    <div>
-                        <p class="display text-4xl text-cream font-light">20</p>
-                        <p class="kicker text-[10px] text-forest-300 mt-1">Checkpoints</p>
-                    </div>
-                    <div>
-                        <p class="display text-4xl text-cream font-light">30<span class="text-2xl">fps</span></p>
-                        <p class="kicker text-[10px] text-forest-300 mt-1">On-device</p>
-                    </div>
-                    <div>
-                        <p class="display text-4xl text-cream font-light">∞</p>
-                        <p class="kicker text-[10px] text-forest-300 mt-1">Private</p>
-                    </div>
-                </div>
+            <div class="stats-row">
+                <div><div class="stat-n">20</div><div class="kicker stat-l">Asanas</div></div>
+                <div><div class="stat-n">3</div><div class="kicker stat-l">Levels</div></div>
+                <div><div class="stat-n">30fps</div><div class="kicker stat-l">On-device</div></div>
+                <div><div class="stat-n">∞</div><div class="kicker stat-l">Private</div></div>
             </div>
         </aside>
 
-        <!-- Right: form panel -->
-        <main class="relative px-6 md:px-16 lg:px-24 py-10 md:py-16 flex items-center justify-center">
-            <div class="w-full max-w-[480px]">
+        <!-- RIGHT: form -->
+        <main class="auth-right">
+            <form id="auth-form" class="auth-form" novalidate>
+                <div>
+                    <span class="kicker" id="auth-kicker" style="color:var(--accent)">Welcome back</span>
+                    <h1 class="t-display-xl" id="auth-title" style="margin:12px 0 10px;font-weight:300;color:var(--text-1)">Sign in</h1>
+                    <p class="t-body" id="auth-sub">Enter the name and email you registered with. No passwords, no fuss.</p>
+                </div>
 
-                <!-- LOGIN FORM -->
-                <section id="login-view" class="fadeup">
-                    <p class="kicker text-[11px] text-terracotta-600 mb-3">Welcome back</p>
-                    <h2 class="display font-light text-[48px] md:text-[60px] leading-[1] text-ink-900">Sign in</h2>
-                    <p class="text-ink-500 mt-4 max-w-sm leading-relaxed">Enter the name and email you registered with. No passwords, no fuss.</p>
+                <div class="field">
+                    <span class="kicker">Full name</span>
+                    <input id="name" type="text" placeholder="Ayush" autocomplete="name" required />
+                </div>
+                <div class="field">
+                    <span class="kicker">Email address</span>
+                    <input id="email" type="email" placeholder="you@asanamind.com" autocomplete="email" required />
+                </div>
 
-                    <form id="login-form" class="mt-10 space-y-5">
-                        <div class="field">
-                            <label class="kicker text-[10px] text-ink-500 block mb-2" for="login-name">Full name</label>
-                            <input id="login-name" name="name" type="text" autocomplete="name" required
-                                placeholder="Ayush"
-                                class="w-full h-[56px] rounded-[14px] bg-white border border-stone px-5 text-ink-900 placeholder-ink-300 transition">
-                        </div>
-                        <div class="field">
-                            <label class="kicker text-[10px] text-ink-500 block mb-2" for="login-email">Email address</label>
-                            <input id="login-email" name="email" type="email" autocomplete="email" required
-                                placeholder="you@asanamind.com"
-                                class="w-full h-[56px] rounded-[14px] bg-white border border-stone px-5 text-ink-900 placeholder-ink-300 transition">
-                        </div>
+                <div id="error-banner" class="err" role="alert"></div>
 
-                        <button type="submit"
-                            class="pressable w-full h-[58px] rounded-full bg-forest-900 text-cream font-semibold text-[15px] tracking-wide shadow-lg shadow-forest-900/15 hover:bg-forest-700 flex items-center justify-center gap-2">
-                            <span>Begin today’s practice</span>
-                            <span class="opacity-70">→</span>
-                        </button>
-                    </form>
+                <button type="submit" id="auth-submit" class="btn-primary">
+                    <span id="auth-cta">Begin today’s practice</span>
+                    <span aria-hidden="true">→</span>
+                </button>
 
-                    <p id="login-error" class="hidden mt-5 text-[13px] text-terracotta-600 bg-terracotta-100 border border-terracotta-100 rounded-xl px-4 py-3"></p>
+                <div style="text-align:center">
+                    <span class="t-body-s" id="auth-switch-label" style="color:var(--text-3)">New to Sunday? </span>
+                    <button type="button" class="link-btn" id="auth-switch">Create an account</button>
+                </div>
+            </form>
 
-                    <div class="mt-10 flex items-center justify-center gap-2 text-[14px] text-ink-500">
-                        <span>New to Sunday?</span>
-                        <button type="button" id="show-register" class="font-semibold text-terracotta-600 hover:underline">Create an account</button>
-                    </div>
-                </section>
-
-                <!-- REGISTER FORM -->
-                <section id="register-view" class="hidden fadeup">
-                    <p class="kicker text-[11px] text-terracotta-600 mb-3">Start your practice</p>
-                    <h2 class="display font-light text-[48px] md:text-[60px] leading-[1] text-ink-900">Create account</h2>
-                    <p class="text-ink-500 mt-4 max-w-sm leading-relaxed">Give us a name and an email. That’s all we keep. Nothing leaves your device during practice.</p>
-
-                    <form id="register-form" class="mt-10 space-y-5">
-                        <div class="field">
-                            <label class="kicker text-[10px] text-ink-500 block mb-2" for="register-name">Full name</label>
-                            <input id="register-name" name="name" type="text" autocomplete="name" required
-                                placeholder="Ayush Rai"
-                                class="w-full h-[56px] rounded-[14px] bg-white border border-stone px-5 text-ink-900 placeholder-ink-300 transition">
-                        </div>
-                        <div class="field">
-                            <label class="kicker text-[10px] text-ink-500 block mb-2" for="register-email">Email address</label>
-                            <input id="register-email" name="email" type="email" autocomplete="email" required
-                                placeholder="you@asanamind.com"
-                                class="w-full h-[56px] rounded-[14px] bg-white border border-stone px-5 text-ink-900 placeholder-ink-300 transition">
-                        </div>
-
-                        <button type="submit"
-                            class="pressable w-full h-[58px] rounded-full bg-terracotta-600 text-cream font-semibold text-[15px] tracking-wide shadow-lg shadow-terracotta-600/20 hover:bg-terracotta-400 flex items-center justify-center gap-2">
-                            <span>Get started</span>
-                            <span class="opacity-80">→</span>
-                        </button>
-                    </form>
-
-                    <p id="register-error" class="hidden mt-5 text-[13px] text-terracotta-600 bg-terracotta-100 border border-terracotta-100 rounded-xl px-4 py-3"></p>
-
-                    <div class="mt-10 flex items-center justify-center gap-2 text-[14px] text-ink-500">
-                        <span>Already a member?</span>
-                        <button type="button" id="show-login" class="font-semibold text-terracotta-600 hover:underline">Sign in</button>
-                    </div>
-                </section>
-
-                <footer class="mt-16 pt-8 border-t border-stone flex items-center justify-between text-[12px] text-ink-300">
-                    <span class="kicker">© Sunday · 2026</span>
-                    <span>Made with care for everyday practitioners</span>
-                </footer>
+            <div class="foot-row">
+                <span class="kicker" style="color:var(--text-4)">© Sunday · 2026</span>
+                <span class="t-body-s">Made with care for everyday practitioners</span>
             </div>
         </main>
     </div>
 
-    <!-- Loader -->
-    <div id="loader" class="hidden fixed inset-0 bg-cream/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-5">
-        <div class="loader"></div>
-        <p class="kicker text-[11px] text-ink-500">A moment please</p>
+    <div id="loader" class="loader">
+        <div class="ring"></div>
+        <span class="kicker" style="color:var(--text-3)">A moment please</span>
     </div>
 
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(() => { });
-            });
+            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
         }
 
         const $ = (id) => document.getElementById(id);
-        const loginView = $('login-view');
-        const registerView = $('register-view');
+        let mode = 'signin';
         const loader = $('loader');
+        const err = $('error-banner');
+        const form = $('auth-form');
+        const submitBtn = $('auth-submit');
 
-        $('show-register').onclick = () => { loginView.classList.add('hidden'); registerView.classList.remove('hidden'); };
-        $('show-login').onclick = () => { registerView.classList.add('hidden'); loginView.classList.remove('hidden'); };
+        function applyMode() {
+            if (mode === 'signin') {
+                $('auth-kicker').textContent = 'Welcome back';
+                $('auth-title').textContent = 'Sign in';
+                $('auth-cta').textContent = 'Begin today’s practice';
+                $('auth-switch-label').textContent = 'New to Sunday? ';
+                $('auth-switch').textContent = 'Create an account';
+                submitBtn.className = 'btn-primary';
+            } else {
+                $('auth-kicker').textContent = 'Begin your practice';
+                $('auth-title').textContent = 'Create account';
+                $('auth-cta').textContent = 'Get started';
+                $('auth-switch-label').textContent = 'Already a member? ';
+                $('auth-switch').textContent = 'Sign in';
+                submitBtn.className = 'btn-accent';
+            }
+            err.classList.remove('show');
+        }
+        $('auth-switch').addEventListener('click', () => { mode = mode === 'signin' ? 'signup' : 'signin'; applyMode(); });
 
-        const showLoader = (v) => loader.classList.toggle('hidden', !v);
-        const showError = (el, msg) => { el.textContent = msg; el.classList.remove('hidden'); };
-        const hideError = (el) => { el.classList.add('hidden'); };
+        function showLoader(on) { loader.classList.toggle('show', on); }
+        function showErr(msg) { err.textContent = msg; err.classList.add('show'); }
 
-        async function submitAuth(endpoint, name, email, errorEl) {
-            hideError(errorEl);
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            err.classList.remove('show');
+            const name = $('name').value.trim();
+            const email = $('email').value.trim();
+            if (!name || !email) { showErr('Please enter your name and email.'); return; }
             showLoader(true);
             try {
-                const res = await fetch(endpoint, {
+                const res = await fetch(mode === 'signin' ? '/login' : '/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email })
+                    body: JSON.stringify({ name, email }),
                 });
                 const data = await res.json();
-                if (data.success) {
-                    window.location.href = '/home';
-                    return;
-                }
+                if (data.success) { window.location.href = '/home'; return; }
                 showLoader(false);
-                showError(errorEl, data.error || 'Something went wrong. Please try again.');
-            } catch (e) {
+                showErr(data.error || 'Something went wrong.');
+            } catch (ex) {
                 showLoader(false);
-                showError(errorEl, 'Connection error. Please check your network and try again.');
+                showErr('Connection error. Please check your network and try again.');
             }
-        }
-
-        $('login-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            submitAuth('/login', $('login-name').value.trim(), $('login-email').value.trim(), $('login-error'));
         });
 
-        $('register-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            submitAuth('/register', $('register-name').value.trim(), $('register-email').value.trim(), $('register-error'));
-        });
+        applyMode();
     </script>
 </body>
-
 </html>

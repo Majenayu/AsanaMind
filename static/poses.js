@@ -496,7 +496,7 @@
     const ASANA_LIBRARY = [
         // ─── BEGINNER (10) ─────────────────────────────────────
         {
-            name: 'Tadasana',
+            name: 'Tadasana', imageKey: 'tadasana', imagePath: '/assets/poses/tadasana.jpg',
             sanskrit: 'Mountain Pose',
             category: 'Beginner',
             emoji: '⛰️',
@@ -528,7 +528,7 @@
             ],
         },
         {
-            name: 'Urdhva Hastasana',
+            name: 'Urdhva Hastasana', imageKey: 'urdhva', imagePath: '/assets/poses/urdhva.png',
             sanskrit: 'Upward Salute',
             category: 'Beginner',
             emoji: '🙌',
@@ -559,7 +559,7 @@
             ],
         },
         {
-            name: 'Anjali Mudra',
+            name: 'Anjali Mudra', imageKey: 'anjali', imagePath: '/assets/poses/anjali.png',
             sanskrit: 'Prayer at Heart',
             category: 'Beginner',
             emoji: '🙏',
@@ -588,7 +588,7 @@
             ],
         },
         {
-            name: 'Vrikshasana',
+            name: 'Vrikshasana', imageKey: 'vrikshasana', imagePath: '/assets/poses/vrikshasana.png',
             sanskrit: 'Tree Pose',
             category: 'Beginner',
             emoji: '🌳',
@@ -615,7 +615,7 @@
             ],
         },
         {
-            name: 'Uttanasana',
+            name: 'Uttanasana', imageKey: 'uttanasana', imagePath: '/assets/poses/uttanasana.png',
             sanskrit: 'Standing Forward Fold',
             category: 'Beginner',
             emoji: '🙇',
@@ -641,7 +641,7 @@
             ],
         },
         {
-            name: 'Sukhasana',
+            name: 'Sukhasana', imageKey: 'sukhasana', imagePath: '/assets/poses/sukhasana.png',
             sanskrit: 'Easy Seated Pose',
             category: 'Beginner',
             emoji: '🧘',
@@ -668,7 +668,7 @@
             ],
         },
         {
-            name: 'Dandasana',
+            name: 'Dandasana', imageKey: 'dandasana', imagePath: '/assets/poses/dandasana.png',
             sanskrit: 'Staff Pose',
             category: 'Beginner',
             emoji: '📏',
@@ -695,7 +695,7 @@
             ],
         },
         {
-            name: 'Baddha Konasana',
+            name: 'Baddha Konasana', imageKey: 'baddha', imagePath: '/assets/poses/baddha.png',
             sanskrit: 'Bound Angle Pose',
             category: 'Beginner',
             emoji: '🦋',
@@ -722,7 +722,7 @@
             ],
         },
         {
-            name: 'Paschimottanasana',
+            name: 'Paschimottanasana', imageKey: 'paschimottanasana', imagePath: '/assets/poses/paschimottanasana.png',
             sanskrit: 'Seated Forward Fold',
             category: 'Beginner',
             emoji: '🧎',
@@ -747,7 +747,7 @@
             ],
         },
         {
-            name: 'Balasana',
+            name: 'Balasana', imageKey: 'balasana', imagePath: '/assets/poses/balasana.png',
             sanskrit: 'Child\u2019s Pose',
             category: 'Beginner',
             emoji: '🧸',
@@ -774,7 +774,7 @@
 
         // ─── INTERMEDIATE (7) ─────────────────────────────────
         {
-            name: 'Adho Mukha Svanasana',
+            name: 'Adho Mukha Svanasana', imageKey: 'adhomukha', imagePath: '/assets/poses/adhomukha.png',
             sanskrit: 'Downward-Facing Dog',
             category: 'Intermediate',
             emoji: '🐕',
@@ -801,7 +801,7 @@
             ],
         },
         {
-            name: 'Virabhadrasana I',
+            name: 'Virabhadrasana I', imageKey: 'warrior1', imagePath: '/assets/poses/warrior1.png',
             sanskrit: 'Warrior I',
             category: 'Intermediate',
             emoji: '⚔️',
@@ -828,7 +828,7 @@
             ],
         },
         {
-            name: 'Virabhadrasana II',
+            name: 'Virabhadrasana II', imageKey: 'warrior2', imagePath: '/assets/poses/warrior2.png',
             sanskrit: 'Warrior II',
             category: 'Intermediate',
             emoji: '🛡️',
@@ -857,7 +857,7 @@
             ],
         },
         {
-            name: 'Utthita Trikonasana',
+            name: 'Utthita Trikonasana', imageKey: 'trikonasana', imagePath: '/assets/poses/trikonasana.png',
             sanskrit: 'Extended Triangle',
             category: 'Intermediate',
             emoji: '📐',
@@ -884,7 +884,7 @@
             ],
         },
         {
-            name: 'Utkatasana',
+            name: 'Utkatasana', imageKey: 'utkatasana', imagePath: '/assets/poses/utkatasana.png',
             sanskrit: 'Chair Pose',
             category: 'Intermediate',
             emoji: '🪑',
@@ -911,7 +911,7 @@
             ],
         },
         {
-            name: 'Utthita Parsvakonasana',
+            name: 'Utthita Parsvakonasana', imageKey: 'parsvakonasana', imagePath: '/assets/poses/parsvakonasana.png',
             sanskrit: 'Extended Side Angle',
             category: 'Intermediate',
             emoji: '📏',
@@ -938,7 +938,7 @@
             ],
         },
         {
-            name: 'Setu Bandhasana',
+            name: 'Setu Bandhasana', imageKey: 'setubandhasana', imagePath: '/assets/poses/setubandhasana.png',
             sanskrit: 'Bridge Pose',
             category: 'Intermediate',
             emoji: '🌉',
@@ -966,7 +966,7 @@
 
         // ─── ADVANCED (3) ──────────────────────────────────────
         {
-            name: 'Virabhadrasana III',
+            name: 'Virabhadrasana III', imageKey: 'warrior3', imagePath: '/assets/poses/warrior3.png',
             sanskrit: 'Warrior III',
             category: 'Advanced',
             emoji: '🏹',
@@ -993,7 +993,7 @@
             ],
         },
         {
-            name: 'Ardha Chandrasana',
+            name: 'Ardha Chandrasana', imageKey: 'ardhachandra', imagePath: '/assets/poses/ardhachandra.png',
             sanskrit: 'Half Moon Pose',
             category: 'Advanced',
             emoji: '🌓',
@@ -1019,7 +1019,7 @@
             ],
         },
         {
-            name: 'Natarajasana',
+            name: 'Natarajasana', imageKey: 'natarajasana', imagePath: '/assets/poses/natarajasana.png',
             sanskrit: 'Dancer Pose',
             category: 'Advanced',
             emoji: '💃',

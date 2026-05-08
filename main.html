@@ -19,26 +19,60 @@
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Sunday palette (mapped onto legacy token names so existing UI just works)
+        // Sunday · AsanaMind — exact Figma tokens (matches the design file Asanaminddesign-main)
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'primary': '#D4A04A',       // Saffron - accent on dark
-                        'primary-light': '#E6C489', // Saffron light
-                        'secondary': '#2F4A31',     // Forest 700
-                        'accent': '#B8573E',        // Terracotta
-                        'background': '#0E1410',    // Ink-forest mix
-                        'card': '#15201A',          // Deep forest surface
-                        'warning': '#D4A04A',       // Saffron
-                        'success': '#8BA88D',       // Sage
-                        'cream': '#FAF7F2',
-                        'paper': '#F3EEE5',
-                        'stone': '#D9CFBB',
-                        'ink': { 900:'#1A1814', 700:'#3D3A33', 500:'#6B6657', 300:'#A8A294' },
-                        'forest': { 900:'#1E2E1F', 700:'#2F4A31', 500:'#4A6B4D', 300:'#8BA88D' },
-                        'terracotta': { 600:'#B8573E', 400:'#D4866F', 100:'#F2D9CE' },
-                        'saffron': { 500:'#D4A04A', 300:'#E6C489' },
+                        // Primary tokens (Figma semantic names)
+                        'bg':         '#F5F2EB',
+                        'surface':    '#FFFFFF',
+                        'surface-2':  '#EEE9DE',
+                        'surface-3':  '#E0D9C8',
+                        'border-1':   '#D4CCB8',
+
+                        // Legacy aliases — existing templates use these, now remapped to Figma values
+                        'cream':      '#F5F2EB',
+                        'paper':      '#EEE9DE',
+                        'sand':       '#E0D9C8',
+                        'stone':      '#D4CCB8',
+
+                        'ink': {
+                            900: '#14120E',
+                            700: '#4A453B',
+                            500: '#7A7364',
+                            300: '#A8A294',
+                        },
+
+                        'forest': {
+                            900: '#0F3D2E',
+                            700: '#1F5A44',
+                            500: '#1F5A44',
+                            300: '#6FA089',
+                            100: '#C7DBCE',
+                        },
+
+                        'terracotta': {
+                            600: '#C2552F',
+                            400: '#C2552F',
+                            100: '#F6DACB',
+                        },
+
+                        'saffron': {
+                            500: '#E0A23F',
+                            300: '#F3D58C',
+                        },
+
+                        // Feedback + old legacy names
+                        'primary':       '#E0A23F',
+                        'primary-light': '#F3D58C',
+                        'secondary':     '#1F5A44',
+                        'accent':        '#C2552F',
+                        'background':    '#14120E',
+                        'card':          '#15201A',
+                        'warning':       '#E0A23F',
+                        'success':       '#3E8A52',
+                        'danger':        '#C2552F',
                     },
                     fontFamily: {
                         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -49,377 +83,304 @@
         }
     </script>
     <style>
-        /* Sunday — editorial cream surface, dark only inside AR practice */
-        body {
-            background-color: #FAF7F2;
-            color: #1A1814;
+        /* Sunday · AsanaMind — core styles, aligned with Figma tokens */
+        :root {
+            --bg: #F5F2EB;
+            --surface: #FFFFFF;
+            --surface-2: #EEE9DE;
+            --surface-3: #E0D9C8;
+            --border: #D4CCB8;
+            --text-1: #14120E;
+            --text-2: #4A453B;
+            --text-3: #7A7364;
+            --text-4: #A8A294;
+            --primary: #0F3D2E;
+            --primary-2: #1F5A44;
+            --primary-3: #6FA089;
+            --primary-4: #C7DBCE;
+            --accent: #C2552F;
+            --accent-soft: #F6DACB;
+            --highlight: #E0A23F;
+            --highlight-2: #F3D58C;
+        }
+
+        html, body {
+            background: var(--bg);
+            color: var(--text-1);
             font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
             min-height: 100vh;
-            overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
 
         .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; letter-spacing: -0.02em; font-optical-sizing: auto; }
-        .kicker { letter-spacing: 0.22em; text-transform: uppercase; font-weight: 500; }
+        .kicker {
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            font-size: 11px;
+            line-height: 14px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+        }
 
         .view-fade-in { animation: viewFadeIn 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) forwards; }
         @keyframes viewFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .scrollable-content { overflow-y: auto; max-height: calc(100vh - 350px); scrollbar-width: none; }
-        .scrollable-content::-webkit-scrollbar { display: none; }
+        .scrollable-content { overflow-y: auto; max-height: 300px; scrollbar-width: thin; }
+        .scrollable-content::-webkit-scrollbar { width: 6px; }
+        .scrollable-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
 
         .loading-animation {
-            border: 4px solid rgba(26, 24, 20, 0.08);
-            border-top: 4px solid #2F4A31;
+            border: 3px solid rgba(31, 90, 68, 0.15);
+            border-top: 3px solid var(--primary-2);
             border-radius: 50%;
-            width: 24px; height: 24px;
+            width: 28px; height: 28px;
             animation: spin 0.9s linear infinite;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .pressable { transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease; }
-        .pressable:active { transform: translateY(1px) scale(0.99); }
+        .pressable:active { transform: scale(0.99); }
 
-        /* Editorial pose cards */
         .asana-tile {
             transition: transform 0.35s cubic-bezier(0.22, 0.8, 0.3, 1), box-shadow 0.35s ease;
             cursor: pointer;
         }
         .asana-tile:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 24px 50px -20px rgba(26, 24, 20, 0.22);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.12);
+        }
+
+        .blob {
+            position: absolute;
+            border-radius: 9999px;
+            pointer-events: none;
+            filter: blur(120px);
         }
 
         #cursor-glow { display: none; }
 
+        /* Voice assistant pulsing */
         @keyframes pulse-green {
-            0%   { box-shadow: 0 0 0 0 rgba(74, 127, 77, 0.55); }
-            70%  { box-shadow: 0 0 0 14px rgba(74, 127, 77, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(74, 127, 77, 0); }
+            0%   { box-shadow: 0 0 0 0 rgba(111, 160, 137, 0.55); }
+            70%  { box-shadow: 0 0 0 14px rgba(111, 160, 137, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(111, 160, 137, 0); }
         }
-        @keyframes pulse-blue {
-            0%   { box-shadow: 0 0 0 0 rgba(184, 87, 62, 0.55); }
-            70%  { box-shadow: 0 0 0 14px rgba(184, 87, 62, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(184, 87, 62, 0); }
+        @keyframes pulse-accent {
+            0%   { box-shadow: 0 0 0 0 rgba(194, 85, 47, 0.55); }
+            70%  { box-shadow: 0 0 0 14px rgba(194, 85, 47, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(194, 85, 47, 0); }
         }
-        .voice-listening { animation: pulse-green 1.5s infinite; border-color: #4A7F4D !important; }
-        .voice-talking   { animation: pulse-blue 1.5s infinite;  border-color: #B8573E !important; }
+        .voice-listening { animation: pulse-green 1.5s infinite; border-color: var(--primary-3) !important; }
+        .voice-talking   { animation: pulse-accent 1.5s infinite; border-color: var(--accent) !important; }
 
-        /* AR / Video feed */
+        /* AR camera feed */
         #video-container {
             position: relative;
             width: 100%;
             padding-top: 75%;
             background-color: #0A100B;
-            border-radius: 1.5rem;
+            border-radius: 28px;
             overflow: hidden;
-            box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--primary-2);
+            box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.18);
         }
         #video-feed { position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; transform: scaleX(-1); }
         #ar-canvas  { position: absolute; top:0; left:0; width:100%; height:100%; transform: scaleX(-1); }
 
-        /* Heatmap cell */
-        .heatcell {
-            width: 11px; height: 11px; border-radius: 3px;
-            background: rgba(26, 24, 20, 0.06);
-            transition: transform 0.15s ease;
-        }
-        .heatcell.lv1 { background: rgba(74, 107, 77, 0.4); }
-        .heatcell.lv2 { background: rgba(74, 107, 77, 0.6); }
-        .heatcell.lv3 { background: rgba(74, 107, 77, 0.8); }
-        .heatcell.lv4 { background: #4A6B4D; }
-        .heatcell:hover { transform: scale(1.8); }
-
-        /* --- Premium Asana Library Styles (editorial cream) --- */
-        .asana-card {
-            background: #F3EEE5;
-            border: 1px solid rgba(26, 24, 20, 0.04);
-            transition: all 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
-            color: #1A1814;
-        }
-
-        .asana-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 24px 50px -20px rgba(26, 24, 20, 0.22);
-            border-color: rgba(26, 24, 20, 0.08);
-        }
-
-        /* Modal Backdrop */
+        /* Modal — matches Figma pose detail */
         #asana-modal-backdrop {
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(8px);
+            background: rgba(20, 18, 14, 0.72);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.4s ease;
+            transition: opacity 0.3s ease;
         }
-
         #asana-modal-backdrop.active {
             opacity: 1;
             pointer-events: auto;
         }
-
-        /* Modal Content */
         #asana-modal-content {
-            transform: translateY(20px) scale(0.95);
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform: scale(0.95);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-
         #asana-modal-backdrop.active #asana-modal-content {
-            transform: translateY(0) scale(1);
+            transform: scale(1);
         }
 
-        /* Scrollbar for modal */
-        .modal-scroll::-webkit-scrollbar {
-            width: 6px;
+        /* Shadows matching Figma elevation tokens */
+        .shadow-1 { box-shadow: 0 2px 8px 0 rgba(20, 18, 14, 0.05); }
+        .shadow-2 { box-shadow: 0 8px 24px 0 rgba(20, 18, 14, 0.08); }
+        .shadow-3 { box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.10); }
+
+        /* Pill button variants — to match PrimaryPill in the Figma */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 9999px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 0 28px;
+            height: 54px;
+            border: 0;
+            cursor: pointer;
+            transition: transform 0.12s ease, background 0.2s;
+        }
+        .btn:active { transform: scale(0.99); }
+        .btn-primary { background: var(--primary); color: var(--bg); }
+        .btn-primary:hover { background: var(--primary-2); }
+        .btn-accent { background: var(--accent); color: var(--bg); }
+        .btn-accent:hover { filter: brightness(1.05); }
+        .btn-cream { background: var(--bg); color: var(--text-1); }
+        .btn-cream:hover { background: var(--surface-2); }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-1);
+            border: 1.5px solid var(--text-1);
+        }
+        .btn-ghost-dark {
+            background: transparent;
+            color: var(--primary-4);
+            border: 1.5px solid var(--primary-3);
+        }
+        .btn-sm { height: 40px; padding: 0 18px; font-size: 13px; }
+
+        /* Photo cards */
+        .pose-photo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: saturate(0.88) contrast(1.02);
+            display: block;
         }
 
-        .modal-scroll::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
+        .veil-b {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(20,18,14,0) 0%, rgba(20,18,14,0.55) 60%, rgba(20,18,14,0.85) 100%);
+        }
+        .veil-dark {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(15,61,46,0.55) 0%, rgba(15,61,46,0.15) 35%, rgba(15,61,46,0.65) 75%, rgba(15,61,46,0.92) 100%);
         }
 
-        .modal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(66, 165, 245, 0.3);
-            border-radius: 10px;
-        }
-
-        /* ========================================
-           MOBILE RESPONSIVENESS FIXES
-           ======================================== */
-
-        /* Base reset for all screens */
-        * {
-            box-sizing: border-box;
-        }
-
-        /* Mobile-first media queries */
-        @media screen and (max-width: 768px) {
-            body {
-                font-size: 14px;
-            }
-
-            #app {
-                padding: 12px !important;
-            }
-
-            header {
-                flex-direction: column !important;
-                gap: 16px !important;
-                padding-bottom: 16px !important;
-                margin-bottom: 16px !important;
-            }
-
-            header h1 {
-                font-size: 2rem !important;
-            }
-
-            header .text-left p {
-                font-size: 9px !important;
-            }
-
-            /* Navigation buttons */
-            header .flex.items-center.space-x-3 {
-                flex-wrap: wrap;
-                gap: 8px !important;
-            }
-
-            header button,
-            header a {
-                padding: 8px 12px !important;
-                font-size: 11px !important;
-            }
-
-            /* Main content area */
-            main#content {
-                padding: 16px !important;
-                border-radius: 20px !important;
-                min-height: 50vh !important;
-            }
-
-            /* Feature cards grid */
-            .grid.md\\:grid-cols-2 {
-                grid-template-columns: 1fr !important;
-            }
-
-            /* Bottom navigation */
-            nav.fixed {
-                padding-bottom: env(safe-area-inset-bottom, 8px);
-            }
-
-            #nav-tabs {
-                gap: 4px !important;
-            }
-
-            #nav-tabs button {
-                flex-direction: column !important;
-                padding: 8px 6px !important;
-                font-size: 9px !important;
-                gap: 2px !important;
-            }
-
-            #nav-tabs button svg {
-                width: 20px !important;
-                height: 20px !important;
-            }
-
-            #nav-tabs button span {
-                font-size: 9px !important;
-            }
-
-            /* Asana cards */
-            .asana-card {
-                padding: 12px !important;
-            }
-
-            /* Modal adjustments */
-            #asana-modal-content {
-                margin: 12px !important;
-                max-height: 85vh !important;
-            }
-        }
-
-        /* Extra small screens */
-        @media screen and (max-width: 400px) {
-            header h1 {
-                font-size: 1.5rem !important;
-            }
-
-            header .w-12 {
-                width: 40px !important;
-                height: 40px !important;
-            }
-
-            header button,
-            header a {
-                padding: 6px 10px !important;
-                font-size: 10px !important;
-            }
-
-            #nav-tabs button {
-                padding: 6px 4px !important;
-            }
-        }
+        /* Hide Tailwind's `h-[xxx]` media query warnings by using safe CSS only */
+        .hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 
-<body class="min-h-screen text-ink-900">
+<body class="min-h-screen">
 
-    <div id="cursor-glow"></div>
-
-    <!-- Top nav (desktop) -->
-    <header class="bg-cream/95 backdrop-blur-md sticky top-0 z-20 border-b border-stone">
-        <div class="max-w-[1400px] mx-auto px-5 md:px-12 h-[72px] md:h-[88px] flex items-center justify-between">
-            <a href="/home" class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-forest-900 flex items-center justify-center overflow-hidden">
-                    <img src="/assets/logo.png" alt="" class="w-5 h-5 object-contain"/>
-                </div>
-                <span class="font-display text-[22px] text-ink-900 font-medium">Sunday</span>
+    <!-- Top nav — matches Figma Layout.tsx TopBar -->
+    <header class="sticky top-0 z-40" style="background:rgba(245,242,235,0.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid rgba(26,24,20,0.06)">
+        <div class="mx-auto flex items-center justify-between" style="max-width:1200px; padding:0 24px; height:72px">
+            <a href="/home" class="flex items-center" style="gap:10px">
+                <div class="rounded-full flex items-center justify-center" style="width:28px; height:28px; background:#0F3D2E; color:#F5F2EB; font-family:Fraunces,serif; font-size:15px; font-weight:500">s</div>
+                <span class="font-display" style="font-size:19px; font-weight:500; color:#14120E; letter-spacing:-0.01em">sunday</span>
             </a>
 
-            <nav id="top-nav" class="hidden md:flex items-center gap-10 text-[14px]"></nav>
+            <nav id="top-nav" class="hidden md:flex items-center" style="gap:4px"></nav>
 
-            <div class="flex items-center gap-2">
-                <button id="voice-toggle" onclick="app.toggleVoiceControl()"
-                    title="Voice assistant"
-                    aria-label="Toggle voice assistant"
-                    class="flex items-center gap-2 text-[12px] px-3 sm:px-4 py-2 rounded-full bg-paper hover:bg-sand border border-stone text-ink-700 font-medium transition-all active:scale-95">
-                    <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 transition-colors duration-300">
+            <div class="flex items-center" style="gap:12px">
+                <button id="voice-toggle" onclick="app.toggleVoiceControl()" title="Voice assistant" aria-label="Toggle voice assistant"
+                    class="flex items-center pressable" style="gap:8px; height:40px; padding:0 14px; border-radius:9999px; background:#EEE9DE; border:1px solid #D4CCB8; color:#4A453B; font-size:12px; font-weight:500">
+                    <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
                         <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
                         <path fill-rule="evenodd" d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
                         <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
                     </svg>
-                    <span id="mic-status-text" class="kicker text-[10px] hidden sm:inline">Voice</span>
+                    <span id="mic-status-text" class="kicker hidden sm:inline" style="font-size:10px">Voice</span>
                 </button>
-                <a href="/profile" class="w-10 h-10 rounded-full bg-forest-900 text-saffron-500 font-display text-[16px] flex items-center justify-center hover:bg-forest-700 transition-colors" id="avatar-btn">A</a>
-                <a href="/logout" class="hidden md:inline-flex text-[12px] text-ink-500 hover:text-terracotta-600 kicker ml-3">Sign out</a>
+                <a href="/logout" class="hidden md:inline" style="font-size:13px; color:#7A7364; padding:8px 14px">Sign out</a>
+                <a href="/profile" id="avatar-btn" class="rounded-full flex items-center justify-center pressable"
+                    style="width:36px; height:36px; background:#0F3D2E; color:#E0A23F; font-family:Fraunces,serif; font-size:15px; font-weight:500">A</a>
             </div>
         </div>
     </header>
 
-    <div id="app" class="w-full">
-        <main id="content" class="max-w-[1400px] mx-auto px-4 md:px-10 lg:px-12 py-6 md:py-10 pb-24 md:pb-12">
-        </main>
+    <main id="content" style="max-width:1200px; margin:0 auto; padding:40px 24px 100px">
+    </main>
 
-        <!-- Mobile bottom tab bar -->
-        <nav class="fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-lg border-t border-stone z-30 md:hidden" style="box-shadow: 0 -4px 24px rgba(26,24,20,0.06);">
-            <div id="nav-tabs" class="flex justify-around items-center max-w-3xl mx-auto py-3 pb-5"></div>
-        </nav>
-    </div>
+    <!-- Mobile bottom tab bar — 4 tabs, accent dot on active -->
+    <nav class="fixed bottom-0 left-0 right-0 md:hidden" style="z-index:30; background:#F5F2EB; border-top:1px solid #E0D9C8; box-shadow:0 -4px 20px rgba(26,24,20,0.04)">
+        <div id="nav-tabs" class="flex items-center justify-around" style="padding:12px 0 20px; max-width:480px; margin:0 auto"></div>
+    </nav>
 
-    <!-- Asana Details Modal Backdrop -->
+    <div id="app" class="hidden"></div>
+
+    <!-- Asana Details Modal — matches Figma PoseModal -->
     <div id="asana-modal-backdrop" onclick="if(event.target === this) app.closeAsanaDetails()"
-        class="fixed inset-0 bg-ink-900/70 backdrop-blur-md z-[60] flex items-center justify-center p-4 md:p-8 opacity-0 pointer-events-none transition-all duration-500">
+        class="fixed inset-0 flex items-center justify-center" style="padding:16px; z-index:60">
         <div id="asana-modal-content"
-            class="bg-cream w-full max-w-4xl max-h-[90vh] rounded-[28px] shadow-2xl border border-stone overflow-hidden relative transform scale-95 transition-all duration-500 overflow-y-auto">
-            <button onclick="app.closeAsanaDetails()"
-                class="absolute top-5 right-5 z-20 w-10 h-10 bg-paper hover:bg-sand rounded-full flex items-center justify-center transition-all active:scale-90">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-ink-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
+            class="relative overflow-hidden" style="background:#F5F2EB; width:100%; max-width:900px; max-height:92vh; border-radius:28px; border:1px solid #D4CCB8; box-shadow:0 16px 40px 0 rgba(20,18,14,0.24); overflow-y:auto">
+            <button onclick="app.closeAsanaDetails()" aria-label="Close"
+                class="absolute pressable flex items-center justify-center" style="top:16px; right:16px; width:40px; height:40px; border-radius:9999px; background:#EEE9DE; color:#4A453B; border:0; cursor:pointer; z-index:10; font-size:18px">×</button>
 
-            <!-- Editorial hero with pose silhouette -->
-            <div class="relative bg-forest-900 text-cream overflow-hidden grid md:grid-cols-[1fr_auto]">
-                <div style="position:absolute; width:500px; height:500px; border-radius:9999px; background:rgba(74,107,77,0.45); filter:blur(110px); top:-100px; right:-100px; pointer-events:none;"></div>
-                <div style="position:absolute; width:340px; height:340px; border-radius:9999px; background:rgba(184,87,62,0.3); filter:blur(90px); bottom:-120px; left:-80px; pointer-events:none;"></div>
-                <div class="relative z-10 px-6 md:px-12 pt-12 pb-10 md:pb-14">
-                    <div class="flex flex-wrap items-center gap-2 mb-4">
-                        <span class="kicker text-[11px] px-2.5 py-1 rounded-full bg-saffron-500 text-forest-900">Reference</span>
-                        <span id="modal-view-badge" class="kicker text-[11px] px-2.5 py-1 rounded-full bg-forest-700 text-saffron-500">FRONT VIEW</span>
+            <!-- Editorial hero with photo -->
+            <div class="relative overflow-hidden" style="background:#0F3D2E; min-height:280px">
+                <div class="blob" style="width:360px; height:360px; top:-120px; right:-80px; background:rgba(224,162,63,0.35)"></div>
+                <div class="blob" style="width:320px; height:320px; bottom:-100px; left:-80px; background:rgba(194,85,47,0.28)"></div>
+                <div class="relative md:grid md:grid-cols-[3fr_2fr]" style="z-index:2; gap:24px">
+                    <div style="padding:32px 24px; display:flex; flex-direction:column; justify-content:center; gap:12px">
+                        <div class="flex flex-wrap" style="gap:8px">
+                            <span class="kicker" style="background:#E0A23F; color:#0F3D2E; padding:4px 10px; border-radius:9999px; font-size:10px">Reference</span>
+                            <span id="modal-view-badge" class="kicker" style="background:#1F5A44; color:#E0A23F; padding:4px 10px; border-radius:9999px; font-size:10px">FRONT VIEW</span>
+                        </div>
+                        <span class="kicker" style="color:#E0A23F"><span id="modal-asana-category-kicker">Beginner</span> · Foundation</span>
+                        <h3 id="modal-asana-name" class="font-display" style="font-size:clamp(40px, 6vw, 64px); font-weight:300; color:#F5F2EB; line-height:1.0; letter-spacing:-0.03em; margin:0">Asana Name</h3>
+                        <p id="modal-asana-sanskrit" class="font-display" style="font-size:clamp(20px, 3vw, 26px); font-weight:400; color:#6FA089; margin:4px 0 0">Sanskrit</p>
                     </div>
-                    <p class="kicker text-[11px] text-saffron-500 mb-3"><span id="modal-asana-category-kicker">Beginner</span> · Foundation</p>
-                    <h3 id="modal-asana-name" class="font-display text-[44px] md:text-[64px] font-light leading-[1] tracking-tight">Asana Name</h3>
-                    <p id="modal-asana-sanskrit" class="font-display text-[22px] md:text-[26px] text-forest-300 mt-2">Sanskrit Name</p>
-                </div>
-                <div class="relative z-10 hidden md:flex items-center justify-center pr-8 py-8">
-                    <img id="modal-asana-silhouette" alt="" class="w-[220px] lg:w-[260px] h-[280px] lg:h-[320px] rounded-2xl shadow-xl shadow-black/25" />
+                    <div class="hidden md:flex items-center justify-center" style="padding:24px">
+                        <div style="width:100%; max-width:240px; aspect-ratio:220/260; background:#EEE9DE; border-radius:24px; overflow:hidden; box-shadow:0 14px 40px rgba(0,0,0,0.35)">
+                            <img id="modal-asana-silhouette" alt="" class="pose-photo"/>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Content -->
-            <div class="p-6 md:p-10 bg-cream">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
-                    <div class="md:col-span-2 space-y-8">
-                        <section>
-                            <p class="kicker text-[11px] text-terracotta-600 mb-2">Overview</p>
-                            <p id="modal-asana-benefits" class="text-[15px] md:text-[16px] text-ink-700 leading-[1.75]"></p>
-                        </section>
-
-                        <section>
-                            <p class="kicker text-[11px] text-terracotta-600 mb-2">Precautions</p>
-                            <div class="rounded-2xl bg-terracotta-100 border border-terracotta-100 px-5 py-4">
-                                <p id="modal-asana-precaution" class="text-[14px] text-ink-700 leading-[1.65]"></p>
-                            </div>
-                        </section>
-
-                        <section>
-                            <p class="kicker text-[11px] text-terracotta-600 mb-3">Practice steps</p>
-                            <ol id="modal-asana-steps" class="space-y-3 text-ink-700"></ol>
-                        </section>
-                    </div>
-
-                    <div class="space-y-5">
-                        <div class="rounded-2xl bg-paper p-5">
-                            <p class="kicker text-[10px] text-ink-500 mb-3">Specifications</p>
-                            <div class="space-y-4">
-                                <div>
-                                    <p class="kicker text-[10px] text-ink-300 mb-1">Difficulty</p>
-                                    <span id="modal-asana-category" class="inline-flex px-3 py-1 text-[11px] rounded-full font-semibold bg-forest-900 text-cream">Beginner</span>
-                                </div>
-                                <div>
-                                    <p class="kicker text-[10px] text-ink-300 mb-1">Target areas</p>
-                                    <p id="modal-asana-targeted" class="text-[14px] text-ink-700 font-medium"></p>
-                                </div>
-                            </div>
+            <!-- Body -->
+            <div style="padding:32px 24px; display:grid; grid-template-columns:1fr; gap:24px">
+                <div style="display:flex; flex-direction:column; gap:22px">
+                    <section>
+                        <span class="kicker" style="color:#C2552F">Overview</span>
+                        <p id="modal-asana-benefits" style="font-size:15px; color:#4A453B; line-height:1.65; margin:8px 0 0"></p>
+                    </section>
+                    <section>
+                        <span class="kicker" style="color:#C2552F">Precautions</span>
+                        <div style="background:#F6DACB; border-radius:14px; padding:14px; margin-top:8px">
+                            <p id="modal-asana-precaution" style="font-size:14px; color:#14120E; line-height:1.55; margin:0"></p>
                         </div>
+                    </section>
+                    <section>
+                        <span class="kicker" style="color:#C2552F">Practice steps</span>
+                        <ol id="modal-asana-steps" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px"></ol>
+                    </section>
+                </div>
 
-                        <button id="modal-start-btn"
-                            class="pressable w-full py-4 bg-terracotta-600 hover:bg-terracotta-400 text-cream font-semibold rounded-full transition-all shadow-lg shadow-terracotta-600/15 flex items-center justify-center gap-2">
-                            <span>Practice with AR coach</span>
-                            <span class="opacity-80">→</span>
-                        </button>
+                <div style="display:flex; flex-direction:column; gap:16px">
+                    <div style="background:#EEE9DE; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:14px">
+                        <div>
+                            <span class="kicker" style="color:#7A7364">Difficulty</span>
+                            <div style="margin-top:8px"><span id="modal-asana-category" class="kicker" style="background:#0F3D2E; color:#F5F2EB; padding:4px 12px; border-radius:9999px; font-size:11px">Beginner</span></div>
+                        </div>
+                        <div>
+                            <span class="kicker" style="color:#7A7364">Target areas</span>
+                            <p id="modal-asana-targeted" style="font-weight:500; color:#14120E; font-size:15px; margin:6px 0 0"></p>
+                        </div>
                     </div>
+                    <button id="modal-start-btn" class="btn btn-accent pressable" style="width:100%">
+                        <span>Practice with AR coach</span>
+                        <span aria-hidden="true">→</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -1081,10 +1042,9 @@
             },
 
             /**
-             * Loads the reference silhouette for the selected pose.
-             * Prefers a SVG illustration from the rule engine's pose library
-             * (so every asana has a consistent reference), with legacy photos
-             * as an optional fallback.
+             * Loads the reference image for the selected pose.
+             * Prefers the real ChatGPT-generated photo from poses.js, with an
+             * SVG silhouette fallback if the photo is missing.
              */
             loadReferenceImage(poseName) {
                 const imageElement = document.getElementById('reference-image');
@@ -1093,30 +1053,22 @@
 
                 const asana = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(a => a.name === poseName) : null;
 
-                // 1) Prefer the SVG silhouette (consistent across all 20 poses).
-                if (asana && typeof PoseImage !== 'undefined' && asana.referenceKeypoints) {
-                    imageElement.src = PoseImage.dataUri(asana, { bg: '#F3EEE5', body: '#1E2E1F', joint: '#D4A04A', width: 400, height: 460 });
+                if (asana && asana.imagePath) {
+                    imageElement.src = asana.imagePath;
                     imageElement.alt = asana.name + ' reference';
                     imageElement.classList.remove('hidden');
                     if (placeholder) placeholder.classList.add('hidden');
                     return;
                 }
-
-                // 2) Legacy photos (kept for backwards compatibility).
-                const imageMap = {
-                    'Tadasana': '/assets/poses/tadasana.jpg',
-                    'Vrikshasana': '/assets/poses/vrikshasana.jpg',
-                    'Anjali Mudra': '/assets/poses/namaste.png',
-                };
-                const imagePath = imageMap[poseName];
-                if (imagePath) {
-                    imageElement.src = imagePath;
+                if (asana && typeof PoseImage !== 'undefined' && asana.referenceKeypoints) {
+                    imageElement.src = PoseImage.dataUri(asana, { bg: '#0F3D2E', body: '#C7DBCE', joint: '#E0A23F', width: 400, height: 460 });
+                    imageElement.alt = asana.name + ' silhouette';
                     imageElement.classList.remove('hidden');
                     if (placeholder) placeholder.classList.add('hidden');
-                } else {
-                    imageElement.classList.add('hidden');
-                    if (placeholder) placeholder.classList.remove('hidden');
+                    return;
                 }
+                imageElement.classList.add('hidden');
+                if (placeholder) placeholder.classList.remove('hidden');
             },
 
             /**
@@ -1683,32 +1635,76 @@
                 `;
             },
 
+            filterLibrary(filter) {
+                const grid = document.getElementById('lib-grid');
+                if (!grid) return;
+                // update chips
+                document.querySelectorAll('#lib-filters button').forEach(b => {
+                    const isA = b.dataset.filter === filter;
+                    b.style.background = isA ? '#0F3D2E' : 'transparent';
+                    b.style.color = isA ? '#F5F2EB' : '#4A453B';
+                    b.style.border = isA ? '1px solid #0F3D2E' : '1px solid #D4CCB8';
+                });
+                const q = (document.getElementById('lib-search')?.value || '').toLowerCase();
+                grid.querySelectorAll('.asana-tile').forEach(el => {
+                    const level = el.dataset.level;
+                    const view = el.dataset.view;
+                    let show = true;
+                    if (filter === 'Beginner' || filter === 'Intermediate' || filter === 'Advanced') show = level === filter;
+                    else if (filter === 'Front' || filter === 'Side') show = view.toLowerCase() === filter.toLowerCase();
+                    if (show && q) show = el.dataset.name.includes(q) || el.dataset.sanskrit.includes(q);
+                    el.style.display = show ? '' : 'none';
+                });
+            },
+
+            searchLibrary(q) {
+                const grid = document.getElementById('lib-grid');
+                if (!grid) return;
+                const ql = (q || '').toLowerCase();
+                const activeChip = document.querySelector('#lib-filters button[style*="#0F3D2E"]');
+                const filter = activeChip?.dataset.filter || 'All';
+                grid.querySelectorAll('.asana-tile').forEach(el => {
+                    let show = true;
+                    if (filter === 'Beginner' || filter === 'Intermediate' || filter === 'Advanced') show = el.dataset.level === filter;
+                    else if (filter === 'Front' || filter === 'Side') show = el.dataset.view.toLowerCase() === filter.toLowerCase();
+                    if (show && ql) show = el.dataset.name.includes(ql) || el.dataset.sanskrit.includes(ql);
+                    el.style.display = show ? '' : 'none';
+                });
+            },
+
             // --- Rendering Methods ---
             renderNav() {
-                // Desktop top nav (render into header)
+                // Desktop top nav — matches Figma Layout.tsx "Today / Library / Practice / Profile"
                 const topNav = document.getElementById('top-nav');
+                const tabs = [
+                    { key: 'dashboard',     label: 'Today' },
+                    { key: 'asana',         label: 'Library' },
+                    { key: 'ar_correction', label: 'Practice' },
+                    { key: 'course',        label: 'Course' },
+                ];
                 if (topNav) {
-                    topNav.innerHTML = Object.keys(this.views).map(key => {
-                        const view = this.views[key];
-                        const isActive = this.currentView === key;
+                    topNav.innerHTML = tabs.map(t => {
+                        const a = this.currentView === t.key;
                         return `
-                            <button onclick="app.navigate('${key}')"
-                                    class="flex flex-col items-center gap-1.5 group">
-                                <span class="${isActive ? 'text-ink-900' : 'text-ink-500 hover:text-ink-900'} font-medium text-[14px] transition-colors">${view.name}</span>
-                                <span class="h-0.5 rounded-full transition-all ${isActive ? 'w-6 bg-terracotta-600' : 'w-0 bg-terracotta-600'}"></span>
-                            </button>
+                            <button onclick="app.navigate('${t.key}')" class="pressable" style="
+                                padding: 10px 18px;
+                                border-radius: 9999px;
+                                font-size: 14px;
+                                font-weight: ${a ? 500 : 400};
+                                color: ${a ? '#14120E' : '#7A7364'};
+                                background: ${a ? 'rgba(30,46,31,0.08)' : 'transparent'};
+                                letter-spacing: -0.005em;
+                            ">${t.label}</button>
                         `;
                     }).join('');
                 }
-                // Mobile bottom tab bar
-                this.navTabsEl.innerHTML = Object.keys(this.views).map(key => {
-                    const view = this.views[key];
-                    const isActive = this.currentView === key;
+                // Mobile bottom tab bar — matches Figma MobileTabBar
+                this.navTabsEl.innerHTML = tabs.map(t => {
+                    const a = this.currentView === t.key;
                     return `
-                        <button onclick="app.navigate('${key}')"
-                                class="flex flex-col items-center justify-center gap-1 flex-1 py-1 pressable">
-                            <span class="w-1.5 h-1.5 rounded-full ${isActive ? 'bg-terracotta-600' : 'bg-transparent'}"></span>
-                            <span class="kicker text-[10px] ${isActive ? 'text-ink-900' : 'text-ink-300'}">${view.name}</span>
+                        <button onclick="app.navigate('${t.key}')" class="flex flex-col items-center pressable" style="gap:6px; flex:1">
+                            <span class="rounded-full" style="width:6px; height:6px; background:${a ? '#C2552F' : 'transparent'}"></span>
+                            <span class="kicker" style="color:${a ? '#14120E' : '#A8A294'}; font-size:10px">${t.label}</span>
                         </button>
                     `;
                 }).join('');
@@ -1743,191 +1739,179 @@
             },
 
             renderDashboard() {
-                // Pull live data if available
-                const userName = (typeof window !== 'undefined' && window.__user_name) ? window.__user_name : 'friend';
-                const first = (userName || 'A').trim().split(/\s+/)[0];
-
-                const hourOfDay = new Date().getHours();
-                const tod = hourOfDay < 5 ? 'NIGHT' : hourOfDay < 12 ? 'MORNING' : hourOfDay < 17 ? 'AFTERNOON' : hourOfDay < 21 ? 'EVENING' : 'NIGHT';
-                const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+                const userName = (typeof window !== 'undefined' && window.__user_name) ? window.__user_name : '';
+                const first = (userName || 'friend').trim().split(/\s+/)[0];
+                const hour = new Date().getHours();
+                const tod = hour < 5 ? 'Night' : hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : hour < 21 ? 'Evening' : 'Night';
+                const greeting = tod === 'Morning' ? 'Good morning' : tod === 'Afternoon' ? 'Good afternoon' : tod === 'Evening' ? 'Good evening' : 'Welcome back';
+                const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
                 const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-                // Pick today's focus asana (first non-completed from course or default Tadasana)
                 const todaysPose = (this.courseProgress?.poses || []).find(p => !p.completed && !p.locked);
                 const todayName = todaysPose?.name || 'Tadasana';
                 const todayAsana = asanaData.find(a => a.name === todayName) || asanaData[0];
 
-                // KPIs
                 const completedAsanas = this.userData?.completed_asanas || {};
                 const totalSessions = Object.values(completedAsanas).reduce((a,b)=>a+(Number(b)||0),0);
                 const activeDays = this.userData?.total_active_days || 0;
+                const meanAccuracy = (function(){
+                    const poses = (this.courseProgress?.poses || []);
+                    const withAcc = poses.filter(p => p.bestAccuracy > 0);
+                    if (!withAcc.length) return '—';
+                    return Math.round(withAcc.reduce((a,p)=>a+p.bestAccuracy,0) / withAcc.length) + '%';
+                }).call(this);
+                const level = activeDays >= 60 ? 'III' : activeDays >= 14 ? 'II' : 'I';
 
-                // Continue list: last 3 poses from course progress, falling back to defaults
                 const continueList = (this.courseProgress?.poses || []).slice(0, 3);
 
                 return `
-                <div class="space-y-6 md:space-y-10">
+                <div class="view-fade-in">
 
-                    <!-- Hero -->
-                    <section class="relative overflow-hidden rounded-[24px] md:rounded-[32px] bg-forest-900 text-cream p-6 md:p-10 lg:p-12">
-                        <div style="position:absolute; width:560px; height:560px; border-radius:9999px; background:rgba(74,107,77,0.38); filter:blur(120px); top:-160px; right:-140px; pointer-events:none;"></div>
-                        <div style="position:absolute; width:360px; height:360px; border-radius:9999px; background:rgba(184,87,62,0.28); filter:blur(100px); bottom:-140px; left:-100px; pointer-events:none;"></div>
+                    <!-- HERO -->
+                    <section class="relative overflow-hidden" style="border-radius:32px; background:#0F3D2E; color:#F5F2EB; padding:32px 24px; margin-bottom:32px">
+                        <div class="blob" style="width:360px; height:360px; top:-120px; right:-80px; background:rgba(224,162,63,0.35)"></div>
+                        <div class="blob" style="width:320px; height:320px; bottom:-100px; left:-80px; background:rgba(194,85,47,0.28)"></div>
 
-                        <div class="relative grid md:grid-cols-[1.3fr_1fr] gap-5 md:gap-10 items-center">
-                            <div class="space-y-4 md:space-y-5">
-                                <p class="kicker text-[10px] md:text-[11px] text-saffron-500">${dayName} · ${tod} · ${timeStr}</p>
-                                <h1 class="font-display font-light text-[36px] md:text-[56px] lg:text-[68px] leading-[1.05] tracking-tight">
-                                    ${tod === 'MORNING' ? 'Good morning' : tod === 'AFTERNOON' ? 'Good afternoon' : tod === 'EVENING' ? 'Good evening' : 'Welcome back'},<br>${first}.
+                        <div class="relative grid md:grid-cols-[1.3fr_1fr]" style="gap:32px; align-items:center; z-index:2">
+                            <div class="flex flex-col" style="gap:18px">
+                                <span class="kicker" style="color:#E0A23F">${dayName} · ${tod} · ${timeStr}</span>
+                                <h1 class="font-display" style="font-size:clamp(40px, 7vw, 80px); font-weight:300; line-height:1.02; letter-spacing:-0.03em; margin:0">
+                                    ${greeting},<br />${first}.
                                 </h1>
-                                <p class="text-[14px] md:text-[16px] text-forest-100/90 leading-[1.6] max-w-[520px]">
-                                    ${activeDays > 0 ? `<strong class="text-cream">${activeDays} day${activeDays===1?'':'s'}</strong> of practice so far. ` : ''}Today, return to ${todayName}.
+                                <p style="color:rgba(212,224,213,0.9); font-size:17px; line-height:1.55; max-width:540px; margin:0">
+                                    ${activeDays > 0 ? activeDays + ' day' + (activeDays===1?'':'s') + ' of practice so far. ' : ''}Today, return to ${todayName}.
                                 </p>
-                                <div class="flex flex-wrap items-center gap-3 pt-1">
-                                    <button onclick="app.navigate('ar_correction')" class="pressable inline-flex items-center gap-2 px-5 md:px-7 py-3 md:py-3.5 rounded-full bg-cream text-ink-900 font-semibold text-[13px] md:text-[14px] shadow-lg shadow-black/25 hover:bg-paper">
-                                        Start practice <span class="opacity-70">→</span>
-                                    </button>
-                                    <button onclick="app.navigate('asana')" class="pressable inline-flex items-center gap-2 px-5 md:px-7 py-3 md:py-3.5 rounded-full border border-forest-300/60 text-forest-100 font-semibold text-[13px] md:text-[14px] hover:bg-forest-700/40">
-                                        Browse poses
-                                    </button>
+                                <div class="flex flex-wrap" style="gap:14px; margin-top:6px">
+                                    <button class="btn btn-cream pressable" onclick="app.navigate('ar_correction')">Start today's practice  →</button>
+                                    <button class="btn btn-ghost-dark pressable" onclick="app.navigate('asana')">Just browse for now</button>
                                 </div>
                             </div>
-                            <div class="relative rounded-[20px] md:rounded-[24px] bg-forest-700 aspect-[4/3] hidden md:flex flex-col items-center justify-center overflow-hidden">
-                                <div style="position:absolute; inset:0; background: radial-gradient(circle at 50% 40%, rgba(212,160,74,0.25), transparent 60%);"></div>
-                                <span class="relative text-[140px] leading-none font-display font-light text-forest-100">${todayAsana.emoji || '🧘'}</span>
-                                <div class="absolute bottom-4 left-4 right-4">
-                                    <p class="kicker text-[10px] text-saffron-500">TODAY</p>
-                                    <p class="font-display text-[22px] text-cream mt-0.5">${todayAsana.name}</p>
+                            <div class="relative z-10 hidden md:flex items-center justify-center">
+                                <div class="relative overflow-hidden" style="width:100%; max-width:460px; aspect-ratio:460/324; border-radius:24px; background:#1F5A44">
+                                    ${todayAsana.imagePath ? `<img class="pose-photo" src="${todayAsana.imagePath}" alt="${todayAsana.name}" style="filter:saturate(0.7) brightness(0.85) contrast(1.05)">` : ''}
+                                    <div class="absolute inset-x-0 bottom-0" style="height:55%; background:linear-gradient(180deg, rgba(30,46,31,0) 0%, rgba(30,46,31,0.65) 60%, rgba(30,46,31,0.92) 100%)"></div>
+                                    <div class="absolute" style="left:24px; bottom:20px">
+                                        <span class="kicker" style="color:#E0A23F">Today's focus</span>
+                                        <div class="font-display" style="font-size:22px; font-weight:400; color:#F5F2EB; margin-top:4px">${todayAsana.name}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </section>
 
                     <!-- KPIs -->
-                    <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <section class="grid grid-cols-2 md:grid-cols-4" style="gap:12px; margin-bottom:32px">
                         ${[
-                            {k:'STREAK', v: activeDays, s:'active days'},
-                            {k:'SESSIONS', v: totalSessions, s:'poses completed'},
-                            {k:'LEARNING', v: Object.keys(completedAsanas).length, s:'in rotation'},
-                            {k:'LEVEL', v: activeDays>=60?'III': activeDays>=14?'II':'I', s:'rank'},
+                            {k:'Streak',   v: activeDays, h:'days unbroken'},
+                            {k:'Sessions', v: totalSessions, h:'poses completed'},
+                            {k:'Accuracy', v: meanAccuracy, h:'mean pose score'},
+                            {k:'Level',    v: level, h:'practitioner rank'},
                         ].map(kpi => `
-                            <div class="rounded-[16px] md:rounded-[20px] bg-paper p-4 md:p-5 flex flex-col justify-between min-h-[110px] md:min-h-[140px]">
-                                <p class="kicker text-[10px] text-terracotta-600">${kpi.k}</p>
+                            <div style="background:#EEE9DE; border-radius:22px; padding:20px; min-height:150px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 10px 30px rgba(26,24,20,0.06)">
+                                <span class="kicker" style="color:#C2552F">${kpi.k}</span>
                                 <div>
-                                    <p class="font-display text-[40px] md:text-[54px] leading-[0.95] font-light text-ink-900">${kpi.v}</p>
-                                    <p class="text-[11px] md:text-[12px] text-ink-500 mt-0.5">${kpi.s}</p>
+                                    <div class="font-display" style="font-size:clamp(40px, 5vw, 56px); font-weight:300; color:#14120E; line-height:1; letter-spacing:-0.02em">${kpi.v}</div>
+                                    <span style="color:#7A7364; font-size:13px; margin-top:4px; display:block">${kpi.h}</span>
                                 </div>
                             </div>
                         `).join('')}
                     </section>
 
-                    <!-- Continue + Quote -->
-                    <section class="grid md:grid-cols-[1.1fr_1fr] gap-4">
-                        <div class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-7">
-                            <div class="flex items-start justify-between mb-4">
-                                <div>
-                                    <p class="kicker text-[10px] text-terracotta-600">Continue</p>
-                                    <h3 class="font-display text-[22px] md:text-[28px] text-ink-900 mt-1">Where you left off</h3>
-                                </div>
-                                <button onclick="app.navigate('asana')" class="kicker text-[11px] text-ink-500 hover:text-ink-900 hidden md:inline-flex">ALL →</button>
+                    <!-- CONTINUE + RHYTHM -->
+                    <section class="grid md:grid-cols-[1.1fr_1fr]" style="gap:16px; margin-bottom:32px">
+                        <!-- Continue card -->
+                        <div style="background:#EEE9DE; border-radius:28px; padding:24px">
+                            <div class="flex items-center justify-between" style="margin-bottom:8px">
+                                <span class="kicker" style="color:#C2552F">Continue</span>
+                                <button onclick="app.navigate('asana')" class="kicker" style="color:#14120E; background:none; border:0; cursor:pointer">All →</button>
                             </div>
-                            <div class="space-y-2.5">
+                            <h3 class="font-display" style="font-size:clamp(22px, 3vw, 32px); font-weight:400; color:#14120E; margin:0 0 18px">Where you left off</h3>
+                            <div class="flex flex-col" style="gap:10px">
                                 ${continueList.map(p => {
                                     const a = asanaData.find(x => x.name === p.name);
-                                    const cat = (a?.category || 'Beginner').toUpperCase();
                                     const pct = Math.round(p.bestAccuracy || 0);
                                     return `
-                                    <button onclick="app.showAsanaDetails('${p.name}')" class="pressable w-full text-left flex items-center gap-3 md:gap-4 p-3 rounded-[14px] bg-cream hover:bg-sand transition-colors">
-                                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-forest-900 text-saffron-500 flex items-center justify-center text-[18px] md:text-[22px] shrink-0">${a?.emoji || '🧘'}</div>
-                                        <div class="flex-1 min-w-0">
-                                            <p class="font-display text-[15px] md:text-[17px] text-ink-900 truncate">${p.name}</p>
-                                            <p class="kicker text-[9px] text-ink-500 mt-0.5 truncate">${(a?.sanskrit || '').toUpperCase()} · ${cat}</p>
+                                    <button onclick="app.showAsanaDetails('${p.name}')" class="pressable flex items-center" style="width:100%; background:#F5F2EB; border:0; border-radius:18px; padding:12px 16px; gap:14px; text-align:left; cursor:pointer">
+                                        <div style="width:52px; height:52px; border-radius:12px; background:#E0D9C8; overflow:hidden; flex-shrink:0">
+                                            ${a?.imagePath ? `<img class="pose-photo" src="${a.imagePath}" alt="${a.name}">` : ''}
                                         </div>
-                                        <span class="kicker text-[9px] px-2 py-0.5 rounded-full bg-paper text-ink-500 shrink-0 hidden sm:inline-flex">${((a?.view) || 'front').toUpperCase()}</span>
-                                        <div class="text-right shrink-0">
-                                            <p class="font-semibold text-[13px] md:text-[14px] text-ink-900">${pct}%</p>
-                                            <p class="kicker text-[9px] text-ink-300 mt-0.5">${p.completed ? 'DONE' : p.locked ? 'LOCKED' : 'ACTIVE'}</p>
+                                        <div style="flex:1; min-width:0">
+                                            <span class="kicker" style="color:#7A7364; font-size:10px">${a?.sanskrit || ''}</span>
+                                            <div class="font-display" style="font-size:17px; font-weight:400; color:#14120E; margin-top:2px">${p.name}</div>
                                         </div>
+                                        <span style="font-weight:600; font-size:14px; color:#14120E; flex-shrink:0">${pct ? pct + '%' : '—'}</span>
+                                        <span class="kicker hidden sm:inline" style="color:#A8A294; font-size:10px; flex-shrink:0">${p.completed ? 'Done' : p.locked ? 'Locked' : 'Active'}</span>
                                     </button>
                                 `;}).join('')}
                             </div>
                         </div>
 
-                        <div class="rounded-[20px] md:rounded-[24px] bg-forest-900 text-cream p-5 md:p-7 flex flex-col justify-between min-h-[180px] md:min-h-0">
-                            <p class="kicker text-[10px] text-saffron-500">A QUIET REMINDER</p>
-                            <p class="font-display text-[22px] md:text-[30px] leading-[1.25] text-cream mt-2">
-                                "Consistency is louder than intensity."
-                            </p>
-                            <p class="kicker text-[9px] text-forest-300 mt-4">Sunday · a coach who whispers</p>
+                        <!-- Rhythm card -->
+                        <div class="relative overflow-hidden" style="background:#0F3D2E; color:#F5F2EB; border-radius:28px; padding:24px; min-height:320px">
+                            <div class="blob" style="width:240px; height:240px; top:-80px; right:-60px; background:rgba(224,162,63,0.22)"></div>
+                            <div class="blob" style="width:220px; height:220px; bottom:-70px; left:-50px; background:rgba(194,85,47,0.18)"></div>
+                            <div class="relative" style="z-index:2">
+                                <span class="kicker" style="color:#E0A23F">A quiet reminder</span>
+                                <p class="font-display" style="font-style:italic; font-size:clamp(22px, 3vw, 28px); font-weight:400; line-height:1.4; margin:16px 0 20px">
+                                    "Consistency is louder than intensity."
+                                </p>
+                                <span class="kicker" style="color:#6FA089; display:block">— Sunday, a coach who whispers</span>
+                            </div>
                         </div>
                     </section>
                 </div>`;
             },
 
+
             renderAsanaLibrary() {
-                // Editorial pose grid
-                const palettes = [
-                    { bg: '#1E2E1F', fg: '#FAF7F2', accent: '#D4A04A' }, // forest
-                    { bg: '#B8573E', fg: '#FAF7F2', accent: '#F2D9CE' }, // terracotta
-                    { bg: '#E8DFCF', fg: '#1A1814', accent: '#B8573E' }, // sand
-                    { bg: '#2F4A31', fg: '#FAF7F2', accent: '#D4A04A' }, // forest 700
-                    { bg: '#D4A04A', fg: '#1A1814', accent: '#1E2E1F' }, // saffron
-                    { bg: '#3D3A33', fg: '#FAF7F2', accent: '#E6C489' }, // ink 700
-                    { bg: '#F3EEE5', fg: '#1A1814', accent: '#4A6B4D' }, // paper
-                    { bg: '#D9CFBB', fg: '#1A1814', accent: '#B8573E' }, // stone
-                    { bg: '#D4866F', fg: '#FAF7F2', accent: '#FAF7F2' }, // terracotta 400
-                ];
+                const shortLevel = (l) => l === 'Beginner' ? 'BEGIN' : l === 'Intermediate' ? 'INTER' : 'ADV';
+                const filters = ['All', 'Beginner', 'Intermediate', 'Advanced', 'Front', 'Side'];
 
                 return `
-                <div class="space-y-6 md:space-y-10">
-                    <!-- Editorial header -->
-                    <header class="max-w-3xl">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-2">The Library</p>
-                        <h1 class="font-display font-light text-[32px] md:text-[56px] lg:text-[72px] leading-[1.05] tracking-tight text-ink-900">
-                            ${asanaData.length} poses.<br>A lifetime of practice.
-                        </h1>
-                        <p class="text-[13px] md:text-[16px] text-ink-500 mt-3 max-w-xl leading-[1.6]">Tap any pose to see how Sunday will coach you through it.</p>
-                    </header>
+                <div class="view-fade-in">
+                    <span class="kicker" style="color:#C2552F">The library</span>
+                    <h1 class="font-display" style="font-size:clamp(40px, 7vw, 96px); font-weight:300; color:#14120E; line-height:1.0; letter-spacing:-0.03em; margin:12px 0 0; max-width:1100px">
+                        20 poses.<br />A lifetime of practice.
+                    </h1>
 
-                    <!-- Filter chips -->
-                    <div class="flex flex-wrap items-center gap-2">
-                        ${['All', 'Beginner', 'Intermediate', 'Advanced', 'Front', 'Side'].map((f, i) => `
-                            <button class="px-3.5 py-1.5 rounded-full text-[11px] md:text-[12px] font-medium transition ${i===0 ? 'bg-forest-900 text-cream' : 'bg-cream text-ink-700 border border-stone hover:bg-paper'}">${f}</button>
-                        `).join('')}
+                    <div class="flex items-center justify-between flex-wrap" style="gap:16px; margin:32px 0 20px">
+                        <div id="lib-filters" class="flex flex-wrap" style="gap:10px">
+                            ${filters.map((f, i) => `
+                                <button onclick="app.filterLibrary('${f}')" data-filter="${f}" class="pressable" style="
+                                    height:36px; padding:0 16px; border-radius:9999px; font-size:13px; font-weight:500;
+                                    background:${i === 0 ? '#0F3D2E' : 'transparent'};
+                                    color:${i === 0 ? '#F5F2EB' : '#4A453B'};
+                                    border:1px solid ${i === 0 ? '#0F3D2E' : '#D4CCB8'};
+                                    cursor:pointer;
+                                ">${f}</button>
+                            `).join('')}
+                        </div>
+                        <input id="lib-search" oninput="app.searchLibrary(this.value)" placeholder="Search poses" class="pressable" style="
+                            width:clamp(200px, 30vw, 280px); height:40px; padding:0 18px; border-radius:9999px;
+                            border:1px solid #D4CCB8; background:#F5F2EB; font-size:13px; color:#14120E; outline:none;
+                        " />
                     </div>
 
-                    <!-- Grid -->
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                        ${asanaData.map((asana, i) => {
-                            const p = palettes[i % palettes.length];
-                            const svgBg = p.bg === '#F3EEE5' ? '#FAF7F2' : '#F3EEE5';
-                            const svgDataUri = (typeof PoseImage !== 'undefined' && asana.referenceKeypoints)
-                                ? PoseImage.dataUri(asana, { bg: svgBg, body: '#1E2E1F', accent: '#D4A04A', width: 400, height: 420 })
-                                : null;
-                            return `
-                                <div onclick="app.showAsanaDetails('${asana.name}')"
-                                     class="asana-tile relative rounded-[16px] md:rounded-[20px] overflow-hidden aspect-[4/5] flex flex-col justify-between"
-                                     style="background:${p.bg}; color:${p.fg};">
-                                    <div class="absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between z-10 gap-1">
-                                        <span class="kicker text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full border" style="border-color:${p.fg}; opacity:0.85;">${asana.category.toUpperCase().slice(0,4)}</span>
-                                        <span class="kicker text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full" style="background:${p.fg}; color:${p.bg};">${(asana.view || 'front').toUpperCase()}</span>
-                                    </div>
-                                    ${svgDataUri ? `
-                                        <img src="${svgDataUri}" alt="${asana.name}" class="w-full flex-1 object-contain" style="min-height:0;">
-                                    ` : `
-                                        <div class="flex-1 flex items-center justify-center">
-                                            <span class="font-display text-[72px] font-light leading-none" style="color:${p.fg};">${asana.emoji || '🧘'}</span>
-                                        </div>
-                                    `}
-                                    <div class="px-3 md:px-4 pb-3 md:pb-4 pt-1" style="background:${p.bg};">
-                                        <p class="kicker text-[8px] opacity-70 mb-0.5 truncate" style="color:${p.fg};">${asana.sanskrit.toUpperCase()}</p>
-                                        <h3 class="font-display text-[15px] md:text-[18px] leading-tight truncate" style="color:${p.fg};">${asana.name}</h3>
-                                    </div>
+                    <div id="lib-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style="gap:14px">
+                        ${asanaData.map(p => `
+                            <div class="asana-tile" data-pose-key="${p.imageKey || ''}" data-level="${p.category}" data-view="${p.view}" data-name="${p.name.toLowerCase()}" data-sanskrit="${p.sanskrit.toLowerCase()}"
+                                onclick="app.showAsanaDetails('${p.name}')" style="position:relative; background:#EEE9DE; aspect-ratio:4/5; border-radius:22px; overflow:hidden; box-shadow:0 10px 30px rgba(26,24,20,0.06)">
+                                ${p.imagePath ? `<img class="pose-photo" src="${p.imagePath}" alt="${p.name}">` : '<div style="background:#0F3D2E;width:100%;height:100%"></div>'}
+                                <div class="veil-b"></div>
+                                <div class="absolute flex justify-between" style="top:14px; left:14px; right:14px">
+                                    <span class="kicker" style="background:rgba(245,242,235,0.18); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); color:#F5F2EB; padding:4px 10px; border-radius:9999px; font-size:9px; border:1px solid rgba(245,242,235,0.35)">${shortLevel(p.category)}</span>
+                                    <span class="kicker" style="background:#E0A23F; color:#0F3D2E; padding:4px 10px; border-radius:9999px; font-size:9px">${p.view.toUpperCase()}</span>
                                 </div>
-                            `;
-                        }).join('')}
+                                <div class="absolute" style="left:16px; right:16px; bottom:16px; color:#F5F2EB">
+                                    <span class="kicker" style="color:#F3D58C; font-size:10px">${p.sanskrit}</span>
+                                    <div class="font-display" style="font-size:clamp(15px, 2vw, 22px); font-weight:400; margin-top:4px; line-height:1.15; letter-spacing:-0.01em">${p.name}</div>
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>`;
             },
+
 
             showAsanaDetails(asanaName) {
                 const asana = asanaData.find(a => a.name === asanaName);
@@ -1956,21 +1940,24 @@
                 const kicker = document.getElementById('modal-asana-category-kicker');
                 if (kicker) kicker.textContent = asana.category;
 
-                // View badge + silhouette illustration
+                // View badge + real pose photo
                 const viewBadge = document.getElementById('modal-view-badge');
                 if (viewBadge) viewBadge.textContent = ((asana.view || 'front') + ' VIEW').toUpperCase();
                 const silhouette = document.getElementById('modal-asana-silhouette');
-                if (silhouette && typeof PoseImage !== 'undefined' && asana.referenceKeypoints) {
-                    silhouette.src = PoseImage.dataUri(asana, { bg: '#F3EEE5', body: '#1E2E1F', joint: '#D4A04A', width: 520, height: 640 });
-                    silhouette.alt = asana.name + ' reference silhouette';
+                if (silhouette) {
+                    if (asana.imagePath) {
+                        silhouette.src = asana.imagePath;
+                        silhouette.alt = asana.name + ' reference';
+                    } else if (typeof PoseImage !== 'undefined' && asana.referenceKeypoints) {
+                        silhouette.src = PoseImage.dataUri(asana, { bg: '#EEE9DE', body: '#0F3D2E', joint: '#E0A23F', width: 520, height: 640 });
+                        silhouette.alt = asana.name + ' silhouette';
+                    }
                 }
 
                 steps.innerHTML = asana.steps.map((step, idx) => `
-                    <li class="flex items-start gap-3">
-                        <span class="w-7 h-7 rounded-lg bg-paper border border-stone flex items-center justify-center text-[11px] font-semibold text-terracotta-600 shrink-0">
-                            ${idx + 1}
-                        </span>
-                        <span class="text-[15px] leading-[1.65] text-ink-700 pt-0.5">${step}</span>
+                    <li class="flex items-center" style="background:#EEE9DE; border-radius:12px; padding:10px 14px; gap:14px">
+                        <span class="kicker" style="color:#C2552F">${String(idx + 1).padStart(2, '0')}</span>
+                        <span style="font-size:15px; color:#14120E; line-height:1.55">${step}</span>
                     </li>
                 `).join('');
 
@@ -1991,235 +1978,235 @@
 
             renderARCorrection() {
                 const isCourseMode = this.courseMode;
+                const shortLevel = (l) => l === 'Beginner' ? 'BEGIN' : l === 'Intermediate' ? 'INTER' : 'ADV';
                 const poseProgress = this.currentPose ? this.courseProgress.poses.find(p => p.name === this.currentPose) : null;
 
                 return `
-                <div class="space-y-6">
+                <div class="view-fade-in">
+
                     ${!isCourseMode ? `
-                    <header class="max-w-3xl">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-2">AR practice</p>
-                        <h1 class="font-display font-light text-[32px] md:text-[52px] lg:text-[60px] leading-[1.05] tracking-tight text-ink-900">
-                            Choose your pose.
-                        </h1>
-                    </header>
-                    <div class="rounded-[18px] bg-paper border border-stone p-4 md:p-5 flex flex-wrap md:flex-nowrap items-start gap-4 md:gap-8">
-                        <div class="flex items-start gap-2.5 min-w-0">
-                            <span class="kicker text-[9px] text-terracotta-600 mt-0.5 shrink-0">01</span>
-                            <p class="text-[12px] md:text-[13px] text-ink-700 leading-[1.5]"><strong>Stand 6–8 ft</strong> from the camera, full body in frame.</p>
-                        </div>
-                        <div class="flex items-start gap-2.5 min-w-0">
-                            <span class="kicker text-[9px] text-terracotta-600 mt-0.5 shrink-0">02</span>
-                            <p class="text-[12px] md:text-[13px] text-ink-700 leading-[1.5]"><strong>Match the view badge</strong> on each pose — FRONT or SIDE.</p>
-                        </div>
-                        <div class="flex items-start gap-2.5 min-w-0">
-                            <span class="kicker text-[9px] text-terracotta-600 mt-0.5 shrink-0">03</span>
-                            <p class="text-[12px] md:text-[13px] text-ink-700 leading-[1.5]"><strong>Soft front light.</strong> Avoid backlight or busy backgrounds.</p>
-                        </div>
-                    </div>
-                    ` : ''}
+                        <span class="kicker" style="color:#C2552F">AR practice</span>
+                        <h1 class="font-display" style="font-size:clamp(32px, 5vw, 56px); font-weight:300; color:#14120E; letter-spacing:-0.02em; margin:6px 0 0">Choose your pose.</h1>
 
-                    ${isCourseMode ? `
-                        <div class="rounded-[22px] bg-terracotta-100 border border-terracotta-100 p-5 md:p-6">
-                            <p class="kicker text-[11px] text-terracotta-600 mb-2">TEST MODE ACTIVE</p>
-                            <p class="text-[14px] md:text-[15px] text-ink-900 leading-[1.65]">No assistance allowed. Fullscreen required. Three attempts per pose.</p>
-                        </div>
-                        <div class="grid grid-cols-3 gap-3 md:gap-5">
-                            <div class="rounded-[18px] bg-paper p-4 md:p-5 text-center">
-                                <p class="kicker text-[10px] text-ink-500">STATUS</p>
-                                <p id="course-timer-display" class="font-display text-[22px] md:text-[28px] text-forest-900 mt-2">MATCH POSE</p>
-                            </div>
-                            <div class="rounded-[18px] bg-paper p-4 md:p-5 text-center">
-                                <p class="kicker text-[10px] text-ink-500">HOLD</p>
-                                <p id="course-hold-display" class="font-display text-[22px] md:text-[28px] text-terracotta-600 mt-2">0s / 10s</p>
-                            </div>
-                            <div class="rounded-[18px] bg-paper p-4 md:p-5 text-center">
-                                <p class="kicker text-[10px] text-ink-500">ATTEMPT</p>
-                                <p class="font-display text-[22px] md:text-[28px] text-ink-900 mt-2">${poseProgress?.attemptsRemaining || 3}/3</p>
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" style="${isCourseMode ? 'display: none;' : ''}">
-                        ${asanaData.map(asana => {
-                            const svgUri = (typeof PoseImage !== 'undefined' && asana.referenceKeypoints)
-                                ? PoseImage.dataUri(asana, { bg: '#2F4A31', body: '#D4E0D5', accent: '#D4A04A', width: 400, height: 400 })
-                                : null;
-                            return `
-                            <button onclick="app.selectAsanaAndStart('${asana.name}')"
-                                    class="asana-tile relative overflow-hidden text-left rounded-[16px] md:rounded-[20px] bg-forest-900 text-cream flex flex-col justify-between aspect-[4/5]">
-                                <div class="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10">
-                                    <span class="kicker text-[8px] text-saffron-500">${asana.category.toUpperCase().slice(0,4)}</span>
-                                    <span class="kicker text-[8px] px-1.5 py-0.5 rounded-full bg-saffron-500 text-forest-900">${(asana.view || 'front').toUpperCase()}</span>
+                        <!-- Setup strip -->
+                        <div class="flex items-center flex-wrap" style="background:#EEE9DE; border-radius:18px; padding:16px 20px; margin:22px 0 24px; gap:20px">
+                            ${[
+                                'Stand 6-8 ft from the camera, full body in frame.',
+                                'Match the view badge on each pose — FRONT or SIDE.',
+                                'Soft front light. Avoid backlight or busy backgrounds.',
+                            ].map((t, i, arr) => `
+                                <div class="flex items-center" style="gap:10px; flex:1; min-width:200px">
+                                    <span class="kicker" style="color:#C2552F; flex-shrink:0">${String(i+1).padStart(2,'0')}</span>
+                                    <span style="font-size:13px; color:#4A453B; line-height:1.45">${t}</span>
+                                    ${i < arr.length - 1 ? '<div class="hidden md:block" style="width:1px; height:28px; background:#D4CCB8; margin-left:8px"></div>' : ''}
                                 </div>
-                                ${svgUri ? `
-                                    <img src="${svgUri}" alt="${asana.name}" class="w-full flex-1 object-contain" style="min-height:0;"/>
-                                ` : `
-                                    <span class="font-display text-[72px] leading-none text-forest-100 my-auto self-center">${asana.emoji || '🧘'}</span>
-                                `}
-                                <div class="px-3 pb-3 pt-1 bg-forest-900">
-                                    <p class="kicker text-[8px] text-saffron-500 mb-0.5 truncate">${asana.sanskrit.toUpperCase()}</p>
-                                    <h3 class="font-display text-[15px] md:text-[18px] text-cream truncate">${asana.name}</h3>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <div style="background:#F6DACB; border:1px solid #C2552F; border-radius:18px; padding:16px 20px; margin-bottom:20px">
+                            <span class="kicker" style="color:#C2552F; display:block; margin-bottom:4px">Test mode active</span>
+                            <p style="color:#14120E; font-size:14px; line-height:1.55; margin:0">No assistance allowed. Fullscreen required. Three attempts per pose.</p>
+                        </div>
+                        <div class="grid grid-cols-3" style="gap:12px; margin-bottom:20px">
+                            <div style="background:#EEE9DE; border-radius:18px; padding:14px; text-align:center">
+                                <span class="kicker" style="color:#7A7364">Status</span>
+                                <p id="course-timer-display" class="font-display" style="font-size:22px; font-weight:400; color:#0F3D2E; margin:6px 0 0">MATCH POSE</p>
+                            </div>
+                            <div style="background:#EEE9DE; border-radius:18px; padding:14px; text-align:center">
+                                <span class="kicker" style="color:#7A7364">Hold</span>
+                                <p id="course-hold-display" class="font-display" style="font-size:22px; font-weight:400; color:#C2552F; margin:6px 0 0">0s / 10s</p>
+                            </div>
+                            <div style="background:#EEE9DE; border-radius:18px; padding:14px; text-align:center">
+                                <span class="kicker" style="color:#7A7364">Attempt</span>
+                                <p class="font-display" style="font-size:22px; font-weight:400; color:#14120E; margin:6px 0 0">${poseProgress?.attemptsRemaining || 3}/3</p>
+                            </div>
+                        </div>
+                    `}
+
+                    <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style="gap:14px; ${isCourseMode ? 'display: none;' : ''}">
+                        ${asanaData.map(p => `
+                            <button onclick="app.selectAsanaAndStart('${p.name}')" class="asana-tile" style="position:relative; background:#0F3D2E; color:#F5F2EB; aspect-ratio:4/5; border-radius:22px; overflow:hidden; border:0; cursor:pointer; padding:0">
+                                ${p.imagePath ? `<img class="pose-photo" src="${p.imagePath}" alt="${p.name}" style="filter:saturate(0.7) brightness(0.85) contrast(1.05)">` : ''}
+                                <div class="veil-dark"></div>
+                                <div class="absolute flex justify-between" style="top:14px; left:14px; right:14px">
+                                    <span class="kicker" style="color:#E0A23F; font-size:9px">${shortLevel(p.category)}</span>
+                                    <span class="kicker" style="background:#E0A23F; color:#0F3D2E; padding:3px 8px; border-radius:9999px; font-size:9px">${p.view.toUpperCase()}</span>
+                                </div>
+                                <div class="absolute" style="left:16px; right:16px; bottom:16px; text-align:left">
+                                    <span class="kicker" style="color:#F3D58C; font-size:9px">${p.sanskrit}</span>
+                                    <div class="font-display" style="font-size:clamp(14px, 2vw, 18px); font-weight:400; margin-top:4px; letter-spacing:-0.01em">${p.name}</div>
                                 </div>
                             </button>
-                        `;}).join('')}
+                        `).join('')}
                     </div>
 
                     <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
-                        <div class="grid lg:grid-cols-[1.4fr_1fr] gap-5">
-                            <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'};" class="relative">
-                                <video id="video-feed" autoplay playsinline class="rounded-[24px]"></video>
+                        <div class="grid lg:grid-cols-[1.4fr_1fr]" style="gap:20px">
+                            <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'}">
+                                <video id="video-feed" autoplay playsinline style="border-radius:28px"></video>
                                 <canvas id="ar-canvas"></canvas>
-                                <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center bg-ink-900/85 backdrop-blur-sm text-forest-100 rounded-[24px]">
-                                    <div class="loading-animation mb-3"></div>
-                                    <p id="status-text" class="kicker text-[11px]">Loading...</p>
-                                    <p id="error-message" class="text-terracotta-400 mt-2 text-[13px] hidden"></p>
+                                <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center" style="background:rgba(20,18,14,0.88); backdrop-filter:blur(4px); color:#C7DBCE; border-radius:28px; gap:14px">
+                                    <div class="loading-animation"></div>
+                                    <p id="status-text" class="kicker">Loading…</p>
+                                    <p id="error-message" class="hidden" style="color:#C2552F; font-size:13px; margin-top:4px"></p>
                                 </div>
                             </div>
 
-                            <div id="reference-container" style="display: ${isCourseMode ? 'none' : 'none'};" class="rounded-[24px] bg-paper p-5">
-                                <p class="kicker text-[11px] text-terracotta-600 mb-3">Reference</p>
-                                <div id="reference-media-container" class="bg-forest-900 rounded-[16px] overflow-hidden mb-3 flex items-center justify-center" style="min-height:180px;">
-                                    <img id="reference-image" class="w-full object-contain hidden" style="max-height: 250px;" alt="Reference Pose">
-                                    <div id="reference-placeholder" class="text-center py-8">
-                                        <span id="reference-emoji" class="font-display text-[80px] text-forest-100">🧘</span>
-                                        <p id="reference-pose-name" class="kicker text-[11px] text-saffron-500 mt-2">Pose Name</p>
+                            <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:20px">
+                                <span class="kicker" style="color:#C2552F">Reference</span>
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; min-height:220px; margin-top:12px; position:relative">
+                                    <img id="reference-image" class="hidden pose-photo" alt="reference">
+                                    <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
+                                        <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
+                                        <p id="reference-pose-name" class="kicker" style="color:#E0A23F; margin-top:8px">Pose</p>
                                     </div>
                                 </div>
-                                <div class="text-[13px] text-ink-500 space-y-1.5">
-                                    <p><span class="kicker text-[10px] text-ink-300">TARGET ·</span> <span id="reference-targeted" class="text-ink-700"></span></p>
-                                    <p><span class="kicker text-[10px] text-ink-300">BENEFITS ·</span> <span id="reference-benefits" class="text-ink-700"></span></p>
-                                    <p><span class="kicker text-[10px] text-ink-300">PRECAUTION ·</span> <span id="reference-precaution" class="text-ink-700"></span></p>
+                                <div style="margin-top:14px; font-size:13px; color:#4A453B; line-height:1.55">
+                                    <p style="margin:0 0 6px"><span class="kicker" style="color:#A8A294">Target · </span><span id="reference-targeted">—</span></p>
+                                    <p style="margin:0 0 6px"><span class="kicker" style="color:#A8A294">Benefits · </span><span id="reference-benefits">—</span></p>
+                                    <p style="margin:0"><span class="kicker" style="color:#A8A294">Precaution · </span><span id="reference-precaution">—</span></p>
                                 </div>
                             </div>
                         </div>
 
-                        <div id="feedback-area" style="display: ${isCourseMode ? 'block' : 'none'};" class="mt-5 rounded-[24px] bg-forest-900 text-cream p-5 md:p-7 space-y-5">
-                            <div>
-                                <p class="kicker text-[11px] text-saffron-500 mb-2">SUNDAY IS WATCHING QUIETLY</p>
-                                <p id="current-feedback-text" class="font-display text-[22px] md:text-[26px] text-cream leading-[1.35]">Select a pose to begin.</p>
-                            </div>
-
-                            <div class="border-t border-forest-700 pt-4">
-                                <div id="correction-log" class="space-y-2 max-h-40 overflow-y-auto scrollable-content">
-                                    <p class="kicker text-[10px] text-forest-300 mb-2">CORRECTION LOG</p>
+                        <div id="feedback-area" style="display:${isCourseMode ? 'block' : 'none'}; background:#15201A; color:#F5F2EB; border-radius:24px; padding:24px; margin-top:18px">
+                            <div style="display:flex; flex-direction:column; gap:16px">
+                                <div>
+                                    <span class="kicker" style="color:#E0A23F">Sunday is watching quietly</span>
+                                    <p id="current-feedback-text" class="font-display" style="font-size:22px; font-weight:400; line-height:1.35; margin:10px 0 0">Select a pose to begin.</p>
                                 </div>
-                            </div>
-
-                            <div class="flex items-center gap-3">
-                                ${!isCourseMode ? `
-                                    <button id="tts-toggle-btn" onclick="app.toggleTTS()" class="flex items-center gap-2 px-4 py-2.5 bg-forest-700 rounded-full hover:bg-forest-700/80 transition text-[13px] font-medium">
-                                        <svg id="tts-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 text-forest-300">
-                                            <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-                                            <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
-                                        </svg>
-                                        <span id="tts-status-text" class="text-cream">Voice Guide Off</span>
-                                    </button>
-                                ` : ''}
-                                <button onclick="${isCourseMode ? 'app.endCourseTest(false, \'Test cancelled\')' : 'app.stopARAssessment()'}" class="pressable flex-grow py-3 px-5 bg-terracotta-600 text-cream font-semibold rounded-full hover:bg-terracotta-400 transition">
-                                    ${isCourseMode ? 'Cancel test' : 'Stop AR tracking'}
-                                </button>
+                                <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">
+                                    <div>
+                                        <span class="kicker" style="color:#A8A294">Alignment</span>
+                                        <p class="font-display" style="font-size:60px; font-weight:300; line-height:1; margin:4px 0 0"><span id="pose-score">—</span><span style="font-size:24px">%</span></p>
+                                    </div>
+                                    <div style="flex:1; min-width:200px">
+                                        <div style="height:6px; background:#1F5A44; border-radius:3px; overflow:hidden">
+                                            <div id="score-bar" style="width:0%; height:100%; background:#E0A23F; border-radius:3px; transition:width 0.4s"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="correction-log" class="scrollable-content" style="border-top:1px solid #1F5A44; padding-top:14px; max-height:160px">
+                                    <span class="kicker" style="color:#6FA089">Correction log</span>
+                                </div>
+                                <div class="flex flex-wrap items-center" style="gap:10px">
+                                    ${!isCourseMode ? `
+                                        <button id="tts-toggle-btn" onclick="app.toggleTTS()" class="pressable flex items-center" style="gap:8px; background:#1F5A44; color:#F5F2EB; border:0; border-radius:9999px; padding:10px 18px; font-size:13px; font-weight:500; cursor:pointer">
+                                            <svg id="tts-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:16px; height:16px; color:#6FA089">
+                                                <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
+                                            </svg>
+                                            <span id="tts-status-text">Voice guide off</span>
+                                        </button>
+                                    ` : ''}
+                                    <button onclick="${isCourseMode ? "app.endCourseTest(false, 'Test cancelled')" : 'app.stopARAssessment()'}" class="btn btn-accent pressable" style="flex:1; height:48px; min-width:160px">${isCourseMode ? 'Cancel test' : 'Stop AR tracking'}</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>`;
             },
+
 
 
             renderCourse() {
                 const completedCount = this.courseProgress.poses.filter(p => p.completed).length;
                 const totalPoses = this.courseProgress.poses.length;
-                const progressPercent = (completedCount / totalPoses) * 100;
+                const pct = totalPoses ? Math.round((completedCount / totalPoses) * 100) : 0;
 
                 return `
-                <div id="course-container" class="space-y-6">
-                    <header class="max-w-3xl">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-2">The Course</p>
-                        <h1 class="font-display font-light text-[32px] md:text-[52px] lg:text-[60px] leading-[1.05] tracking-tight text-ink-900">
-                            Practice, tested.
-                        </h1>
-                        <p class="text-[13px] md:text-[15px] text-ink-500 mt-3 max-w-xl leading-[1.6]">Hold each asana at 90% for ten continuous seconds. Three attempts per pose.</p>
-                    </header>
+                <div class="view-fade-in">
+                    <span class="kicker" style="color:#C2552F">The course</span>
+                    <h1 class="font-display" style="font-size:clamp(36px, 5vw, 60px); font-weight:300; color:#14120E; letter-spacing:-0.02em; margin:6px 0 0">Practice, tested.</h1>
+                    <p style="color:#4A453B; max-width:720px; margin-top:14px; line-height:1.6; font-size:15px">
+                        Hold each asana at 90% accuracy for ten continuous seconds. Three attempts per pose.
+                        Complete all ${totalPoses} to earn your certificate.
+                    </p>
 
-                    <!-- Progress card -->
-                    <div class="rounded-[18px] md:rounded-[22px] bg-forest-900 text-cream p-5 md:p-7 space-y-3">
-                        <div class="flex items-end justify-between gap-4">
+                    <!-- Progress -->
+                    <div style="background:#0F3D2E; color:#F5F2EB; border-radius:22px; padding:24px; margin-top:28px; display:flex; flex-direction:column; justify-content:space-between; gap:16px">
+                        <div class="flex items-center justify-between">
                             <div>
-                                <p class="kicker text-[10px] text-saffron-500">PROGRESS</p>
-                                <p class="font-display text-[28px] md:text-[36px] font-light mt-0.5">${completedCount} of ${totalPoses}</p>
+                                <span class="kicker" style="color:#E0A23F">Progress</span>
+                                <div class="font-display" style="font-size:32px; font-weight:300; margin-top:4px">${completedCount} of ${totalPoses}</div>
                             </div>
-                            <p class="kicker text-[10px] text-forest-300">${Math.round(progressPercent)}% DONE</p>
+                            <span class="kicker" style="color:#6FA089">${pct}% done</span>
                         </div>
-                        <div class="w-full bg-forest-700 rounded-full h-1.5 overflow-hidden">
-                            <div class="h-full bg-saffron-500 rounded-full transition-all duration-500" style="width: ${progressPercent}%"></div>
+                        <div style="height:4px; background:#1F5A44; border-radius:2px">
+                            <div style="width:${pct}%; height:100%; background:#E0A23F; border-radius:2px"></div>
                         </div>
                     </div>
 
-                    <!-- Pose list -->
-                    <div class="space-y-2">
-                        ${this.courseProgress.poses.map((pose, idx) => {
+                    <!-- Pose rows -->
+                    <div class="flex flex-col" style="gap:8px; margin-top:28px">
+                        ${this.courseProgress.poses.map((pose, i) => {
                             const a = asanaData.find(x => x.name === pose.name);
-                            let rightLabel = '';
-                            let bg = 'bg-paper';
-                            if (pose.completed) { rightLabel = 'DONE'; bg = 'bg-forest-900 text-cream'; }
-                            else if (pose.locked) { rightLabel = 'LOCKED'; bg = 'bg-sand'; }
-                            else { rightLabel = `${pose.attemptsRemaining}/3`; }
-                            const textColor = pose.completed ? '#FAF7F2' : '#1A1814';
-                            const subColor = pose.completed ? '#8BA88D' : '#6B6657';
+                            const num = String(i + 1).padStart(2, '0');
+                            const isDone = pose.completed;
+                            const isLocked = pose.locked;
+                            const isActive = !isDone && !isLocked;
+                            const bg = isDone ? '#0F3D2E' : isActive ? '#EEE9DE' : '#E0D9C8';
+                            const fg = isDone ? '#F5F2EB' : isActive ? '#14120E' : '#7A7364';
+                            const numColor = isDone ? '#E0A23F' : '#14120E';
+                            const subColor = isDone ? '#6FA089' : isActive ? '#C2552F' : '#A8A294';
+                            const pillBg = isDone ? '#1F5A44' : isActive ? '#7A7364' : '#D4CCB8';
+                            const pillFg = isDone ? '#E0A23F' : isActive ? '#F5F2EB' : '#7A7364';
                             return `
-                            <div class="rounded-[14px] md:rounded-[16px] ${bg} p-3.5 md:p-4 flex items-center gap-3 md:gap-4">
-                                <span class="font-display text-[26px] md:text-[32px] font-light leading-none shrink-0 w-10 md:w-12 text-center" style="color:${textColor}; opacity:${pose.locked ? 0.35 : 1};">${String(idx+1).padStart(2,'0')}</span>
-                                <div class="min-w-0 flex-1">
-                                    <p class="kicker text-[9px] mb-0.5 truncate" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#D4A04A' : '#B8573E')};">${(a?.sanskrit || pose.name).toUpperCase()}</p>
-                                    <h4 class="font-display text-[16px] md:text-[20px] leading-tight truncate" style="color:${textColor}; opacity:${pose.locked ? 0.5 : 1};">${pose.name}</h4>
-                                    ${pose.bestAccuracy > 0 ? `<p class="text-[11px] mt-0.5 truncate" style="color:${subColor};">Best ${Math.round(pose.bestAccuracy)}% · ${pose.timeHeld}s</p>` : ''}
+                            <div class="flex items-center" style="background:${bg}; color:${fg}; border-radius:16px; min-height:68px; padding:12px 20px; gap:14px; opacity:${isLocked ? 0.9 : 1}">
+                                <span class="font-display" style="font-size:26px; font-weight:400; color:${numColor}; opacity:${isLocked ? 0.35 : 1}; width:42px; flex-shrink:0">${num}</span>
+                                <div style="flex:1; min-width:0">
+                                    <span class="kicker" style="color:${subColor}; font-size:10px">${a?.sanskrit || pose.name}</span>
+                                    <div class="font-display truncate" style="font-size:17px; font-weight:400; opacity:${isLocked ? 0.55 : 1}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${pose.name}</div>
                                 </div>
-                                <div class="flex items-center gap-2 md:gap-3 shrink-0">
-                                    <span class="kicker text-[9px] px-1.5 py-0.5 rounded-full hidden sm:inline-flex" style="background:${pose.completed ? 'rgba(212,160,74,0.18)' : 'rgba(0,0,0,0.06)'}; color:${pose.completed ? '#D4A04A' : '#6B6657'};">${((a?.view) || 'front').toUpperCase()}</span>
-                                    <span class="kicker text-[10px] shrink-0" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#8BA88D' : '#6B6657')};">${rightLabel}</span>
-                                    ${!pose.locked && !pose.completed ? `
-                                        <button onclick="event.stopPropagation(); app.startCourseTest('${pose.name}')"
-                                                class="pressable px-4 py-2 rounded-full font-semibold text-[12px] transition ${pose.attemptsRemaining > 0 ? 'bg-terracotta-600 text-cream hover:bg-terracotta-400' : 'bg-sand text-ink-300 cursor-not-allowed'}"
-                                                ${pose.attemptsRemaining > 0 ? '' : 'disabled'}>
-                                            ${pose.attemptsRemaining > 0 ? 'Test' : '—'}
-                                        </button>
-                                    ` : ''}
-                                    ${pose.locked ? `<span class="text-[16px] opacity-40">🔒</span>` : ''}
-                                    ${pose.completed ? `<span class="text-[16px] text-saffron-500">★</span>` : ''}
-                                </div>
+                                <span class="kicker hidden sm:inline" style="background:${pillBg}; color:${pillFg}; padding:3px 10px; border-radius:9999px; font-size:10px; flex-shrink:0">${a?.view || ''}</span>
+                                ${isDone ? `
+                                    <span class="kicker" style="color:#6FA089; width:50px; text-align:right; font-size:10px">Done</span>
+                                    <span style="color:#E0A23F; font-size:18px; width:22px; text-align:center">★</span>
+                                ` : isActive ? `
+                                    <span class="kicker" style="color:#7A7364; width:44px; text-align:right; font-size:10px">${pose.attemptsRemaining}/3</span>
+                                    <button onclick="event.stopPropagation(); app.startCourseTest('${pose.name}')" class="btn btn-accent btn-sm pressable">Test</button>
+                                ` : `
+                                    <span class="kicker" style="color:#A8A294; width:50px; text-align:right; font-size:10px">Locked</span>
+                                    <span style="opacity:0.4; width:22px; text-align:center">🔒</span>
+                                `}
                             </div>`;
                         }).join('')}
                     </div>
 
                     ${this.courseProgress.certificateEarned ? `
-                        <div class="rounded-[20px] md:rounded-[24px] bg-terracotta-600 text-cream p-6 md:p-8 text-center space-y-3">
-                            <p class="kicker text-[10px] text-terracotta-100">CONGRATULATIONS</p>
-                            <h3 class="font-display font-light text-[28px] md:text-[40px] leading-[1.1]">All 20 poses, well held.</h3>
-                            <p class="text-[13px] md:text-[15px] text-terracotta-100 max-w-md mx-auto leading-[1.6]">Your Sunday certificate is ready.</p>
-                            <button onclick="app.downloadCertificate()" class="pressable inline-flex items-center gap-2 px-5 py-3 bg-cream text-ink-900 font-semibold rounded-full hover:bg-paper text-[13px]">
-                                Download →
-                            </button>
+                        <div style="background:#C2552F; color:#F5F2EB; border-radius:24px; padding:40px; text-align:center; margin-top:32px">
+                            <span class="kicker" style="color:#F6DACB">Congratulations</span>
+                            <h2 class="font-display" style="font-size:clamp(32px, 4vw, 52px); font-weight:300; line-height:1.05; margin:10px 0">All ${totalPoses} poses, well held.</h2>
+                            <p style="color:#F6DACB; margin-bottom:18px">Your Sunday certificate is ready.</p>
+                            <button onclick="app.downloadCertificate()" class="btn btn-cream pressable">Download  →</button>
                         </div>
                     ` : ''}
 
-                    <!-- Protocols (collapsed on mobile) -->
-                    <details class="rounded-[18px] md:rounded-[22px] bg-paper p-5 md:p-6 group">
-                        <summary class="flex items-center justify-between cursor-pointer list-none">
+                    <details style="background:#EEE9DE; border-radius:22px; padding:24px; margin-top:28px">
+                        <summary class="flex items-center justify-between" style="cursor:pointer; list-style:none">
                             <div>
-                                <p class="kicker text-[10px] text-terracotta-600">Test protocols</p>
-                                <h3 class="font-display text-[18px] md:text-[22px] text-ink-900 mt-0.5">Quiet, strict, fair</h3>
+                                <span class="kicker" style="color:#C2552F">Test protocols</span>
+                                <h3 class="font-display" style="font-size:22px; font-weight:600; margin:4px 0 0">Quiet, strict, fair</h3>
                             </div>
-                            <span class="kicker text-[11px] text-ink-500 group-open:rotate-180 transition-transform">▾</span>
+                            <span style="color:#4A453B">↓</span>
                         </summary>
-                        <ul class="mt-4 space-y-2.5 text-[13px] text-ink-700 leading-[1.55]">
-                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">01</span><span>Test starts only after a 90% match is detected.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">02</span><span>Sixty seconds total to complete the hold.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">03</span><span>Ten continuous seconds at 90%+ accuracy. Drops reset.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">04</span><span>No reference or voice guide in test mode.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">05</span><span>Three attempts per pose.</span></li>
-                        </ul>
+                        <div class="flex flex-col" style="gap:10px; margin-top:16px">
+                            ${[
+                                'Hold each asana at 90% accuracy for 10 continuous seconds.',
+                                'Three attempts allowed per pose, per session.',
+                                'Front and side cameras must match the listed view badge.',
+                                'No coaching during a test attempt — only feedback after.',
+                                'Certificate is awarded once all ' + totalPoses + ' poses pass at least once.',
+                            ].map((t, i) => `
+                                <div class="flex items-start" style="gap:14px">
+                                    <span class="kicker" style="color:#C2552F; padding-top:3px; flex-shrink:0">${String(i+1).padStart(2,'0')}</span>
+                                    <span style="font-size:14px; color:#4A453B; line-height:1.55">${t}</span>
+                                </div>
+                            `).join('')}
+                        </div>
                     </details>
                 </div>`;
             },
+
 
             startCourseTest(poseName) {
                 const poseProgress = this.courseProgress.poses.find(p => p.name === poseName);

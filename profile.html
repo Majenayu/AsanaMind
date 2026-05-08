@@ -1,341 +1,384 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile — Sunday</title>
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#FAF7F2">
-    <link rel="apple-touch-icon" href="/assets/logo.png">
-    <link rel="icon" type="image/png" href="/assets/logo.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        cream: '#FAF7F2', paper: '#F3EEE5', sand: '#E8DFCF', stone: '#D9CFBB',
-                        ink: { 900: '#1A1814', 700: '#3D3A33', 500: '#6B6657', 300: '#A8A294', 100: '#E3DED3' },
-                        forest: { 900: '#1E2E1F', 700: '#2F4A31', 500: '#4A6B4D', 300: '#8BA88D', 100: '#D4E0D5' },
-                        terracotta: { 600: '#B8573E', 400: '#D4866F', 100: '#F2D9CE' },
-                        saffron: { 500: '#D4A04A', 300: '#E6C489' },
-                    },
-                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'], display: ['Fraunces', 'ui-serif', 'Georgia'] }
-                }
-            }
-        }
-    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Profile · Sunday</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#F5F2EB" />
+    <link rel="apple-touch-icon" href="/assets/logo.png" />
+    <link rel="icon" type="image/png" href="/assets/logo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
     <style>
-        html,body{background:#FAF7F2;color:#1A1814;font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
-        .display{font-family:'Fraunces',serif;font-optical-sizing:auto;letter-spacing:-0.025em}
-        .kicker{letter-spacing:0.22em;text-transform:uppercase;font-weight:500}
-        .fadeup{opacity:0;transform:translateY(12px);animation:fu 0.7s cubic-bezier(0.22,0.8,0.3,1) forwards}
-        .fadeup-2{animation-delay:0.08s}.fadeup-3{animation-delay:0.16s}.fadeup-4{animation-delay:0.24s}
-        @keyframes fu{to{opacity:1;transform:translateY(0)}}
-        .heatcell{width:11px;height:11px;border-radius:3px;background:#E8DFCF;transition:transform 0.15s ease}
-        .heatcell:hover{transform:scale(1.8)}
-        .heat-1{background:rgba(74,107,77,0.4)}.heat-2{background:rgba(74,107,77,0.6)}
-        .heat-3{background:rgba(74,107,77,0.8)}.heat-4{background:#4A6B4D}
+    :root {
+        --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
+        --text-1:#14120E; --text-2:#4A453B; --text-3:#7A7364; --text-4:#A8A294;
+        --primary:#0F3D2E; --primary-2:#1F5A44; --primary-3:#6FA089; --primary-4:#C7DBCE;
+        --accent:#C2552F; --accent-soft:#F6DACB; --highlight:#E0A23F; --highlight-2:#F3D58C;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text-1);min-height:100vh;
+        font-family:"Inter",system-ui,sans-serif;font-size:16px;line-height:1.6;
+        -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+    a{color:inherit;text-decoration:none}
+    .display{font-family:"Fraunces",serif;letter-spacing:-0.02em}
+    .kicker{font-family:"Inter",sans-serif;font-weight:500;font-size:11px;line-height:14px;letter-spacing:0.22em;text-transform:uppercase}
+
+    /* Top nav */
+    .topbar{position:sticky;top:0;z-index:40;background:rgba(245,242,235,0.92);backdrop-filter:blur(14px);
+        border-bottom:1px solid rgba(26,24,20,0.06)}
+    .topbar-inner{max-width:1200px;margin:0 auto;padding:0 24px;height:72px;display:flex;align-items:center;justify-content:space-between}
+    @media(min-width:768px){.topbar-inner{padding:0 32px}}
+    .brand{display:flex;align-items:center;gap:10px}
+    .brand-dot{width:28px;height:28px;border-radius:999px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:var(--bg);font-family:"Fraunces",serif;font-size:15px;font-weight:500}
+    .brand-word{font-family:"Fraunces",serif;font-size:19px;font-weight:500;letter-spacing:-0.01em;color:var(--text-1)}
+    .nav-links{display:none;align-items:center;gap:4px}
+    @media(min-width:768px){.nav-links{display:flex}}
+    .nav-link{padding:10px 18px;border-radius:999px;font-size:14px;font-weight:400;color:var(--text-3)}
+    .nav-link.active{color:var(--text-1);font-weight:500;background:rgba(15,61,46,0.06)}
+    .nav-right{display:flex;align-items:center;gap:12px}
+    .signout{display:none;font-size:13px;color:var(--text-3);padding:8px 14px}
+    @media(min-width:768px){.signout{display:inline}}
+    .avatar{width:36px;height:36px;border-radius:999px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-size:15px;font-weight:500}
+
+    /* Page */
+    .page{max-width:1200px;margin:0 auto;padding:40px 24px 80px}
+    @media(min-width:768px){.page{padding:60px 32px 80px}}
+
+    /* Header row */
+    .hero{display:grid;grid-template-columns:1fr;gap:24px;align-items:end}
+    @media(min-width:900px){.hero{grid-template-columns:1fr 380px}}
+    .identity{display:flex;align-items:center;gap:18px}
+    @media(min-width:768px){.identity{gap:24px}}
+    .identity-av{width:88px;height:88px;border-radius:999px;background:var(--primary);color:var(--highlight);display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-size:40px;font-weight:400;flex-shrink:0}
+    @media(min-width:768px){.identity-av{width:120px;height:120px;font-size:52px}}
+    .identity h1{font-family:"Fraunces",serif;font-size:44px;font-weight:300;letter-spacing:-0.03em;line-height:1;color:var(--text-1);margin:6px 0 0}
+    @media(min-width:768px){.identity h1{font-size:72px}}
+    .identity-meta{color:var(--text-3);font-size:14px;margin-top:8px}
+    @media(min-width:768px){.identity-meta{font-size:15px}}
+
+    .level-card{background:var(--primary);color:var(--bg);border-radius:20px;padding:22px;display:flex;flex-direction:column;justify-content:center;min-height:120px}
+    .level-n{font-family:"Fraunces",serif;font-size:36px;font-weight:300;letter-spacing:-0.02em;margin-top:4px}
+    @media(min-width:768px){.level-n{font-size:40px}}
+
+    /* KPI grid */
+    .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:32px}
+    @media(min-width:768px){.kpis{grid-template-columns:repeat(4,1fr);gap:24px;margin-top:40px}}
+    .kpi{background:var(--surface-2);border-radius:20px;padding:18px;min-height:120px;display:flex;flex-direction:column;justify-content:space-between}
+    @media(min-width:768px){.kpi{padding:24px;min-height:160px}}
+    .kpi-n{font-family:"Fraunces",serif;font-size:40px;font-weight:300;color:var(--text-1);line-height:1;letter-spacing:-0.02em}
+    @media(min-width:768px){.kpi-n{font-size:56px}}
+
+    /* Charts row */
+    .charts{display:grid;grid-template-columns:1fr;gap:16px;margin-top:24px}
+    @media(min-width:900px){.charts{grid-template-columns:800fr 400fr;gap:24px;margin-top:32px}}
+
+    .chart-card{background:var(--surface-2);border-radius:24px;padding:22px;min-height:280px}
+    @media(min-width:768px){.chart-card{padding:28px;min-height:360px}}
+    .chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .chart-title{font-family:"Fraunces",serif;font-size:22px;font-weight:400;margin:4px 0 0;color:var(--text-1)}
+    @media(min-width:768px){.chart-title{font-size:26px}}
+
+    .seg{display:flex;gap:4px;background:var(--bg);border-radius:999px;padding:4px}
+    .seg span{padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;color:var(--text-3);cursor:pointer}
+    .seg span.active{background:var(--primary);color:var(--bg)}
+
+    .bars{display:flex;align-items:flex-end;gap:12px;height:180px;margin-top:20px;padding:0 4px}
+    @media(min-width:768px){.bars{gap:24px;height:220px}}
+    .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
+    .bar{width:24px;border-radius:6px;background:var(--primary-3);transition:height .5s ease}
+    @media(min-width:768px){.bar{width:40px}}
+    .bar.accent{background:var(--accent)}
+    .bar-label{color:var(--text-3);font-family:"Inter",sans-serif;font-weight:500;font-size:10px;letter-spacing:0.18em;text-transform:uppercase}
+
+    .dist-card{background:var(--primary);color:var(--bg);border-radius:24px;padding:22px}
+    @media(min-width:768px){.dist-card{padding:28px}}
+    .dist-title{font-family:"Fraunces",serif;font-size:22px;font-weight:400;margin:4px 0 0}
+    @media(min-width:768px){.dist-title{font-size:24px}}
+    .dist-row{margin-top:16px}
+    .dist-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+    .dist-pct{color:var(--highlight)}
+    .dist-track{height:6px;background:var(--primary-2);border-radius:3px;overflow:hidden}
+    .dist-fill{height:100%;background:var(--highlight);border-radius:3px;transition:width .5s}
+
+    /* Heatmap */
+    .heat-wrap{background:var(--surface-2);border-radius:24px;padding:22px;margin-top:24px}
+    @media(min-width:768px){.heat-wrap{padding:28px;margin-top:32px}}
+    .heat-grid{display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;grid-auto-columns:10px;gap:3px;overflow-x:auto;padding-bottom:8px}
+    .heat-cell{width:10px;height:10px;border-radius:2.5px;background:var(--surface-3)}
+    .heat-1{background:rgba(74,107,77,0.4)}.heat-2{background:rgba(74,107,77,0.6)}
+    .heat-3{background:rgba(74,107,77,0.8)}.heat-4{background:#4A6B4D}
+    .heat-legend{display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--text-3)}
+    .heat-legend span{font-size:10px;font-family:"Inter";font-weight:500;letter-spacing:0.18em;text-transform:uppercase}
+    .heat-legend-ramp{display:flex;gap:3px;margin:0 8px}
+
+    /* Achievements */
+    .ach-wrap{background:var(--surface-2);border-radius:24px;padding:22px;margin-top:24px}
+    @media(min-width:768px){.ach-wrap{padding:28px;margin-top:32px}}
+    .ach-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+    .ach-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    @media(min-width:640px){.ach-grid{grid-template-columns:repeat(4,1fr);gap:12px}}
+    @media(min-width:1000px){.ach-grid{grid-template-columns:repeat(8,1fr)}}
+    .badge{border-radius:20px;padding:16px;min-height:140px;display:flex;flex-direction:column;justify-content:space-between}
+    @media(min-width:768px){.badge{min-height:150px;padding:18px}}
+    .badge-earned{background:var(--primary);color:var(--bg)}
+    .badge-locked{background:var(--surface-3);color:var(--text-4)}
+    .badge-star{font-family:"Fraunces",serif;font-weight:300;font-size:36px;line-height:1}
+    @media(min-width:768px){.badge-star{font-size:44px}}
+    .badge-earned .badge-star{color:var(--highlight)}
+    .badge-locked .badge-star{color:var(--text-4)}
+    .badge-label{font-size:13px;font-weight:600}
+
+    footer{max-width:1200px;margin:40px auto 0;padding:24px;border-top:1px solid rgba(26,24,20,0.06);display:flex;align-items:center;justify-content:space-between;color:var(--text-4);font-size:12px;flex-wrap:wrap;gap:12px}
+    footer .foot-links{display:flex;gap:24px}
     </style>
 </head>
-
-<body class="min-h-screen">
-
-    <!-- Top nav -->
-    <header class="bg-cream sticky top-0 z-20 border-b border-stone">
-        <div class="max-w-[1400px] mx-auto px-5 md:px-12 h-[72px] md:h-[88px] flex items-center justify-between">
-            <a href="/home" class="flex items-center gap-3">
-                <div class="w-7 h-7 rounded-full bg-forest-900 flex items-center justify-center overflow-hidden">
-                    <img src="/assets/logo.png" alt="" class="w-4 h-4 object-contain"/>
-                </div>
-                <span class="display text-[22px] text-ink-900 font-medium">Sunday</span>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a href="/home" class="brand">
+                <span class="brand-dot">s</span>
+                <span class="brand-word">sunday</span>
             </a>
-            <nav class="hidden md:flex items-center gap-10 text-[14px]">
-                <a href="/home" class="text-ink-500 hover:text-ink-900 font-medium">Home</a>
-                <a href="/home#asana" class="text-ink-500 hover:text-ink-900 font-medium">Library</a>
-                <a href="/home#ar_correction" class="text-ink-500 hover:text-ink-900 font-medium">Practice</a>
-                <span class="flex flex-col items-center gap-1.5"><span class="text-ink-900 font-medium">Profile</span><span class="w-6 h-0.5 bg-terracotta-600 rounded-full"></span></span>
+            <nav class="nav-links">
+                <a href="/home" class="nav-link">Today</a>
+                <a href="/home#library" class="nav-link">Library</a>
+                <a href="/home#practice" class="nav-link">Practice</a>
+                <a href="/profile" class="nav-link active">Profile</a>
             </nav>
-            <a href="/logout" class="hidden md:inline-flex items-center gap-2 text-[13px] text-ink-500 hover:text-terracotta-600 kicker">
-                Sign out
-            </a>
-            <a href="/logout" class="md:hidden text-ink-500 text-[13px]">Sign out</a>
+            <div class="nav-right">
+                <a href="/logout" class="signout">Sign out</a>
+                <span class="avatar" id="avatar-initial">A</span>
+            </div>
         </div>
     </header>
 
-    <main class="max-w-[1400px] mx-auto px-5 md:px-12 py-8 md:py-14 space-y-8">
-
-        <!-- Header row: identity + level -->
-        <section class="grid md:grid-cols-[1fr_auto] gap-6 items-end fadeup">
-            <div class="flex items-end gap-5 md:gap-8">
-                <div class="w-[84px] h-[84px] md:w-[120px] md:h-[120px] rounded-full bg-forest-900 flex items-center justify-center shrink-0">
-                    <span id="profile-initial" class="display text-4xl md:text-5xl text-saffron-500">A</span>
-                </div>
-                <div class="min-w-0">
-                    <p class="kicker text-[11px] text-terracotta-600 mb-1 md:mb-2">Practitioner</p>
-                    <h1 id="profile-name" class="display font-light text-[40px] md:text-[72px] leading-[1] text-ink-900 truncate">Practitioner</h1>
-                    <p id="profile-email" class="text-ink-500 text-[14px] md:text-[15px] mt-2 truncate">—</p>
-                </div>
-            </div>
-            <div class="rounded-[20px] bg-forest-900 p-6 md:w-[340px]">
-                <p class="kicker text-[11px] text-saffron-500 mb-2">Current level</p>
-                <p id="profile-rank" class="display text-[40px] md:text-[46px] text-cream font-light leading-none">Novice</p>
-                <p id="profile-rank-next" class="text-[12px] text-forest-300 mt-2">Keep practicing to advance</p>
-            </div>
-        </section>
-
-        <!-- KPIs -->
-        <section class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 fadeup fadeup-2">
-            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
-                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Total sessions</p>
-                <p id="kpi-sessions" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
-            </div>
-            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
-                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Active days</p>
-                <p id="kpi-days" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
-            </div>
-            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
-                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Best streak</p>
-                <p id="kpi-streak" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
-            </div>
-            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
-                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Poses learned</p>
-                <p id="kpi-poses" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
-            </div>
-        </section>
-
-        <!-- Charts grid -->
-        <section class="grid md:grid-cols-[1.6fr_1fr] gap-5 fadeup fadeup-3">
-            <!-- Bar chart -->
-            <div class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-8">
-                <div class="flex items-start justify-between mb-5">
-                    <div>
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Minutes of practice</p>
-                        <h3 class="display text-[22px] md:text-[28px] text-ink-900 mt-1">Weekly rhythm</h3>
-                    </div>
-                </div>
-                <div class="relative h-[260px] md:h-[300px]">
-                    <canvas id="bar-chart"></canvas>
-                </div>
-            </div>
-            <!-- Pose distribution -->
-            <div class="rounded-[20px] md:rounded-[24px] bg-forest-900 p-5 md:p-8 text-cream">
-                <p class="kicker text-[10px] md:text-[11px] text-saffron-500">Pose distribution</p>
-                <h3 class="display text-[22px] md:text-[28px] mt-1">What you return to</h3>
-                <div id="pose-distribution" class="mt-6 space-y-5">
-                    <p class="text-forest-300 text-[13px]">Complete your first pose to see this.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Heatmap -->
-        <section class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-8 fadeup fadeup-4">
-            <div class="flex items-start justify-between mb-5">
+    <div class="page">
+        <section class="hero">
+            <div class="identity">
+                <div class="identity-av" id="identity-initial">A</div>
                 <div>
-                    <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Rhythm</p>
-                    <h3 class="display text-[22px] md:text-[28px] text-ink-900 mt-1">Your year of practice</h3>
+                    <span class="kicker" style="color:var(--text-3)">Practitioner · since <span id="since">—</span></span>
+                    <h1 id="identity-name">Practitioner</h1>
+                    <p class="identity-meta" id="identity-email">—</p>
                 </div>
-                <div class="flex items-center gap-2 text-ink-500 text-[11px] kicker">
+            </div>
+            <div class="level-card">
+                <span class="kicker" style="color:var(--highlight)">Current level</span>
+                <div class="level-n" id="level-name">Novice</div>
+                <span class="kicker" id="level-hint" style="color:var(--primary-3);margin-top:6px;display:block">Practice daily to advance</span>
+            </div>
+        </section>
+
+        <section class="kpis">
+            <div class="kpi"><span class="kicker" style="color:var(--accent)">Total sessions</span><span class="kpi-n" id="kpi-sessions">0</span></div>
+            <div class="kpi"><span class="kicker" style="color:var(--accent)">Active days</span><span class="kpi-n" id="kpi-days">0</span></div>
+            <div class="kpi"><span class="kicker" style="color:var(--accent)">Best streak</span><span class="kpi-n" id="kpi-streak">0</span></div>
+            <div class="kpi"><span class="kicker" style="color:var(--accent)">Poses learned</span><span class="kpi-n" id="kpi-poses">0</span></div>
+        </section>
+
+        <section class="charts">
+            <div class="chart-card">
+                <div class="chart-head">
+                    <div>
+                        <span class="kicker" style="color:var(--accent)">Minutes of practice</span>
+                        <h3 class="chart-title">Last 8 weeks</h3>
+                    </div>
+                    <div class="seg"><span class="active">Week</span><span>Month</span><span>Year</span></div>
+                </div>
+                <div id="bars" class="bars"></div>
+            </div>
+            <div class="dist-card">
+                <span class="kicker" style="color:var(--highlight)">Pose distribution</span>
+                <h3 class="dist-title">What you return to</h3>
+                <div id="dist-list" style="margin-top:14px">
+                    <p style="color:var(--primary-3);font-size:13px;margin:0">Complete your first pose to see this.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="heat-wrap">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">
+                <div>
+                    <span class="kicker" style="color:var(--accent)">Rhythm</span>
+                    <h3 class="chart-title" style="font-size:22px">Your year of practice</h3>
+                </div>
+                <div class="heat-legend">
                     <span>Less</span>
-                    <div class="flex gap-1">
-                        <span class="heatcell"></span>
-                        <span class="heatcell heat-1"></span>
-                        <span class="heatcell heat-2"></span>
-                        <span class="heatcell heat-3"></span>
-                        <span class="heatcell heat-4"></span>
+                    <div class="heat-legend-ramp">
+                        <div class="heat-cell"></div><div class="heat-cell heat-1"></div><div class="heat-cell heat-2"></div><div class="heat-cell heat-3"></div><div class="heat-cell heat-4"></div>
                     </div>
                     <span>More</span>
                 </div>
             </div>
-            <div class="overflow-x-auto -mx-2 px-2">
-                <div id="heatmap" class="flex gap-[3px] min-w-max"></div>
-            </div>
+            <div id="heatmap" class="heat-grid"></div>
         </section>
 
-        <!-- Achievements -->
-        <section class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-8 fadeup fadeup-4">
-            <div class="flex items-center justify-between mb-5">
+        <section class="ach-wrap">
+            <div class="ach-head">
                 <div>
-                    <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Achievements</p>
-                    <h3 class="display text-[22px] md:text-[28px] text-ink-900 mt-1">Small victories</h3>
+                    <span class="kicker" style="color:var(--accent)">Achievements</span>
+                    <h3 class="chart-title" style="font-size:22px">Small victories</h3>
                 </div>
-                <p id="achievements-meta" class="text-[13px] text-ink-500 kicker">0 of 8 earned</p>
+                <span class="kicker" style="color:var(--text-3)" id="ach-meta">0 of 8 earned</span>
             </div>
-            <div id="achievements" class="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4"></div>
+            <div id="ach-grid" class="ach-grid"></div>
         </section>
+    </div>
 
-        <footer class="pt-8 pb-12 text-center text-[11px] text-ink-300 kicker">
-            <span>© Sunday · made with care for everyday practitioners</span>
-        </footer>
-    </main>
+    <footer>
+        <span class="kicker">© Sunday · made with care for everyday practitioners</span>
+        <div class="foot-links"><span>Privacy</span><span>About</span><span>Help</span></div>
+    </footer>
 
     <script>
-        (async function(){
-            const $ = (id) => document.getElementById(id);
+    (async function(){
+        const $ = (id) => document.getElementById(id);
+        let data;
+        try {
+            const r = await fetch('/api/profile', { credentials:'same-origin' });
+            data = r.ok ? await r.json() : null;
+        } catch(_) {}
+        if (!data) data = { name:'Practitioner', email:'', activity_log:[], completed_asanas:{}, total_active_days:0, created_at:null };
 
-            let data = null;
-            try {
-                const res = await fetch('/api/profile', { credentials: 'same-origin' });
-                if (!res.ok) throw new Error();
-                data = await res.json();
-            } catch(e) {
-                data = { name: 'Practitioner', email: '', activity_log: [], completed_asanas: {}, total_active_days: 0, created_at: null };
+        const initial = (data.name || 'A').trim().charAt(0).toUpperCase();
+        $('avatar-initial').textContent = initial;
+        $('identity-initial').textContent = initial;
+        $('identity-name').textContent = data.name || 'Practitioner';
+        $('identity-email').textContent = data.email || '';
+        if (data.created_at) {
+            const d = new Date(data.created_at);
+            $('since').textContent = d.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+        } else {
+            $('since').textContent = 'today';
+        }
+
+        const completed = data.completed_asanas || {};
+        const total = Object.values(completed).reduce((a,b)=>a+(Number(b)||0),0);
+        const active = data.total_active_days || (data.activity_log||[]).length;
+        const learned = Object.keys(completed).length;
+
+        const days = [...(data.activity_log||[])].sort();
+        let best = 0, cur = 0, prev = null;
+        for (const d of days) {
+            const t = new Date(d);
+            if (prev && Math.round((t - prev)/86400000) === 1) cur++;
+            else cur = 1;
+            if (cur > best) best = cur;
+            prev = t;
+        }
+
+        $('kpi-sessions').textContent = total;
+        $('kpi-days').textContent = active;
+        $('kpi-streak').textContent = best;
+        $('kpi-poses').textContent = learned;
+
+        // Level progression
+        const levels = [
+            { min:0, name:'Novice', next:1, nextName:'Novice II' },
+            { min:1, name:'Novice II', next:7, nextName:'Regular I' },
+            { min:7, name:'Regular I', next:14, nextName:'Regular II' },
+            { min:14, name:'Regular II', next:30, nextName:'Expert I' },
+            { min:30, name:'Expert I', next:60, nextName:'Expert II' },
+            { min:60, name:'Expert II', next:120, nextName:'Master' },
+            { min:120, name:'Master', next:null, nextName:null },
+        ];
+        let lvl = levels[0];
+        for (const l of levels) if (active >= l.min) lvl = l;
+        $('level-name').textContent = lvl.name;
+        $('level-hint').textContent = lvl.next ? `${lvl.next - active} days to ${lvl.nextName}` : 'A lifetime of practice ahead';
+
+        // Bar chart (8 weeks)
+        const today = new Date(); today.setHours(0,0,0,0);
+        const buckets = new Array(8).fill(0);
+        const daySet = new Set(days);
+        for (let i=0; i<56; i++) {
+            const d = new Date(today); d.setDate(d.getDate()-i);
+            const ds = d.toISOString().slice(0,10);
+            if (daySet.has(ds)) {
+                const wIdx = 7 - Math.floor(i / 7);
+                if (wIdx >= 0 && wIdx < 8) buckets[wIdx] += 3; // 3 min / day
             }
+        }
+        const max = Math.max(1, ...buckets);
+        const barsEl = $('bars');
+        for (let i = 0; i < 8; i++) {
+            const col = document.createElement('div');
+            col.className = 'bar-col';
+            const bar = document.createElement('div');
+            bar.className = 'bar' + (i === 7 ? ' accent' : '');
+            bar.style.height = `${Math.max(4, (buckets[i] / max) * 100)}%`;
+            bar.title = `${buckets[i]} min`;
+            col.appendChild(bar);
+            const label = document.createElement('span');
+            label.className = 'bar-label';
+            label.textContent = 'W' + (i + 1);
+            col.appendChild(label);
+            barsEl.appendChild(col);
+        }
 
-            // Identity
-            const initial = (data.name || 'A').trim().charAt(0).toUpperCase();
-            $('profile-initial').textContent = initial;
-            $('profile-name').textContent = data.name || 'Practitioner';
-            const joined = data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
-            $('profile-email').textContent = (data.email || '') + (joined ? '  ·  since ' + joined : '');
-
-            // KPIs
-            const completedAsanas = data.completed_asanas || {};
-            const totalSessions = Object.values(completedAsanas).reduce((a,b)=>a+(Number(b)||0), 0);
-            const activeDays = data.total_active_days || (data.activity_log || []).length;
-            const posesLearned = Object.keys(completedAsanas).length;
-
-            // Best streak from activity_log
-            const days = [...(data.activity_log || [])].sort();
-            let bestStreak = 0, cur = 0, prevDay = null;
-            for (const d of days) {
-                const t = new Date(d);
-                if (prevDay && ((t - prevDay) / (1000*60*60*24)) === 1) cur++;
-                else cur = 1;
-                if (cur > bestStreak) bestStreak = cur;
-                prevDay = t;
+        // Pose distribution
+        const dist = $('dist-list');
+        if (total > 0) {
+            const entries = Object.entries(completed).sort((a,b)=>b[1]-a[1]).slice(0,5);
+            dist.innerHTML = '';
+            for (const [n, c] of entries) {
+                const pct = Math.round((c/total)*100);
+                const row = document.createElement('div');
+                row.className = 'dist-row';
+                row.innerHTML = `
+                    <div class="dist-top"><span>${n}</span><span class="dist-pct">${pct}%</span></div>
+                    <div class="dist-track"><div class="dist-fill" style="width:${pct}%"></div></div>`;
+                dist.appendChild(row);
             }
+        }
 
-            $('kpi-sessions').textContent = totalSessions;
-            $('kpi-days').textContent = activeDays;
-            $('kpi-streak').textContent = bestStreak;
-            $('kpi-poses').textContent = posesLearned;
-
-            // Rank
-            let rank = 'Novice', nextText = 'Practice daily to advance';
-            if (activeDays >= 120) { rank = 'Master'; nextText = 'A lifetime of practice ahead'; }
-            else if (activeDays >= 60) { rank = 'Expert II'; nextText = (120 - activeDays) + ' days to Master'; }
-            else if (activeDays >= 30) { rank = 'Expert I'; nextText = (60 - activeDays) + ' days to Expert II'; }
-            else if (activeDays >= 14) { rank = 'Regular II'; nextText = (30 - activeDays) + ' days to Expert I'; }
-            else if (activeDays >= 7) { rank = 'Regular I'; nextText = (14 - activeDays) + ' days to Regular II'; }
-            else if (activeDays >= 1) { rank = 'Novice II'; nextText = (7 - activeDays) + ' days to Regular I'; }
-            $('profile-rank').textContent = rank;
-            $('profile-rank-next').textContent = nextText;
-
-            // --- Bar chart (last 8 weeks, minutes approximated by sessions × 3) ---
-            const today = new Date(); today.setHours(0,0,0,0);
-            const weekBuckets = new Array(8).fill(0);
-            const daySet = new Set(days);
-            for (let i = 0; i < 8*7; i++) {
-                const d = new Date(today); d.setDate(d.getDate() - i);
-                const ds = d.toISOString().slice(0,10);
-                if (daySet.has(ds)) {
-                    const weekIndex = 7 - Math.floor(i / 7);
-                    if (weekIndex >= 0 && weekIndex < 8) weekBuckets[weekIndex] += 3;
-                }
+        // Heatmap
+        const heat = $('heatmap');
+        const start = new Date(today); start.setDate(start.getDate()-364);
+        start.setDate(start.getDate() - start.getDay()); // align to Sunday
+        for (let w = 0; w < 53; w++) {
+            for (let d = 0; d < 7; d++) {
+                const day = new Date(start);
+                day.setDate(day.getDate() + w*7 + d);
+                const ds = day.toISOString().slice(0,10);
+                const cell = document.createElement('span');
+                cell.className = 'heat-cell' + (daySet.has(ds) ? ' heat-4' : '');
+                cell.title = ds;
+                heat.appendChild(cell);
             }
-            const labels = [];
-            for (let i = 7; i >= 0; i--) labels.push('W' + (8 - i));
+        }
 
-            const ctx = $('bar-chart').getContext('2d');
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: [{
-                        data: weekBuckets,
-                        backgroundColor: weekBuckets.map((_, i) => i === 7 ? '#B8573E' : '#4A6B4D'),
-                        borderRadius: 6,
-                        barThickness: 28,
-                    }]
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1A1814', titleColor: '#FAF7F2', bodyColor: '#D4E0D5', cornerRadius: 8 } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#6B6657', font: { family: 'Inter', size: 11 } } },
-                        y: { grid: { color: 'rgba(26,24,20,0.06)' }, border: { display: false }, ticks: { color: '#A8A294', font: { family: 'Inter', size: 11 }, stepSize: 10 }, beginAtZero: true }
-                    }
-                }
-            });
-
-            // --- Pose distribution ---
-            const distWrap = $('pose-distribution');
-            if (totalSessions > 0) {
-                const entries = Object.entries(completedAsanas).sort((a,b)=>b[1]-a[1]).slice(0, 5);
-                distWrap.innerHTML = entries.map(([name, count]) => {
-                    const pct = Math.round((count / totalSessions) * 100);
-                    return `
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="display text-[16px] text-cream">${name}</span>
-                            <span class="kicker text-[11px] text-forest-300">${pct}%</span>
-                        </div>
-                        <div class="h-[6px] rounded-full bg-forest-700 overflow-hidden">
-                            <div class="h-full bg-saffron-500 rounded-full" style="width:${pct}%"></div>
-                        </div>
-                    </div>`;
-                }).join('');
-            }
-
-            // --- Heatmap (last 365 days as grid of 53 weeks × 7) ---
-            const heat = $('heatmap');
-            const start = new Date(today); start.setDate(start.getDate() - 364);
-            // align to sunday
-            const startDay = start.getDay();
-            start.setDate(start.getDate() - startDay);
-            const weeks = 53;
-            for (let w = 0; w < weeks; w++) {
-                const col = document.createElement('div');
-                col.className = 'flex flex-col gap-[3px]';
-                for (let d = 0; d < 7; d++) {
-                    const day = new Date(start);
-                    day.setDate(day.getDate() + w*7 + d);
-                    const ds = day.toISOString().slice(0,10);
-                    const active = daySet.has(ds);
-                    const cell = document.createElement('span');
-                    cell.className = 'heatcell' + (active ? ' heat-4' : '');
-                    cell.title = ds + (active ? ' · practiced' : '');
-                    col.appendChild(cell);
-                }
-                heat.appendChild(col);
-            }
-
-            // --- Achievements ---
-            const defs = [
-                { key: 'first',     label: 'First steps',  sub: 'First session',      earned: totalSessions >= 1 },
-                { key: 'week',      label: 'Week one',     sub: '7-day streak',       earned: bestStreak >= 7 },
-                { key: 'grounded',  label: 'Grounded',     sub: 'Tadasana 90%',       earned: (completedAsanas['Tadasana'] || 0) >= 3 },
-                { key: 'balance',   label: 'Balance',      sub: 'Vrikshasana mastered', earned: (completedAsanas['Vrikshasana'] || 0) >= 3 },
-                { key: 'month',     label: 'A month in',   sub: '30 active days',     earned: activeDays >= 30 },
-                { key: 'scholar',   label: 'Scholar',      sub: 'All 7 poses',        earned: posesLearned >= 7 },
-                { key: 'master',    label: 'Master',       sub: '120 active days',    earned: activeDays >= 120 },
-                { key: 'teacher',   label: 'Teacher',      sub: '100 sessions',       earned: totalSessions >= 100 },
-            ];
-            const earnedCount = defs.filter(d => d.earned).length;
-            $('achievements-meta').textContent = earnedCount + ' of ' + defs.length + ' earned';
-
-            $('achievements').innerHTML = defs.map(d => {
-                const bg = d.earned ? 'bg-forest-900 text-cream' : 'bg-sand text-ink-500';
-                const star = d.earned ? 'text-saffron-500' : 'text-ink-300';
-                const labelColor = d.earned ? 'text-cream' : 'text-ink-500';
-                const subColor = d.earned ? 'text-forest-300' : 'text-ink-300';
-                return `
-                <div class="rounded-[16px] md:rounded-[20px] p-4 md:p-5 min-h-[140px] md:min-h-[150px] flex flex-col justify-between ${bg}">
-                    <div class="display text-[36px] md:text-[44px] font-light ${star}">${d.earned ? '★' : '☆'}</div>
-                    <div>
-                        <p class="text-[13px] md:text-[14px] font-semibold ${labelColor}">${d.label}</p>
-                        <p class="text-[10px] md:text-[11px] mt-1 kicker ${subColor}">${d.sub}</p>
-                    </div>
+        // Achievements
+        const badges = [
+            { t:'First steps', s:'Day one',        e: total >= 1 },
+            { t:'Week one',    s:'7-day streak',   e: best >= 7 },
+            { t:'Grounded',    s:'Tadasana mastery', e:(completed['Tadasana']||0) >= 3 },
+            { t:'Balance',     s:'Tree pose',      e:(completed['Vrikshasana']||0) >= 3 },
+            { t:'A month in',  s:'30 active days', e: active >= 30 },
+            { t:'Scholar',     s:'All beginner',   e: learned >= 10 },
+            { t:'Master',      s:'120 days',       e: active >= 120 },
+            { t:'Teacher',     s:'100 sessions',   e: total >= 100 },
+        ];
+        const ach = $('ach-grid');
+        const earned = badges.filter(b => b.e).length;
+        $('ach-meta').textContent = `${earned} of ${badges.length} earned`;
+        for (const b of badges) {
+            const el = document.createElement('div');
+            el.className = 'badge ' + (b.e ? 'badge-earned' : 'badge-locked');
+            el.innerHTML = `
+                <span class="badge-star">${b.e ? '★' : '☆'}</span>
+                <div>
+                    <div class="badge-label">${b.t}</div>
+                    <div class="kicker" style="color:${b.e ? 'var(--primary-3)' : 'var(--text-4)'};font-size:9px;margin-top:4px">${b.s}</div>
                 </div>`;
-            }).join('');
-
-        })();
+            ach.appendChild(el);
+        }
+    })();
     </script>
 </body>
 </html>
