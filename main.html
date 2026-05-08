@@ -48,20 +48,18 @@
         }
     </script>
     <style>
-        /* Sunday — dark practice surface retheme */
+        /* Sunday — editorial cream surface, dark only inside AR practice */
         body {
-            background-color: #0E1410;
-            background-image:
-                radial-gradient(at 0% 0%, rgba(47, 74, 49, 0.35) 0, transparent 55%),
-                radial-gradient(at 100% 0%, rgba(184, 87, 62, 0.18) 0, transparent 50%);
-            color: #E3DED3;
+            background-color: #FAF7F2;
+            color: #1A1814;
             font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; letter-spacing: -0.02em; }
+        .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; letter-spacing: -0.02em; font-optical-sizing: auto; }
         .kicker { letter-spacing: 0.22em; text-transform: uppercase; font-weight: 500; }
 
         .view-fade-in { animation: viewFadeIn 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) forwards; }
@@ -71,81 +69,79 @@
         .scrollable-content::-webkit-scrollbar { display: none; }
 
         .loading-animation {
-            border: 4px solid rgba(228, 222, 211, 0.12);
-            border-top: 4px solid #D4A04A;
+            border: 4px solid rgba(26, 24, 20, 0.08);
+            border-top: 4px solid #2F4A31;
             border-radius: 50%;
             width: 24px; height: 24px;
-            animation: spin 1s linear infinite;
+            animation: spin 0.9s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Card hover */
-        .card-effect {
-            transition: all 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
-            border: 1px solid rgba(228, 222, 211, 0.06);
-            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.35);
+        .pressable { transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease; }
+        .pressable:active { transform: translateY(1px) scale(0.99); }
+
+        /* Editorial pose cards */
+        .asana-tile {
+            transition: transform 0.35s cubic-bezier(0.22, 0.8, 0.3, 1), box-shadow 0.35s ease;
+            cursor: pointer;
         }
-        .card-effect:hover {
+        .asana-tile:hover {
             transform: translateY(-6px);
-            border-color: rgba(212, 160, 74, 0.35);
-            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(212, 160, 74, 0.15);
-            background: rgba(47, 74, 49, 0.5) !important;
+            box-shadow: 0 24px 50px -20px rgba(26, 24, 20, 0.22);
         }
 
-        #cursor-glow {
-            position: fixed;
-            pointer-events: none;
-            width: 320px;
-            height: 320px;
-            border-radius: 50%;
-            background: rgba(212, 160, 74, 0.18);
-            filter: blur(100px);
-            transform: translate(-50%, -50%);
-            z-index: -1;
-            transition: opacity 0.3s ease;
-            opacity: 0.9;
-        }
+        #cursor-glow { display: none; }
 
         @keyframes pulse-green {
-            0%   { box-shadow: 0 0 0 0 rgba(139, 168, 141, 0.7); }
-            70%  { box-shadow: 0 0 0 12px rgba(139, 168, 141, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(139, 168, 141, 0); }
+            0%   { box-shadow: 0 0 0 0 rgba(74, 127, 77, 0.55); }
+            70%  { box-shadow: 0 0 0 14px rgba(74, 127, 77, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(74, 127, 77, 0); }
         }
         @keyframes pulse-blue {
-            0%   { box-shadow: 0 0 0 0 rgba(212, 160, 74, 0.7); }
-            70%  { box-shadow: 0 0 0 12px rgba(212, 160, 74, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(212, 160, 74, 0); }
+            0%   { box-shadow: 0 0 0 0 rgba(184, 87, 62, 0.55); }
+            70%  { box-shadow: 0 0 0 14px rgba(184, 87, 62, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(184, 87, 62, 0); }
         }
-        .voice-listening { animation: pulse-green 1.5s infinite; border: 1px solid #8BA88D !important; }
-        .voice-talking   { animation: pulse-blue 1.5s infinite;  border: 1px solid #D4A04A !important; }
+        .voice-listening { animation: pulse-green 1.5s infinite; border-color: #4A7F4D !important; }
+        .voice-talking   { animation: pulse-blue 1.5s infinite;  border-color: #B8573E !important; }
 
-        /* AR / Video Feed */
+        /* AR / Video feed */
         #video-container {
             position: relative;
             width: 100%;
             padding-top: 75%;
-            background-color: #000;
-            border-radius: 1.25rem;
+            background-color: #0A100B;
+            border-radius: 1.5rem;
             overflow: hidden;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+            box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.45);
         }
         #video-feed { position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; transform: scaleX(-1); }
         #ar-canvas  { position: absolute; top:0; left:0; width:100%; height:100%; transform: scaleX(-1); }
 
-        /* --- Premium Asana Library Styles --- */
+        /* Heatmap cell */
+        .heatcell {
+            width: 11px; height: 11px; border-radius: 3px;
+            background: rgba(26, 24, 20, 0.06);
+            transition: transform 0.15s ease;
+        }
+        .heatcell.lv1 { background: rgba(74, 107, 77, 0.4); }
+        .heatcell.lv2 { background: rgba(74, 107, 77, 0.6); }
+        .heatcell.lv3 { background: rgba(74, 107, 77, 0.8); }
+        .heatcell.lv4 { background: #4A6B4D; }
+        .heatcell:hover { transform: scale(1.8); }
+
+        /* --- Premium Asana Library Styles (editorial cream) --- */
         .asana-card {
-            background: rgba(30, 41, 59, 0.4);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #F3EEE5;
+            border: 1px solid rgba(26, 24, 20, 0.04);
+            transition: all 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
+            color: #1A1814;
         }
 
         .asana-card:hover {
-            background: rgba(30, 41, 59, 0.6);
-            border-color: rgba(66, 165, 245, 0.5);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.5);
+            transform: translateY(-6px);
+            box-shadow: 0 24px 50px -20px rgba(26, 24, 20, 0.22);
+            border-color: rgba(26, 24, 20, 0.08);
         }
 
         /* Modal Backdrop */
@@ -306,130 +302,112 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 
-<body class="min-h-screen flex flex-col items-center pb-24 md:pb-8 text-gray-200">
+<body class="min-h-screen text-ink-900">
 
     <div id="cursor-glow"></div>
 
-    <div id="app" class="w-full max-w-5xl px-4 md:px-8 pt-6 md:pt-10">
-        <header class="flex flex-col md:flex-row items-center justify-between mb-8 pb-6 border-b border-white/5 gap-5">
-            <a href="/home" class="flex items-center gap-4 group">
-                <div class="w-11 h-11 rounded-full bg-forest-700 flex items-center justify-center overflow-hidden p-1.5 border border-white/5 shadow-lg shadow-black/30">
-                    <img src="/assets/logo.png" alt="Sunday" class="w-full h-full object-contain">
+    <!-- Top nav (desktop) -->
+    <header class="bg-cream/95 backdrop-blur-md sticky top-0 z-20 border-b border-stone">
+        <div class="max-w-[1400px] mx-auto px-5 md:px-12 h-[72px] md:h-[88px] flex items-center justify-between">
+            <a href="/home" class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-forest-900 flex items-center justify-center overflow-hidden">
+                    <img src="/assets/logo.png" alt="" class="w-5 h-5 object-contain"/>
                 </div>
-                <div class="text-left">
-                    <h1 class="font-display text-[26px] md:text-[30px] font-medium text-cream leading-none tracking-tight">Sunday</h1>
-                    <p class="kicker text-[10px] text-saffron-500 mt-1">AsanaMind · Yoga coach</p>
-                </div>
+                <span class="font-display text-[22px] text-ink-900 font-medium">Sunday</span>
             </a>
 
-            <div class="flex items-center gap-2 w-full md:w-auto justify-center">
-                <a href="/profile"
-                    class="flex-1 md:flex-none text-center bg-white/5 text-cream px-5 py-2.5 rounded-full hover:bg-white/10 transition-all font-semibold border border-white/5 text-[13px] kicker">
-                    Profile
-                </a>
+            <nav id="top-nav" class="hidden md:flex items-center gap-10 text-[14px]"></nav>
+
+            <div class="flex items-center gap-2">
                 <button id="voice-toggle" onclick="app.toggleVoiceControl()"
-                    class="flex-1 md:flex-none flex items-center justify-center gap-2 text-[13px] px-4 py-2.5 rounded-full transition-all bg-white/5 hover:bg-white/10 text-ink-300 border border-white/5 active:scale-95">
+                    class="hidden sm:flex items-center gap-2 text-[12px] px-4 py-2 rounded-full bg-paper hover:bg-sand border border-stone text-ink-700 font-medium transition-all active:scale-95">
                     <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 transition-colors duration-300">
                         <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
                         <path fill-rule="evenodd" d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
                         <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
                     </svg>
-                    <span id="mic-status-text" class="uppercase font-semibold tracking-[0.15em] text-[11px]">Standby</span>
+                    <span id="mic-status-text" class="kicker text-[10px]">Standby</span>
                 </button>
-                <a href="/logout" class="hidden md:inline-flex items-center text-ink-300 hover:text-terracotta-600 text-[12px] kicker ml-2">Sign out</a>
+                <a href="/profile" class="w-10 h-10 rounded-full bg-forest-900 text-saffron-500 font-display text-[16px] flex items-center justify-center hover:bg-forest-700 transition-colors" id="avatar-btn">A</a>
+                <a href="/logout" class="hidden md:inline-flex text-[12px] text-ink-500 hover:text-terracotta-600 kicker ml-3">Sign out</a>
             </div>
-        </header>
+        </div>
+    </header>
 
-        <main id="content" class="bg-card/70 backdrop-blur-md border border-white/5 rounded-[28px] p-5 md:p-8 min-h-[60vh] shadow-2xl shadow-black/40">
+    <div id="app" class="w-full">
+        <main id="content" class="max-w-[1400px] mx-auto px-5 md:px-12 py-8 md:py-14 pb-28 md:pb-14">
         </main>
 
-        <nav class="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg border-t border-white/5 z-10 shadow-2xl md:relative md:mt-6 md:shadow-none md:border-none md:bg-transparent md:backdrop-blur-0">
-            <div id="nav-tabs" class="flex justify-around items-center max-w-4xl mx-auto py-3 md:py-0">
-            </div>
+        <!-- Mobile bottom tab bar -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-lg border-t border-stone z-30 md:hidden" style="box-shadow: 0 -4px 24px rgba(26,24,20,0.06);">
+            <div id="nav-tabs" class="flex justify-around items-center max-w-3xl mx-auto py-3 pb-5"></div>
         </nav>
     </div>
 
     <!-- Asana Details Modal Backdrop -->
     <div id="asana-modal-backdrop" onclick="if(event.target === this) app.closeAsanaDetails()"
-        class="fixed inset-0 bg-black/80 backdrop-blur-xl z-[60] flex items-center justify-center p-4 md:p-8 opacity-0 pointer-events-none transition-all duration-500">
-        <!-- Modal Container -->
+        class="fixed inset-0 bg-ink-900/70 backdrop-blur-md z-[60] flex items-center justify-center p-4 md:p-8 opacity-0 pointer-events-none transition-all duration-500">
         <div id="asana-modal-content"
-            class="bg-[#1a1a1a] w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden flex flex-col md:flex-row relative transform scale-95 transition-all duration-500 overflow-y-auto md:overflow-hidden">
-            <!-- Close Button (Mobile/Top) -->
+            class="bg-cream w-full max-w-4xl max-h-[90vh] rounded-[28px] shadow-2xl border border-stone overflow-hidden relative transform scale-95 transition-all duration-500 overflow-y-auto">
             <button onclick="app.closeAsanaDetails()"
-                class="absolute top-6 right-6 z-20 w-10 h-10 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 transition-all active:scale-90">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
+                class="absolute top-5 right-5 z-20 w-10 h-10 bg-paper hover:bg-sand rounded-full flex items-center justify-center transition-all active:scale-90">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-ink-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
-            <!-- Modal Header with Background Pattern -->
-            <div
-                class="h-24 sm:h-32 bg-gradient-to-br from-primary/30 to-secondary/30 relative flex items-end p-5 sm:p-6">
-                <div class="z-10">
-                    <h3 id="modal-asana-name" class="text-3xl font-black text-white leading-tight">Asana Name</h3>
-                    <p id="modal-asana-sanskrit" class="text-primary-light font-medium opacity-90 italic">Sanskrit Name
-                    </p>
+
+            <!-- Editorial hero -->
+            <div class="relative bg-forest-900 text-cream px-6 md:px-12 pt-12 pb-14 overflow-hidden">
+                <div style="position:absolute; width:500px; height:500px; border-radius:9999px; background:rgba(74,107,77,0.45); filter:blur(110px); top:-100px; right:-100px; pointer-events:none;"></div>
+                <div style="position:absolute; width:340px; height:340px; border-radius:9999px; background:rgba(184,87,62,0.3); filter:blur(90px); bottom:-120px; left:-80px; pointer-events:none;"></div>
+                <div class="relative">
+                    <p class="kicker text-[11px] text-saffron-500 mb-3"><span id="modal-asana-category-kicker">Beginner</span> · Foundation</p>
+                    <h3 id="modal-asana-name" class="font-display text-[44px] md:text-[64px] font-light leading-[1] tracking-tight">Asana Name</h3>
+                    <p id="modal-asana-sanskrit" class="font-display text-[22px] md:text-[26px] text-forest-300 mt-2">Sanskrit Name</p>
                 </div>
-                <!-- Decorative Circle -->
-                <div class="absolute -bottom-8 -right-8 w-32 h-32 bg-primary/20 rounded-full blur-2xl"></div>
             </div>
 
-            <!-- Modal Body -->
-            <div class="p-6 md:p-8 overflow-y-auto modal-scroll flex-grow">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="md:col-span-2 space-y-6">
+            <!-- Content -->
+            <div class="p-6 md:p-10 bg-cream">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
+                    <div class="md:col-span-2 space-y-8">
                         <section>
-                            <h4 class="text-sm uppercase tracking-widest text-primary font-bold mb-3 flex items-center">
-                                <span class="w-6 h-px bg-primary/30 mr-2"></span> Overview
-                            </h4>
-                            <p id="modal-asana-benefits" class="text-gray-300 leading-relaxed"></p>
+                            <p class="kicker text-[11px] text-terracotta-600 mb-2">Overview</p>
+                            <p id="modal-asana-benefits" class="text-[15px] md:text-[16px] text-ink-700 leading-[1.75]"></p>
                         </section>
 
                         <section>
-                            <h4 class="text-sm uppercase tracking-widest text-warning font-bold mb-3 flex items-center">
-                                <span class="w-6 h-px bg-warning/30 mr-2"></span> Precautions
-                            </h4>
-                            <div class="bg-warning/5 border border-warning/20 p-4 rounded-2xl">
-                                <p id="modal-asana-precaution" class="text-warning-light/90 text-sm leading-relaxed">
-                                </p>
+                            <p class="kicker text-[11px] text-terracotta-600 mb-2">Precautions</p>
+                            <div class="rounded-2xl bg-terracotta-100 border border-terracotta-100 px-5 py-4">
+                                <p id="modal-asana-precaution" class="text-[14px] text-ink-700 leading-[1.65]"></p>
                             </div>
                         </section>
 
                         <section>
-                            <h4 class="text-sm uppercase tracking-widest text-accent font-bold mb-3 flex items-center">
-                                <span class="w-6 h-px bg-accent/30 mr-2"></span> Practice Steps
-                            </h4>
-                            <ol id="modal-asana-steps" class="space-y-3 text-gray-300"></ol>
+                            <p class="kicker text-[11px] text-terracotta-600 mb-3">Practice steps</p>
+                            <ol id="modal-asana-steps" class="space-y-3 text-ink-700"></ol>
                         </section>
                     </div>
 
-                    <div class="space-y-6">
-                        <div class="bg-gray-800/50 p-4 rounded-2xl border border-white/5 shadow-inner">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-3">Specifications</h4>
+                    <div class="space-y-5">
+                        <div class="rounded-2xl bg-paper p-5">
+                            <p class="kicker text-[10px] text-ink-500 mb-3">Specifications</p>
                             <div class="space-y-4">
                                 <div>
-                                    <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Difficulty</p>
-                                    <span id="modal-asana-category"
-                                        class="px-3 py-1 text-xs rounded-full font-bold bg-primary/20 text-primary border border-primary/20">Beginner</span>
+                                    <p class="kicker text-[10px] text-ink-300 mb-1">Difficulty</p>
+                                    <span id="modal-asana-category" class="inline-flex px-3 py-1 text-[11px] rounded-full font-semibold bg-forest-900 text-cream">Beginner</span>
                                 </div>
                                 <div>
-                                    <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Target Areas</p>
-                                    <p id="modal-asana-targeted" class="text-sm text-gray-300 font-medium"></p>
+                                    <p class="kicker text-[10px] text-ink-300 mb-1">Target areas</p>
+                                    <p id="modal-asana-targeted" class="text-[14px] text-ink-700 font-medium"></p>
                                 </div>
                             </div>
                         </div>
 
                         <button id="modal-start-btn"
-                            class="w-full py-4 bg-primary hover:bg-primary-light text-background font-black rounded-2xl transition-all shadow-lg shadow-primary/20 active:scale-95 flex items-center justify-center space-x-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                                class="w-5 h-5">
-                                <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
-                                <path fill-rule="evenodd"
-                                    d="M1.5 12c0-2.485 2.404-4.5 5.488-4.5h11.024c3.084 0 5.488 2.015 5.488 4.5s-2.404 4.5-5.488 4.5H6.988c-3.084 0-5.488-2.015-5.488-4.5ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z"
-                                    clip-rule="evenodd" />
-                            </svg>
-                            <span>START PRACTICE</span>
+                            class="pressable w-full py-4 bg-terracotta-600 hover:bg-terracotta-400 text-cream font-semibold rounded-full transition-all shadow-lg shadow-terracotta-600/15 flex items-center justify-center gap-2">
+                            <span>Practice with AR coach</span>
+                            <span class="opacity-80">→</span>
                         </button>
                     </div>
                 </div>
@@ -616,9 +594,9 @@
             currentView: 'dashboard',
             views: {
                 dashboard: { name: 'Home', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3v2.25a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3V6ZM3 15.75a3 3 0 0 1 3-3h2.25a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2.25ZM9.75 0a3 3 0 0 1 3-3H18a3 3 0 0 1 3 3V18a3 3 0 0 1-3 3h-2.25a3 3 0 0 1-3-3v-2.25Z" clip-rule="evenodd" /></svg>' },
-                asana: { name: 'Asana Library', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M11.54 22.351A2.433 2.433 0 0 0 12 22.5c.376 0 .741-.096 1.06-.279l.522-.249 7.55 3.332.002-.001.002-.001a.75.75 0 0 0 .584-.852 16.148 16.148 0 0 0-4.075-8.868 12.396 12.396 0 0 1 2.373-3.084c.645-.632.744-1.638.258-2.479l-.174-.298c-.469-.798-1.547-1.077-2.475-.688l-2.074.887a.75.75 0 0 0-.773-.243l-3.235-4.321C9.654 2.84 8.643 2.5 7.632 2.5a.75.75 0 0 0-.584.852c.321 1.954.249 3.864-.32 5.584l-2.316 4.01a.75.75 0 0 0-.074.786l.635 1.018a.75.75 0 0 0 .866.398l1.378-.475 3.655 1.701Z" clip-rule="evenodd" /></svg>' },
-                ar_correction: { name: 'AR Correction', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><path fill-rule="evenodd" d="M1.5 12c0-2.485 2.404-4.5 5.488-4.5h11.024c3.084 0 5.488 2.015 5.488 4.5s-2.404 4.5-5.488 4.5H6.988c-3.084 0-5.488-2.015-5.488-4.5ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" clip-rule="evenodd" /></svg>' },
-                course: { name: 'Course', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M11.7 2.805a.75.75 0 0 1 .6 0A60.65 60.65 0 0 1 22.83 8.72a.75.75 0 0 1-.231 1.337 49.948 49.948 0 0 0-9.902 3.912l-.003.002c-.114.06-.227.119-.34.18a.75.75 0 0 1-.707 0A50.88 50.88 0 0 0 7.5 12.173v-.224c0-.131.067-.248.172-.311a54.615 54.615 0 0 1 4.653-2.52.75.75 0 0 0-.65-1.352 56.123 56.123 0 0 0-4.78 2.589 1.858 1.858 0 0 0-.859 1.228 49.803 49.803 0 0 0-4.634-1.527.75.75 0 0 1-.231-1.337A60.653 60.653 0 0 1 11.7 2.805Z" /><path d="M13.06 15.473a48.45 48.45 0 0 1 7.666-3.282c.134 1.414.22 2.843.255 4.284a.75.75 0 0 1-.46.711 47.87 47.87 0 0 0-8.105 4.342.75.75 0 0 1-.832 0 47.87 47.87 0 0 0-8.104-4.342.75.75 0 0 1-.461-.71c.035-1.442.121-2.87.255-4.286.921.304 1.83.634 2.726.99v1.27a1.5 1.5 0 0 0-.14 2.508c-.09.38-.222.753-.397 1.11.452.213.901.434 1.346.66a6.727 6.727 0 0 0 .551-1.607 1.5 1.5 0 0 0 .14-2.67v-.645a48.549 48.549 0 0 1 3.44 1.667 2.25 2.25 0 0 0 2.12 0Z" /></svg>' }
+                asana: { name: 'Library', icon: '' },
+                ar_correction: { name: 'Practice', icon: '' },
+                course: { name: 'Course', icon: '' }
             },
 
             // Elements
@@ -2528,15 +2506,30 @@
 
             // --- Rendering Methods ---
             renderNav() {
+                // Desktop top nav (render into header)
+                const topNav = document.getElementById('top-nav');
+                if (topNav) {
+                    topNav.innerHTML = Object.keys(this.views).map(key => {
+                        const view = this.views[key];
+                        const isActive = this.currentView === key;
+                        return `
+                            <button onclick="app.navigate('${key}')"
+                                    class="flex flex-col items-center gap-1.5 group">
+                                <span class="${isActive ? 'text-ink-900' : 'text-ink-500 hover:text-ink-900'} font-medium text-[14px] transition-colors">${view.name}</span>
+                                <span class="h-0.5 rounded-full transition-all ${isActive ? 'w-6 bg-terracotta-600' : 'w-0 bg-terracotta-600'}"></span>
+                            </button>
+                        `;
+                    }).join('');
+                }
+                // Mobile bottom tab bar
                 this.navTabsEl.innerHTML = Object.keys(this.views).map(key => {
                     const view = this.views[key];
                     const isActive = this.currentView === key;
-
                     return `
-                        <button onclick="app.navigate('${key}')" 
-                                class="flex flex-col items-center p-2 rounded-xl transition-all ${isActive ? 'text-primary bg-secondary/30' : 'text-gray-500 hover:text-gray-300'}">
-                            ${view.icon}
-                            <span class="text-xs mt-1 md:text-sm">${view.name}</span>
+                        <button onclick="app.navigate('${key}')"
+                                class="flex flex-col items-center justify-center gap-1 flex-1 py-1 pressable">
+                            <span class="w-1.5 h-1.5 rounded-full ${isActive ? 'bg-terracotta-600' : 'bg-transparent'}"></span>
+                            <span class="kicker text-[10px] ${isActive ? 'text-ink-900' : 'text-ink-300'}">${view.name}</span>
                         </button>
                     `;
                 }).join('');
@@ -2547,7 +2540,6 @@
                 const viewKey = this.currentView;
                 let contentHTML = '';
 
-                // FIX: Ensure all rendering methods are accessed via 'this' and are defined.
                 switch (viewKey) {
                     case 'dashboard':
                         contentHTML = this.renderDashboard();
@@ -2564,121 +2556,192 @@
                     case 'assistant':
                         contentHTML = this.renderAssistant();
                         break;
-
                     default:
-                        contentHTML = '<div class="text-center text-gray-500 py-10">404 | View Not Found</div>';
+                        contentHTML = '<div class="text-center text-ink-500 py-20">404 · View Not Found</div>';
                 }
 
-                this.contentEl.innerHTML = `
-                    <div class="view-fade-in">
-                        <h2 class="text-3xl font-extrabold text-white mb-6 border-b pb-3 border-gray-700 font-display">${this.views[viewKey]?.name || 'SUNDAY'}</h2>
-                        ${contentHTML}
-                    </div>
-                `;
+                this.contentEl.innerHTML = `<div class="view-fade-in">${contentHTML}</div>`;
             },
 
             renderDashboard() {
-                // Dashboard Cards with mock data and links to sections
-                const featureCards = [
-                    { key: 'asana', icon: '<img src="/assets/logo.png" class="w-10 h-10 object-contain mx-auto">', title: 'Pose Library', desc: 'Browse over 100 asanas with benefits and guidance.', status: null },
-                    { key: 'ar_correction', icon: '🤳', title: 'Posture Correction', desc: 'Get real-time AR feedback on your poses using your camera.', status: null },
-                    { key: 'course', icon: '🎓', title: 'Course', desc: 'Complete pose challenges and earn your certification.', status: null },
-                ];
+                // Pull live data if available
+                const userName = (typeof window !== 'undefined' && window.__user_name) ? window.__user_name : 'friend';
+                const first = (userName || 'A').trim().split(/\s+/)[0];
+
+                const hourOfDay = new Date().getHours();
+                const tod = hourOfDay < 5 ? 'NIGHT' : hourOfDay < 12 ? 'MORNING' : hourOfDay < 17 ? 'AFTERNOON' : hourOfDay < 21 ? 'EVENING' : 'NIGHT';
+                const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+                const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+                // Pick today's focus asana (first non-completed from course or default Tadasana)
+                const todaysPose = (this.courseProgress?.poses || []).find(p => !p.completed && !p.locked);
+                const todayName = todaysPose?.name || 'Tadasana';
+                const todayAsana = asanaData.find(a => a.name === todayName) || asanaData[0];
+
+                // KPIs
+                const completedAsanas = this.userData?.completed_asanas || {};
+                const totalSessions = Object.values(completedAsanas).reduce((a,b)=>a+(Number(b)||0),0);
+                const activeDays = this.userData?.total_active_days || 0;
+
+                // Continue list: last 3 poses from course progress, falling back to defaults
+                const continueList = (this.courseProgress?.poses || []).slice(0, 3);
 
                 return `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        ${featureCards.map(card => `
-                            <button ${card.key ? `onclick="app.navigate('${card.key}')"` : 'disabled'} class="p-6 bg-secondary/20 card-effect rounded-2xl shadow-lg flex flex-col items-start text-left ${card.status ? 'opacity-70 cursor-not-allowed bg-gray-900 shadow-inner text-gray-500' : 'hover:bg-secondary/40'}">
-                                <span class="text-4xl mb-3">${card.icon}</span>
-                                <h3 class="text-xl font-bold text-gray-100">${card.title}</h3>
-                                <p class="text-gray-400 text-sm mt-1">${card.desc}</p>
-                                ${card.status ? `<span class="mt-2 text-xs font-semibold text-red-400 bg-red-900 px-2 py-1 rounded-full">${card.status}</span>` : ''}
-                            </button>
-                        `).join('')}
-                    </div>
+                <div class="space-y-8 md:space-y-12">
 
-                    <div class="mt-8 p-6 bg-gray-900 border border-primary/50 rounded-2xl shadow-xl hidden">
-                        <h3 class="text-2xl font-extrabold text-primary mb-5 border-b pb-3 border-gray-700">Your Progress Snapshot</h3>
-                        
-                        <div class="p-6 bg-card rounded-xl shadow-lg border border-gray-700">
-                            <div class="flex justify-between items-center mb-4">
-                                <p class="text-lg font-bold text-gray-200">Milestone Progress</p>
-                                <p class="text-sm text-gray-400"><span id="milestones-earned" class="text-primary font-bold">0</span>/2 Completed</p>
-                            </div>
-                            
-                            <!-- Progress Bar -->
-                            <div class="relative w-full bg-gray-700 rounded-full h-6 mb-2">
-                                <div id="milestone-progress-bar" class="bg-gradient-to-r from-primary to-accent h-6 rounded-full transition-all duration-500" style="width: 0%"></div>
-                                
-                                <!-- Milestone Markers -->
-                                <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-10 -mt-2">
-                                    <div id="milestone-1" class="w-10 h-10 rounded-full border-4 border-gray-700 bg-gray-600 flex items-center justify-center">
-                                        <span class="text-gray-400 text-sm font-bold">1</span>
-                                    </div>
-                                </div>
-                                <div class="absolute top-0 right-0 w-10 h-10 -mt-2 -mr-5">
-                                    <div id="milestone-2" class="w-10 h-10 rounded-full border-4 border-gray-700 bg-gray-600 flex items-center justify-center">
-                                        <span class="text-gray-400 text-sm font-bold">2</span>
-                                    </div>
+                    <!-- Hero -->
+                    <section class="relative overflow-hidden rounded-[28px] md:rounded-[36px] bg-forest-900 text-cream p-6 md:p-12 lg:p-14">
+                        <div style="position:absolute; width:640px; height:640px; border-radius:9999px; background:rgba(74,107,77,0.38); filter:blur(130px); top:-180px; right:-160px; pointer-events:none;"></div>
+                        <div style="position:absolute; width:420px; height:420px; border-radius:9999px; background:rgba(184,87,62,0.28); filter:blur(110px); bottom:-180px; left:-120px; pointer-events:none;"></div>
+
+                        <div class="relative grid md:grid-cols-[1.3fr_1fr] gap-6 md:gap-10 items-center">
+                            <div class="space-y-5 md:space-y-6">
+                                <p class="kicker text-[10px] md:text-[11px] text-saffron-500">${dayName} · ${tod} · ${timeStr}</p>
+                                <h1 class="font-display font-light text-[44px] md:text-[72px] lg:text-[84px] leading-[1.02] tracking-tight">
+                                    ${tod === 'MORNING' ? 'Good morning' : tod === 'AFTERNOON' ? 'Good afternoon' : tod === 'EVENING' ? 'Good evening' : 'Welcome back'},<br>${first}.
+                                </h1>
+                                <p class="text-[15px] md:text-[17px] text-forest-100/90 leading-[1.7] max-w-[560px]">
+                                    ${activeDays > 0 ? `Your body has had <strong class="text-cream">${activeDays} day${activeDays===1?'':'s'}</strong> of practice. ` : 'Welcome to Sunday. '}Today, return to ${todayName} and move gently through your flow.
+                                </p>
+                                <div class="flex flex-wrap items-center gap-3 pt-2">
+                                    <button onclick="app.navigate('ar_correction')" class="pressable inline-flex items-center gap-2 px-6 md:px-8 py-3.5 md:py-4 rounded-full bg-cream text-ink-900 font-semibold text-[14px] md:text-[15px] shadow-lg shadow-black/25 hover:bg-paper">
+                                        Start today's practice <span class="opacity-70">→</span>
+                                    </button>
+                                    <button onclick="app.navigate('asana')" class="pressable inline-flex items-center gap-2 px-6 md:px-8 py-3.5 md:py-4 rounded-full border border-forest-300/60 text-forest-100 font-semibold text-[14px] md:text-[15px] hover:bg-forest-700/40">
+                                        Just browse for now
+                                    </button>
                                 </div>
                             </div>
-                            
-                            <p class="text-xs text-gray-500 mt-3">💪 Hold 70%+ accuracy for 10 seconds to earn a milestone!</p>
-                            
-                            <!-- Certificate Download Button (hidden by default) -->
-                            <button id="download-certificate-btn" onclick="app.downloadCertificate()" class="hidden mt-4 w-full py-3 px-4 bg-gradient-to-r from-accent to-warning text-gray-900 font-bold rounded-xl hover:shadow-lg transition flex items-center justify-center space-x-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                </svg>
-                                <span>🎉 Download Your Certificate!</span>
-                            </button>
+                            <div class="relative rounded-[24px] md:rounded-[28px] bg-forest-700 aspect-[4/3] md:aspect-auto md:h-[320px] flex flex-col items-center justify-center overflow-hidden">
+                                <div style="position:absolute; inset:0; background: radial-gradient(circle at 50% 40%, rgba(212,160,74,0.25), transparent 60%);"></div>
+                                <span class="relative text-[120px] md:text-[160px] leading-none font-display font-light text-forest-100">${todayAsana.emoji || '🧘'}</span>
+                                <div class="absolute bottom-5 left-5 right-5">
+                                    <p class="kicker text-[10px] text-saffron-500">TODAY'S FOCUS</p>
+                                    <p class="font-display text-[22px] md:text-[24px] text-cream mt-1">${todayAsana.name}</p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    </section>
+
+                    <!-- KPIs -->
+                    <section class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+                        ${[
+                            {k:'STREAK', v: activeDays, s:'active days'},
+                            {k:'SESSIONS', v: totalSessions, s:'poses completed'},
+                            {k:'LEARNING', v: Object.keys(completedAsanas).length, s:'poses in rotation'},
+                            {k:'LEVEL', v: activeDays>=60?'III': activeDays>=14?'II':'I', s:'practitioner rank'},
+                        ].map(kpi => `
+                            <div class="rounded-[18px] md:rounded-[22px] bg-paper p-5 md:p-6 flex flex-col justify-between min-h-[140px] md:min-h-[170px]">
+                                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">${kpi.k}</p>
+                                <div>
+                                    <p class="font-display text-[48px] md:text-[68px] leading-[0.95] font-light text-ink-900">${kpi.v}</p>
+                                    <p class="text-[12px] md:text-[13px] text-ink-500 mt-1">${kpi.s}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </section>
+
+                    <!-- Continue + Quote -->
+                    <section class="grid md:grid-cols-[1.1fr_1fr] gap-5">
+                        <div class="rounded-[22px] md:rounded-[28px] bg-paper p-5 md:p-8">
+                            <div class="flex items-start justify-between mb-5">
+                                <div>
+                                    <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Continue</p>
+                                    <h3 class="font-display text-[24px] md:text-[32px] text-ink-900 mt-1">Where you left off</h3>
+                                </div>
+                                <button onclick="app.navigate('asana')" class="kicker text-[11px] text-ink-500 hover:text-ink-900 hidden md:inline-flex">ALL →</button>
+                            </div>
+                            <div class="space-y-3">
+                                ${continueList.map(p => {
+                                    const a = asanaData.find(x => x.name === p.name);
+                                    const cat = (a?.category || 'Beginner').toUpperCase();
+                                    const pct = Math.round(p.bestAccuracy || 0);
+                                    return `
+                                    <button onclick="app.showAsanaDetails('${p.name}')" class="pressable w-full text-left flex items-center gap-4 p-3 md:p-4 rounded-[16px] bg-cream hover:bg-sand transition-colors">
+                                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-[12px] bg-forest-900 text-saffron-500 flex items-center justify-center text-[22px] md:text-[26px] shrink-0">${a?.emoji || '🧘'}</div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="font-display text-[16px] md:text-[18px] text-ink-900 truncate">${p.name}</p>
+                                            <p class="kicker text-[10px] text-ink-500 mt-0.5 truncate">${(a?.sanskrit || '').toUpperCase()} · ${cat}</p>
+                                        </div>
+                                        <div class="text-right shrink-0">
+                                            <p class="font-semibold text-[14px] md:text-[15px] text-ink-900">${pct}%</p>
+                                            <p class="kicker text-[9px] text-ink-300 mt-0.5">${p.completed ? 'DONE' : p.locked ? 'LOCKED' : 'IN PROGRESS'}</p>
+                                        </div>
+                                    </button>
+                                `;}).join('')}
+                            </div>
+                        </div>
+
+                        <div class="rounded-[22px] md:rounded-[28px] bg-forest-900 text-cream p-6 md:p-8 flex flex-col justify-between min-h-[260px] md:min-h-0">
+                            <p class="kicker text-[10px] md:text-[11px] text-saffron-500">A QUIET REMINDER</p>
+                            <p class="font-display text-[26px] md:text-[34px] leading-[1.25] text-cream mt-4">
+                                "Consistency is louder than intensity."
+                            </p>
+                            <div class="mt-6">
+                                <p class="kicker text-[10px] text-forest-300">Sunday · a coach who whispers</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>`;
             },
 
             renderAsanaLibrary() {
-                return `
-                    <div class="space-y-6">
-                        <div class="p-6 bg-primary/10 border border-primary/20 rounded-3xl backdrop-blur-md flex items-center space-x-4">
-                            <div class="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-2xl">✨</div>
-                            <div>
-                                <p class="text-white font-bold leading-tight">Interactive Library</p>
-                                <p class="text-primary-light/70 text-xs">Click any asana to see detailed guidance and practice steps.</p>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            ${asanaData.map(asana => `
-                                <div onclick="app.showAsanaDetails('${asana.name}')" class="asana-card p-6 rounded-3xl cursor-pointer group relative overflow-hidden">
-                                    <div class="flex justify-between items-start mb-4 relative z-10">
-                                        <div class="w-14 h-14 bg-gray-800/80 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-500 shadow-xl border border-white/5">
-                                            ${asana.emoji || '🧘'}
-                                        </div>
-                                        <span class="px-3 py-1 text-[10px] uppercase tracking-widest rounded-full font-black ${asana.category === 'Beginner' ? 'bg-primary/20 text-primary-light border border-primary/20' : asana.category === 'Intermediate' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' : 'bg-red-500/20 text-red-300 border border-red-500/20'}">
-                                            ${asana.category}
-                                        </span>
-                                    </div>
-                                    
-                                    <h3 class="text-xl font-black text-white group-hover:text-primary transition-colors duration-300 relative z-10 leading-tight">
-                                        ${asana.name}
-                                    </h3>
-                                    <p class="text-xs text-gray-500 font-medium italic mb-4 relative z-10">${asana.sanskrit}</p>
-                                    
-                                    <div class="flex items-center text-primary text-[11px] font-bold tracking-wider relative z-10 opacity-0 group-hover:opacity-100 transform translate-x-1 group-hover:translate-x-0 transition-all duration-300">
-                                        <span>VIEW DETAILS</span>
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </div>
+                // Editorial pose grid
+                const palettes = [
+                    { bg: '#1E2E1F', fg: '#FAF7F2', accent: '#D4A04A' }, // forest
+                    { bg: '#B8573E', fg: '#FAF7F2', accent: '#F2D9CE' }, // terracotta
+                    { bg: '#E8DFCF', fg: '#1A1814', accent: '#B8573E' }, // sand
+                    { bg: '#2F4A31', fg: '#FAF7F2', accent: '#D4A04A' }, // forest 700
+                    { bg: '#D4A04A', fg: '#1A1814', accent: '#1E2E1F' }, // saffron
+                    { bg: '#3D3A33', fg: '#FAF7F2', accent: '#E6C489' }, // ink 700
+                    { bg: '#F3EEE5', fg: '#1A1814', accent: '#4A6B4D' }, // paper
+                    { bg: '#D9CFBB', fg: '#1A1814', accent: '#B8573E' }, // stone
+                    { bg: '#D4866F', fg: '#FAF7F2', accent: '#FAF7F2' }, // terracotta 400
+                ];
 
-                                    <!-- Subtle Gradient Blur on Hover -->
-                                    <div class="absolute -bottom-10 -right-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-colors duration-500"></div>
-                                </div>
-                            `).join('')}
-                        </div>
+                return `
+                <div class="space-y-8 md:space-y-12">
+                    <!-- Editorial header -->
+                    <header class="max-w-3xl">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">The Library</p>
+                        <h1 class="font-display font-light text-[44px] md:text-[72px] lg:text-[88px] leading-[1.02] tracking-tight text-ink-900">
+                            ${asanaData.length} poses.<br>A lifetime of practice.
+                        </h1>
+                        <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Tap any pose to see its purpose, the shape of the practice, and how Sunday will coach you through it.</p>
+                    </header>
+
+                    <!-- Filter chips -->
+                    <div class="flex flex-wrap items-center gap-2 md:gap-3">
+                        ${['All', 'Beginner', 'Intermediate', 'Advanced', 'Foundation', 'Balance', 'Flexibility'].map((f, i) => `
+                            <button class="px-4 py-2 rounded-full text-[12px] md:text-[13px] font-medium transition ${i===0 ? 'bg-forest-900 text-cream' : 'bg-cream text-ink-700 border border-stone hover:bg-paper'}">${f}</button>
+                        `).join('')}
                     </div>
-                `;
+
+                    <!-- Grid -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
+                        ${asanaData.map((asana, i) => {
+                            const p = palettes[i % palettes.length];
+                            const darkBg = ['#1E2E1F','#B8573E','#2F4A31','#3D3A33','#D4866F'].includes(p.bg);
+                            return `
+                                <div onclick="app.showAsanaDetails('${asana.name}')"
+                                     class="asana-tile relative rounded-[18px] md:rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-[4/3.2] p-4 md:p-6 flex flex-col justify-between"
+                                     style="background:${p.bg}; color:${p.fg};">
+                                    <div class="flex items-start justify-between">
+                                        <span class="kicker text-[9px] md:text-[10px] px-2 py-1 rounded-full border" style="border-color:${p.fg}; opacity:0.85;">${asana.category.toUpperCase()}</span>
+                                        <span class="font-display text-[22px] md:text-[26px] font-light opacity-80" style="color:${p.fg};">→</span>
+                                    </div>
+                                    <div class="flex-1 flex items-center justify-center">
+                                        <span class="font-display text-[72px] md:text-[110px] font-light leading-none" style="color:${p.fg};">${asana.emoji || '🧘'}</span>
+                                    </div>
+                                    <div>
+                                        <p class="kicker text-[9px] md:text-[10px] opacity-80 mb-1" style="color:${p.fg};">${asana.sanskrit.toUpperCase()}</p>
+                                        <h3 class="font-display text-[18px] md:text-[26px] leading-tight" style="color:${p.fg};">${asana.name}</h3>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>`;
             },
 
             showAsanaDetails(asanaName) {
@@ -2702,14 +2765,18 @@
                 category.textContent = asana.category;
                 targeted.textContent = asana.targeted;
 
-                category.className = `px-3 py-1 text-xs rounded-full font-bold ${asana.category === 'Beginner' ? 'bg-primary/20 text-primary-light border border-primary/20' : asana.category === 'Intermediate' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' : 'bg-red-500/20 text-red-300 border border-red-500/20'}`;
+                category.className = `inline-flex px-3 py-1 text-[11px] rounded-full font-semibold ${asana.category === 'Beginner' ? 'bg-forest-900 text-cream' : asana.category === 'Intermediate' ? 'bg-terracotta-600 text-cream' : 'bg-ink-900 text-saffron-500'}`;
+
+                // Update kicker category label
+                const kicker = document.getElementById('modal-asana-category-kicker');
+                if (kicker) kicker.textContent = asana.category;
 
                 steps.innerHTML = asana.steps.map((step, idx) => `
-                    <li class="flex items-start space-x-3 group">
-                        <span class="w-6 h-6 rounded-lg bg-gray-800 border border-white/5 flex items-center justify-center text-[10px] font-black text-primary shrink-0 group-hover:bg-primary group-hover:text-background transition-colors duration-300">
+                    <li class="flex items-start gap-3">
+                        <span class="w-7 h-7 rounded-lg bg-paper border border-stone flex items-center justify-center text-[11px] font-semibold text-terracotta-600 shrink-0">
                             ${idx + 1}
                         </span>
-                        <span class="text-sm leading-relaxed">${step}</span>
+                        <span class="text-[15px] leading-[1.65] text-ink-700 pt-0.5">${step}</span>
                     </li>
                 `).join('');
 
@@ -2729,111 +2796,117 @@
             },
 
             renderARCorrection() {
-                // AR Correction View with pose selection, video feed, reference image, and correction log
                 const isCourseMode = this.courseMode;
+                const poseProgress = this.currentPose ? this.courseProgress.poses.find(p => p.name === this.currentPose) : null;
 
                 return `
-                    <div class="space-y-6">
-                        ${isCourseMode ? `
-                            <div class="p-4 bg-warning/20 border-l-4 border-warning rounded-xl shadow-sm">
-                                <p class="text-gray-100 font-medium italic">⚠️ <strong>TEST MODE ACTIVE:</strong> No assistance allowed. Fullscreen required. 3 attempts per pose.</p>
-                            </div>
-                            <div class="grid grid-cols-3 gap-4 p-4 bg-card rounded-xl border border-primary/30">
-                                <div class="text-center">
-                                    <p class="text-[10px] text-gray-500 uppercase font-black">Status</p>
-                                    <p id="course-timer-display" class="text-xl font-bold text-primary">MATCH POSE</p>
-                                </div>
-                                <div class="text-center">
-                                    <p class="text-[10px] text-gray-500 uppercase font-black">Hold</p>
-                                    <p id="course-hold-display" class="text-xl font-bold text-accent">0s / 10s</p>
-                                </div>
-                                <div class="text-center">
-                                    <p class="text-[10px] text-gray-500 uppercase font-black">Attempt</p>
-                                    <p class="text-xl font-bold text-white">${this.courseProgress.poses.find(p => p.name === this.currentPose)?.attemptsRemaining || 3}/3</p>
-                                </div>
-                            </div>
-                        ` : `
-                            <div class="p-4 bg-accent/20 border-l-4 border-accent rounded-xl shadow-sm">
-                                <p class="text-gray-100 font-medium">📷 **Before starting:** Ensure you have enough space and your full body is visible in the frame for best results.</p>
-                            </div>
-                        `}
+                <div class="space-y-8">
+                    ${!isCourseMode ? `
+                    <header class="max-w-3xl">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">AR practice</p>
+                        <h1 class="font-display font-light text-[40px] md:text-[64px] lg:text-[76px] leading-[1.02] tracking-tight text-ink-900">
+                            Choose your pose.<br>Step into frame.
+                        </h1>
+                        <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Your camera stays on your device. Sunday reads 17 body keypoints at 30 frames per second and whispers one correction at a time.</p>
+                    </header>
+                    ` : ''}
 
-                        <div id="pose-selection" class="grid grid-cols-1 md:grid-cols-2 gap-4" style="${isCourseMode ? 'display: none;' : ''}">
-                            ${asanaData.map(asana => `
-                                <button onclick="app.selectAsanaAndStart('${asana.name}')" class="p-6 bg-secondary/20 card-effect rounded-2xl shadow-lg flex flex-col items-start text-left hover:bg-secondary/40">
-                                    <span class="text-4xl mb-3">🧘</span>
-                                    <h3 class="text-xl font-bold text-gray-100">${asana.name} <span class="text-sm font-medium text-gray-500">${asana.sanskrit}</span></h3>
-                                    <span class="px-2 py-1 text-xs rounded-full font-semibold mt-2 bg-primary/40 text-gray-900">${asana.category}</span>
-                                    <p class="text-gray-400 text-sm mt-2">${asana.benefits}</p>
-                                </button>
-                            `).join('')}
+                    ${isCourseMode ? `
+                        <div class="rounded-[22px] bg-terracotta-100 border border-terracotta-100 p-5 md:p-6">
+                            <p class="kicker text-[11px] text-terracotta-600 mb-2">TEST MODE ACTIVE</p>
+                            <p class="text-[14px] md:text-[15px] text-ink-900 leading-[1.65]">No assistance allowed. Fullscreen required. Three attempts per pose.</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 md:gap-5">
+                            <div class="rounded-[18px] bg-paper p-4 md:p-5 text-center">
+                                <p class="kicker text-[10px] text-ink-500">STATUS</p>
+                                <p id="course-timer-display" class="font-display text-[22px] md:text-[28px] text-forest-900 mt-2">MATCH POSE</p>
+                            </div>
+                            <div class="rounded-[18px] bg-paper p-4 md:p-5 text-center">
+                                <p class="kicker text-[10px] text-ink-500">HOLD</p>
+                                <p id="course-hold-display" class="font-display text-[22px] md:text-[28px] text-terracotta-600 mt-2">0s / 10s</p>
+                            </div>
+                            <div class="rounded-[18px] bg-paper p-4 md:p-5 text-center">
+                                <p class="kicker text-[10px] text-ink-500">ATTEMPT</p>
+                                <p class="font-display text-[22px] md:text-[28px] text-ink-900 mt-2">${poseProgress?.attemptsRemaining || 3}/3</p>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5" style="${isCourseMode ? 'display: none;' : ''}">
+                        ${asanaData.map(asana => `
+                            <button onclick="app.selectAsanaAndStart('${asana.name}')"
+                                    class="asana-tile text-left rounded-[18px] md:rounded-[22px] bg-forest-900 text-cream p-4 md:p-6 flex flex-col justify-between min-h-[200px] md:min-h-[240px]">
+                                <div class="flex items-center justify-between">
+                                    <span class="kicker text-[9px] md:text-[10px] text-saffron-500">${asana.category.toUpperCase()}</span>
+                                    <span class="font-display text-[22px] opacity-70">→</span>
+                                </div>
+                                <span class="font-display text-[56px] md:text-[80px] leading-none text-forest-100 my-3">${asana.emoji || '🧘'}</span>
+                                <div>
+                                    <p class="kicker text-[9px] text-saffron-500 mb-1">${asana.sanskrit.toUpperCase()}</p>
+                                    <h3 class="font-display text-[18px] md:text-[22px] text-cream">${asana.name}</h3>
+                                </div>
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
+                        <div class="grid lg:grid-cols-[1.4fr_1fr] gap-5">
+                            <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'};" class="relative">
+                                <video id="video-feed" autoplay playsinline class="rounded-[24px]"></video>
+                                <canvas id="ar-canvas"></canvas>
+                                <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center bg-ink-900/85 backdrop-blur-sm text-forest-100 rounded-[24px]">
+                                    <div class="loading-animation mb-3"></div>
+                                    <p id="status-text" class="kicker text-[11px]">Loading...</p>
+                                    <p id="error-message" class="text-terracotta-400 mt-2 text-[13px] hidden"></p>
+                                </div>
+                            </div>
+
+                            <div id="reference-container" style="display: ${isCourseMode ? 'none' : 'none'};" class="rounded-[24px] bg-paper p-5">
+                                <p class="kicker text-[11px] text-terracotta-600 mb-3">Reference</p>
+                                <div id="reference-media-container" class="bg-forest-900 rounded-[16px] overflow-hidden mb-3 flex items-center justify-center" style="min-height:180px;">
+                                    <img id="reference-image" class="w-full object-contain hidden" style="max-height: 250px;" alt="Reference Pose">
+                                    <div id="reference-placeholder" class="text-center py-8">
+                                        <span id="reference-emoji" class="font-display text-[80px] text-forest-100">🧘</span>
+                                        <p id="reference-pose-name" class="kicker text-[11px] text-saffron-500 mt-2">Pose Name</p>
+                                    </div>
+                                </div>
+                                <div class="text-[13px] text-ink-500 space-y-1.5">
+                                    <p><span class="kicker text-[10px] text-ink-300">TARGET ·</span> <span id="reference-targeted" class="text-ink-700"></span></p>
+                                    <p><span class="kicker text-[10px] text-ink-300">BENEFITS ·</span> <span id="reference-benefits" class="text-ink-700"></span></p>
+                                    <p><span class="kicker text-[10px] text-ink-300">PRECAUTION ·</span> <span id="reference-precaution" class="text-ink-700"></span></p>
+                                </div>
+                            </div>
                         </div>
 
-                        <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
-                                <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'};" class="relative">
-                                    <video id="video-feed" autoplay playsinline class="rounded-xl"></video>
-                                    <canvas id="ar-canvas"></canvas>
-                                    <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 text-gray-400 rounded-xl">
-                                        <div class="loading-animation mb-3"></div>
-                                        <p id="status-text">Loading...</p>
-                                        <p id="error-message" class="text-red-500 mt-2 text-sm hidden"></p>
-                                    </div>
-                                </div>
-                                
-                                <div id="reference-container" style="display: ${isCourseMode ? 'none' : 'none'};" class="bg-card rounded-xl border border-gray-700 shadow-md p-4">
-                                    <h3 class="text-sm font-bold text-primary mb-2">Reference Guide</h3>
-                                    
-                                    <!-- Reference Image -->
-                                    <div id="reference-media-container" class="bg-gray-900 rounded-xl overflow-hidden mb-2" style="max-height: 250px; min-height: 100px;">
-                                        <img id="reference-image" class="w-full object-contain hidden rounded-xl" style="max-height: 250px;" alt="Reference Pose">
-                                        <div id="reference-placeholder" class="flex items-center justify-center p-3" style="min-height: 100px;">
-                                            <div class="text-center">
-                                                <span id="reference-emoji" class="text-4xl">🧘</span>
-                                                <p id="reference-pose-name" class="text-gray-400 mt-2 text-xs font-medium">Pose Name</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="text-xs text-gray-500 space-y-1">
-                                        <p><strong class="text-gray-400">Target:</strong> <span id="reference-targeted">Body parts</span></p>
-                                        <p><strong class="text-gray-400">Benefits:</strong> <span id="reference-benefits">Benefits</span></p>
-                                        <p><strong class="text-gray-400">Precaution:</strong> <span id="reference-precaution">Precautions</span></p>
-                                    </div>
+                        <div id="feedback-area" style="display: ${isCourseMode ? 'block' : 'none'};" class="mt-5 rounded-[24px] bg-forest-900 text-cream p-5 md:p-7 space-y-5">
+                            <div>
+                                <p class="kicker text-[11px] text-saffron-500 mb-2">SUNDAY IS WATCHING QUIETLY</p>
+                                <p id="current-feedback-text" class="font-display text-[22px] md:text-[26px] text-cream leading-[1.35]">Select a pose to begin.</p>
+                            </div>
+
+                            <div class="border-t border-forest-700 pt-4">
+                                <div id="correction-log" class="space-y-2 max-h-40 overflow-y-auto scrollable-content">
+                                    <p class="kicker text-[10px] text-forest-300 mb-2">CORRECTION LOG</p>
                                 </div>
                             </div>
 
-                            <div id="feedback-area" style="display: ${isCourseMode ? 'block' : 'none'};" class="mt-4 p-4 bg-card rounded-xl border border-gray-700 shadow-md space-y-3">
-                                <div>
-                                    <p class="text-sm font-bold text-primary mb-1">Real-Time Feedback:</p>
-                                    <p id="current-feedback-text" class="text-lg text-gray-400 font-medium transition-colors">Select a pose to begin.</p>
-                                </div>
-                                
-                                <div class="border-t border-gray-700 pt-3">
-                                    <div id="correction-log" class="space-y-2 max-h-40 overflow-y-auto scrollable-content">
-                                        <p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>
-                                    </div>
-                                </div>
-                                
-                                <div class="flex items-center justify-between gap-3">
-                                    ${!isCourseMode ? `
-                                        <button id="tts-toggle-btn" onclick="app.toggleTTS()" class="flex items-center space-x-2 px-4 py-2 bg-gray-700 rounded-xl hover:bg-gray-600 transition text-sm font-medium">
-                                            <svg id="tts-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-gray-400">
-                                                <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-                                                <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
-                                            </svg>
-                                            <span id="tts-status-text">Voice Guide Off</span>
-                                        </button>
-                                    ` : ''}
-                                    
-                                    <button onclick="${isCourseMode ? 'app.endCourseTest(false, \'Test cancelled\')' : 'app.stopARAssessment()'}" class="flex-grow py-2 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition">
-                                        ${isCourseMode ? 'Cancel Test' : 'Stop AR Tracking'}
+                            <div class="flex items-center gap-3">
+                                ${!isCourseMode ? `
+                                    <button id="tts-toggle-btn" onclick="app.toggleTTS()" class="flex items-center gap-2 px-4 py-2.5 bg-forest-700 rounded-full hover:bg-forest-700/80 transition text-[13px] font-medium">
+                                        <svg id="tts-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 text-forest-300">
+                                            <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
+                                            <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
+                                        </svg>
+                                        <span id="tts-status-text" class="text-cream">Voice Guide Off</span>
                                     </button>
-                                </div>
+                                ` : ''}
+                                <button onclick="${isCourseMode ? 'app.endCourseTest(false, \'Test cancelled\')' : 'app.stopARAssessment()'}" class="pressable flex-grow py-3 px-5 bg-terracotta-600 text-cream font-semibold rounded-full hover:bg-terracotta-400 transition">
+                                    ${isCourseMode ? 'Cancel test' : 'Stop AR tracking'}
+                                </button>
                             </div>
                         </div>
                     </div>
-                `;
+                </div>`;
             },
 
 
@@ -2843,80 +2916,94 @@
                 const progressPercent = (completedCount / totalPoses) * 100;
 
                 return `
-                    <div id="course-container" class="space-y-6">
-                        <div class="p-6 bg-gray-900 border border-primary/50 rounded-2xl shadow-xl">
-                            <h3 class="text-2xl font-extrabold text-primary mb-5 border-b pb-3 border-gray-700">Course Progress</h3>
-                            
-                            <!-- Version: 1.0.4 - Voice Assistant Robustness Fixes -->
-    <meta charset="UTF-8">
-                                <div class="flex justify-between items-center mb-2">
-                                    <p class="text-lg font-bold text-gray-200">Completion</p>
-                                    <p class="text-sm text-gray-400"><span class="text-primary font-bold">${completedCount}</span>/${totalPoses} Poses</p>
-                                </div>
-                                <div class="relative w-full bg-gray-700 rounded-full h-6">
-                                    <div class="bg-gradient-to-r from-primary to-accent h-6 rounded-full transition-all duration-500" style="width: ${progressPercent}%"></div>
-                                </div>
+                <div id="course-container" class="space-y-8">
+                    <header class="max-w-3xl">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">The Course</p>
+                        <h1 class="font-display font-light text-[40px] md:text-[64px] lg:text-[76px] leading-[1.02] tracking-tight text-ink-900">
+                            Practice, tested.
+                        </h1>
+                        <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Hold each asana at 90% accuracy for ten continuous seconds. Three attempts per pose. Complete all seven to earn your certificate.</p>
+                    </header>
+
+                    <!-- Progress card -->
+                    <div class="rounded-[22px] md:rounded-[28px] bg-forest-900 text-cream p-6 md:p-8 space-y-5">
+                        <div class="flex items-end justify-between gap-4">
+                            <div>
+                                <p class="kicker text-[10px] md:text-[11px] text-saffron-500">PROGRESS</p>
+                                <p class="font-display text-[32px] md:text-[44px] font-light mt-1">${completedCount} of ${totalPoses}</p>
                             </div>
-                            
-                            <div class="space-y-4">
-                                ${this.courseProgress.poses.map((pose, idx) => `
-                                    <div class="p-4 bg-card rounded-xl border ${pose.locked ? 'border-gray-700 opacity-60' : 'border-primary/30'} ${pose.completed ? 'bg-success/10' : ''}">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <div class="flex items-center space-x-3">
-                                                <span class="text-2xl">${pose.locked ? '🔒' : (pose.completed ? '✅' : '📝')}</span>
-                                                <h4 class="text-xl font-bold ${pose.completed ? 'text-success' : 'text-gray-100'}">${pose.name}</h4>
-                                            </div>
-                                            <div class="text-right">
-                                                ${pose.completed ? `<span class="text-xs font-semibold text-success bg-success/20 px-3 py-1 rounded-full">Completed</span>` :
-                        `<span class="text-[10px] font-bold ${pose.attemptsRemaining > 0 ? 'text-primary' : 'text-red-500'} bg-gray-800 px-2 py-1 rounded-md border border-white/5 uppercase">${pose.attemptsRemaining}/3 Attempts</span>`}
-                                            </div>
-                                        </div>
-                                        
-                                        ${pose.bestAccuracy > 0 ? `
-                                            <div class="text-sm text-gray-400 mb-2">
-                                                Best Accuracy: <span class="text-primary font-bold">${Math.round(pose.bestAccuracy)}%</span> | 
-                                                Time Held: <span class="text-primary font-bold">${pose.timeHeld}s</span>
-                                            </div>
-                                        ` : ''}
-                                        
-                                        ${!pose.locked && !pose.completed ? `
-                                            <button onclick="app.startCourseTest('${pose.name}')" 
-                                                    class="w-full mt-2 px-4 py-3 ${pose.attemptsRemaining > 0 ? 'bg-primary hover:bg-primary/80 text-background' : 'bg-gray-800 text-gray-500 cursor-not-allowed'} font-black rounded-xl transition-all uppercase tracking-widest text-xs"
-                                                    ${pose.attemptsRemaining > 0 ? '' : 'disabled'}>
-                                                ${pose.attemptsRemaining > 0 ? 'Start Strict Test' : 'No Attempts Left'}
-                                            </button>
-                                        ` : ''}
-                                        
-                                        ${pose.locked ? `
-                                            <p class="text-xs text-gray-500 mt-2 font-medium italic">Complete the previous pose to unlock this challenge.</p>
-                                        ` : ''}
-                                    </div>
-                                `).join('')}
-                            </div>
-                            
-                            ${this.courseProgress.certificateEarned ? `
-                                <div class="mt-6 p-6 bg-gradient-to-r from-accent to-primary rounded-xl text-center">
-                                    <h3 class="text-2xl font-extrabold text-gray-900 mb-3">🎉 Congratulations!</h3>
-                                    <p class="text-gray-900 mb-4">You have completed all poses and earned your certification!</p>
-                                    <button onclick="app.downloadCertificate()" class="px-6 py-3 bg-gray-900 text-primary font-bold rounded-lg hover:bg-gray-800 transition">
-                                        Download Certificate
-                                    </button>
-                                </div>
-                            ` : ''}
+                            <p class="kicker text-[11px] text-forest-300">${Math.round(progressPercent)}% COMPLETE</p>
                         </div>
-                        
-                        <div class="p-6 bg-gray-900 border border-gray-700 rounded-2xl">
-                            <h3 class="text-lg font-bold text-gray-100 mb-3 uppercase tracking-tighter">Strict Test Protocols</h3>
-                            <ul class="text-sm text-gray-400 space-y-3">
-                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">1</span> <span>Test starts ONLY after a <b>90% posture match</b>.</span></li>
-                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">2</span> <span>You have <b>60 seconds</b> total to complete the hold.</span></li>
-                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">3</span> <span>Must hold for <b>10 continuous seconds</b> at 90%+ accuracy. Any drop resets the timer.</span></li>
-                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">4</span> <span><b>No assistance</b> (reference images or voice guide) in test mode.</span></li>
-                                <li class="flex items-center space-x-3"><span class="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">5</span> <span><b>3 attempts per pose</b>. Use them wisely!</span></li>
-                            </ul>
+                        <div class="w-full bg-forest-700 rounded-full h-2 overflow-hidden">
+                            <div class="h-full bg-saffron-500 rounded-full transition-all duration-500" style="width: ${progressPercent}%"></div>
                         </div>
                     </div>
-                `;
+
+                    <!-- Pose list -->
+                    <div class="space-y-3 md:space-y-4">
+                        ${this.courseProgress.poses.map((pose, idx) => {
+                            const a = asanaData.find(x => x.name === pose.name);
+                            let rightLabel = '';
+                            let bg = 'bg-paper';
+                            let accent = 'text-ink-900';
+                            if (pose.completed) { rightLabel = 'COMPLETED'; bg = 'bg-forest-900 text-cream'; accent = 'text-saffron-500'; }
+                            else if (pose.locked) { rightLabel = 'LOCKED'; bg = 'bg-sand'; accent = 'text-ink-500'; }
+                            else { rightLabel = `${pose.attemptsRemaining}/3 ATTEMPTS`; }
+                            const isDark = pose.completed;
+                            const textColor = isDark ? '#FAF7F2' : '#1A1814';
+                            const subColor = isDark ? '#8BA88D' : '#6B6657';
+                            return `
+                            <div class="rounded-[18px] md:rounded-[22px] ${bg} p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+                                <div class="flex items-center gap-4 md:gap-5 flex-1 min-w-0">
+                                    <span class="font-display text-[40px] md:text-[56px] font-light leading-none shrink-0" style="color:${textColor}; opacity:${pose.locked ? 0.35 : 1};">${String(idx+1).padStart(2,'0')}</span>
+                                    <div class="min-w-0">
+                                        <p class="kicker text-[10px] mb-1" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#D4A04A' : '#B8573E')};">${(a?.sanskrit || pose.name).toUpperCase()}</p>
+                                        <h4 class="font-display text-[20px] md:text-[26px] leading-tight truncate" style="color:${textColor}; opacity:${pose.locked ? 0.45 : 1};">${pose.name}</h4>
+                                        ${pose.bestAccuracy > 0 ? `
+                                            <p class="text-[12px] md:text-[13px] mt-1.5" style="color:${subColor};">Best ${Math.round(pose.bestAccuracy)}% · held ${pose.timeHeld}s</p>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 md:gap-4 md:ml-auto shrink-0">
+                                    <span class="kicker text-[10px]" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#8BA88D' : '#6B6657')};">${rightLabel}</span>
+                                    ${!pose.locked && !pose.completed ? `
+                                        <button onclick="app.startCourseTest('${pose.name}')"
+                                                class="pressable px-5 py-3 rounded-full font-semibold text-[13px] transition ${pose.attemptsRemaining > 0 ? 'bg-terracotta-600 text-cream hover:bg-terracotta-400' : 'bg-sand text-ink-300 cursor-not-allowed'}"
+                                                ${pose.attemptsRemaining > 0 ? '' : 'disabled'}>
+                                            ${pose.attemptsRemaining > 0 ? 'Start test' : 'No attempts'}
+                                        </button>
+                                    ` : ''}
+                                    ${pose.locked ? `<span class="font-display text-[20px] opacity-40">🔒</span>` : ''}
+                                    ${pose.completed ? `<span class="font-display text-[20px] text-saffron-500">★</span>` : ''}
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+
+                    ${this.courseProgress.certificateEarned ? `
+                        <div class="rounded-[22px] md:rounded-[28px] bg-terracotta-600 text-cream p-6 md:p-10 text-center space-y-4">
+                            <p class="kicker text-[10px] text-terracotta-100">CONGRATULATIONS</p>
+                            <h3 class="font-display font-light text-[36px] md:text-[52px] leading-[1.1]">All seven poses, well held.</h3>
+                            <p class="text-[15px] md:text-[16px] text-terracotta-100 max-w-md mx-auto leading-[1.7]">You've earned your Sunday certificate of practice. Download it anytime.</p>
+                            <button onclick="app.downloadCertificate()" class="pressable inline-flex items-center gap-2 px-6 py-3.5 bg-cream text-ink-900 font-semibold rounded-full hover:bg-paper">
+                                Download certificate →
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <!-- Protocols -->
+                    <div class="rounded-[22px] md:rounded-[28px] bg-paper p-6 md:p-8">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">Test protocols</p>
+                        <h3 class="font-display text-[22px] md:text-[28px] text-ink-900 mb-5">Quiet, strict, fair.</h3>
+                        <ul class="space-y-3 text-[14px] md:text-[15px] text-ink-700 leading-[1.6]">
+                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">01</span><span>Test starts only after a 90% posture match is detected.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">02</span><span>You have sixty seconds total to complete the hold.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">03</span><span>Must hold for ten continuous seconds at 90%+ accuracy. Any drop resets the timer.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">04</span><span>No assistance in test mode. Reference images and voice guide are disabled.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">05</span><span>Three attempts per pose. Use them wisely.</span></li>
+                        </ul>
+                    </div>
+                </div>`;
             },
 
             startCourseTest(poseName) {
@@ -3089,47 +3176,61 @@
             },
 
             // --- Initialization ---
-            init() {
+            async init() {
                 console.log("SUNDAY App Initializing...");
 
-                // Set default view if none
                 if (!this.currentView) this.currentView = 'dashboard';
+
+                // Fetch user data for dashboard personalization
+                try {
+                    const res = await fetch('/api/profile', { credentials: 'same-origin' });
+                    if (res.ok) {
+                        this.userData = await res.json();
+                        window.__user_name = this.userData.name || '';
+                        // Update avatar initial
+                        const av = document.getElementById('avatar-btn');
+                        if (av && this.userData.name) av.textContent = (this.userData.name || 'A').trim().charAt(0).toUpperCase();
+                    }
+                } catch (e) {
+                    console.warn('profile fetch failed', e);
+                }
 
                 this.renderNav();
                 this.renderContent();
                 this.setupVoiceCommands();
 
-                // Initialize milestone UI check
                 setTimeout(() => this.updateMilestoneUI(), 100);
             },
 
             // --- Assistant View ---
             renderAssistant() {
                 return `
-                    <div class="h-[60vh] flex flex-col">
-                        <div class="flex-1 bg-gray-900/50 rounded-2xl p-4 mb-4 overflow-y-auto border border-gray-700 space-y-4" id="chat-history">
-                            <div class="flex items-start space-x-3">
-                                <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center p-1">
-                                    <img src="/assets/logo.png" class="w-full h-full object-contain">
-                                </div>
-                                <div class="bg-gray-800 rounded-2xl rounded-tl-none p-3 max-w-[80%]">
-                                    <p class="text-sm text-gray-300">Namaste! I'm Sunday. How can I help with your yoga practice today?</p>
-                                </div>
+                <div class="max-w-3xl mx-auto space-y-5 h-[70vh] flex flex-col">
+                    <header class="mb-2">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Sunday assistant</p>
+                        <h1 class="font-display font-light text-[32px] md:text-[44px] leading-tight text-ink-900 mt-2">Ask anything.</h1>
+                    </header>
+                    <div class="flex-1 bg-paper rounded-[20px] p-4 md:p-5 overflow-y-auto border border-stone space-y-4" id="chat-history">
+                        <div class="flex items-start gap-3">
+                            <div class="w-9 h-9 rounded-full bg-forest-900 flex items-center justify-center p-1.5 shrink-0">
+                                <img src="/assets/logo.png" class="w-full h-full object-contain">
+                            </div>
+                            <div class="bg-cream border border-stone rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
+                                <p class="text-[14px] text-ink-700 leading-[1.65]">Namaste. I'm Sunday. How can I help with your practice today?</p>
                             </div>
                         </div>
-                        
-                        <div class="relative">
-                            <input type="text" id="chat-input" placeholder="Ask about poses, routines, or wellness..." 
-                                class="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-4 pr-12 focus:outline-none focus:border-primary transition-colors"
-                                onkeypress="if(event.key === 'Enter') app.handleChatSubmit()">
-                            <button onclick="app.handleChatSubmit()" class="absolute right-2 top-2 p-2 bg-primary text-white rounded-lg hover:bg-primary-light transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                    <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.917a.75.75 0 0 0 .926.096l4.64-4.432 3.483 3.125a.75.75 0 0 0 .926-.096l2.432-7.917a.75.75 0 0 0-.926-.94l-2.432 7.917a.75.75 0 0 0-.926.096l-4.64 4.432-3.483-3.125Z" />
-                                </svg>
-                            </button>
-                        </div>
                     </div>
-                `;
+                    <div class="relative">
+                        <input type="text" id="chat-input" placeholder="Ask about poses, routines, or wellness..."
+                            class="w-full bg-cream border border-stone text-ink-900 placeholder-ink-300 rounded-full px-5 py-4 pr-14 focus:outline-none focus:border-forest-700 transition-colors"
+                            onkeypress="if(event.key === 'Enter') app.handleChatSubmit()">
+                        <button onclick="app.handleChatSubmit()" class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-forest-900 text-cream rounded-full hover:bg-forest-700 transition-colors flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                                <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>`;
             },
 
             async handleChatSubmit() {
