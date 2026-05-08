@@ -598,9 +598,10 @@
                 }
 
                 this.recognitionInstance = new SR();
-                this.recognitionInstance.continuous = true;
+                this.recognitionInstance.continuous = false;
                 this.recognitionInstance.interimResults = false;
                 this.recognitionInstance.lang = 'en-US';
+                this.recognitionInstance.maxAlternatives = 3;
 
                 const micIcon = document.getElementById('mic-icon');
 
@@ -619,241 +620,260 @@
 
                 this.recognitionInstance.onstart = () => updateMicStatus(true, 'Listening');
 
-                this.recognitionInstance.onresult = async (event) => {
-                    const last = event.results.length - 1;
-                    // Normalize: lowercase, trim, strip leading/trailing
-                    // punctuation so "Stop." and "Profile?" still match.
-                    const raw = event.results[last][0].transcript.toLowerCase().trim();
-                    const transcript = raw.replace(/^[.,!?;:"'`\-\s]+|[.,!?;:"'`\-\s]+$/g, '').trim();
-                    console.log('Voice:', transcript);
-                    updateMicStatus(true, 'Got it');
-
-                    // ─── Question detector — "what/why/how/when/where/which/who/tell me/explain" ───
-                    // Route straight to the AI so "what is this course?" gets a real answer
-                    // instead of navigating somewhere.
-                    const isQuestion = /^(what|why|how|when|where|which|who|is it|are these|tell me|explain|describe|can you|could you|should i|do i|define|help me understand)\b/.test(transcript)
-                                    || /\?$/.test(transcript);
-
-                    if (!isQuestion) {
-                    // ─── Meta commands ───
-                    if (/\b(profile|my profile|open profile|show profile)\b/.test(transcript)) {
-                        this.speakCorrection('Opening your profile.', true);
-                        setTimeout(() => window.location.href = '/profile', 600);
-                        return;
-                    }
-                    if (/\b(logout|log out|sign out|signout)\b/.test(transcript)) {
-                        this.speakCorrection('Logging out.', true);
-                        setTimeout(() => window.location.href = '/logout', 800);
-                        return;
-                    }
-                    if (/\b(stop listening|voice off|turn off|mute|pause voice)\b/.test(transcript)) {
-                        this.isListening = false;
-                        this.recognitionInstance.stop();
-                        this.speakCorrection('Voice off.', true);
+                // ─── COMMAND DISPATCH TABLE ───
+                // Priority order: specific commands FIRST, AI fallthrough LAST.
+                // Each entry: { re: RegExp, handler: (transcript, app) => void }
+                // The handler must return something truthy to short-circuit
+                // the AI fallthrough. Returning undefined / false means
+                // "not handled — try the next rule".
+                const COMMANDS = [
+                    // ── Control (must come first so "voice off" beats everything) ──
+                    { re: /\b(voice off|stop listening|turn off mic|mute mic|pause voice)\b/, h: (t, app) => {
+                        app.isListening = false;
+                        try { app.recognitionInstance.stop(); } catch(_){}
+                        app.speakCorrection('Voice off.', true);
                         updateMicStatus(false, 'Off');
-                        return;
-                    }
-
-                    // ─── In-session practice commands ───
-                    // REFERENCE — show the pose reference photo for 5 seconds
-                    if (/\b(reference|show reference|show pose|show me|show image|picture|photo)\b/.test(transcript)) {
-                        if (this.currentPose) {
-                            this.showReferenceOverlay(this.currentPose, 5000);
-                            this.speakCorrection('Showing reference.', true);
+                        return true;
+                    }},
+                    // ── Reference overlay (in-session) ──
+                    { re: /\breference\b|\bshow (\w+ ){0,3}(pose|image|picture|photo|reference)\b/, h: (t, app) => {
+                        if (app.currentPose) {
+                            app.showReferenceOverlay(app.currentPose, 5000);
+                            app.speakCorrection('Showing reference.', true);
                             updateMicStatus(true, 'Reference');
                         } else {
-                            this.speakCorrection('Pick a pose first, then say reference.', true);
+                            app.speakCorrection('Pick a pose first, then say reference.', true);
                         }
-                        return;
-                    }
-                    // STOP / END — exit AR session
-                    if (/\b(stop|end|quit|exit|finish|done)\b/.test(transcript) && this.currentPose) {
-                        this.stopARAssessment && this.stopARAssessment();
-                        this.speakCorrection('Stopping practice.', true);
-                        updateMicStatus(true, 'Stopped');
-                        return;
-                    }
-                    // SCORE — speak the current alignment score
-                    if (/\b(score|accuracy|how am i doing|how is it|status)\b/.test(transcript) && this.currentPose) {
-                        const s = Math.round(this._lastPoseScore || 0);
+                        return true;
+                    }},
+                    // ── Score (also handles question forms) ──
+                    { re: /\b((what(?:'s|s| is)? (my|the)) ?(score|accuracy|alignment)|how am i doing|what's my score|score|accuracy|alignment)\b/, h: (t, app) => {
+                        if (!app.currentPose) { app.speakCorrection('Start a pose first, then ask for your score.', true); return true; }
+                        const s = Math.round(app._lastPoseScore || 0);
                         const msg = s >= 85 ? 'You are at ' + s + ' percent. Beautiful form. Hold and breathe.'
                                    : s >= 70 ? 'You are at ' + s + ' percent. Small refinements will bring you home.'
                                    : s >= 50 ? 'You are at ' + s + ' percent. Check the reference and ease toward it.'
                                              : 'You are at ' + s + ' percent. Take a breath and re-enter the pose gently.';
-                        this.speakCorrection(msg, true);
+                        app.speakCorrection(msg, true);
                         updateMicStatus(true, 'Score: ' + s);
-                        return;
-                    }
-                    // NEXT / PREVIOUS — cycle through the library
-                    if (/\b(next|next pose|after this|skip)\b/.test(transcript) && this.currentPose) {
+                        return true;
+                    }},
+                    // ── Next pose ──
+                    { re: /\b(next pose|next asana|next one|go next|skip this)\b|^next$/, h: (t, app) => {
+                        if (!app.currentPose) return false;
                         const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
-                        const idx = lib.findIndex(a => a.name === this.currentPose);
+                        const idx = lib.findIndex(a => a.name === app.currentPose);
                         const nxt = lib[(idx + 1) % lib.length];
                         if (nxt) {
-                            this.speakCorrection('Next, ' + nxt.sanskrit + '.', true);
-                            setTimeout(() => this.selectAsanaAndStart(nxt.name), 500);
+                            app.speakCorrection('Next, ' + nxt.sanskrit + '.', true);
+                            setTimeout(() => app.selectAsanaAndStart(nxt.name), 500);
                             updateMicStatus(true, 'Next');
                         }
-                        return;
-                    }
-                    if (/\b(previous|back pose|go back|last one)\b/.test(transcript) && this.currentPose) {
+                        return true;
+                    }},
+                    // ── Previous pose ──
+                    { re: /\b(previous pose|previous one|go back|back pose|last one)\b|^previous$|^back$/, h: (t, app) => {
+                        if (!app.currentPose) return false;
                         const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
-                        const idx = lib.findIndex(a => a.name === this.currentPose);
+                        const idx = lib.findIndex(a => a.name === app.currentPose);
                         const prev = lib[(idx - 1 + lib.length) % lib.length];
                         if (prev) {
-                            this.speakCorrection('Back to ' + prev.sanskrit + '.', true);
-                            setTimeout(() => this.selectAsanaAndStart(prev.name), 500);
+                            app.speakCorrection('Back to ' + prev.sanskrit + '.', true);
+                            setTimeout(() => app.selectAsanaAndStart(prev.name), 500);
                             updateMicStatus(true, 'Previous');
                         }
-                        return;
-                    }
-                    // REPEAT — replay the latest correction
-                    if (/\b(repeat|again|say again|one more time)\b/.test(transcript)) {
-                        if (this._lastSpokenMessage) {
-                            // Bypass throttle by forcing through native speak
+                        return true;
+                    }},
+                    // ── Stop AR session ──
+                    { re: /\b(stop practice|end practice|end session|stop tracking|exit practice|finish practice)\b|^stop$|^end$|^quit$|^exit$|^finish$|^done$/, h: (t, app) => {
+                        if (!app.currentPose) return false;
+                        if (app.stopARAssessment) app.stopARAssessment();
+                        app.speakCorrection('Stopping practice.', true);
+                        updateMicStatus(true, 'Stopped');
+                        return true;
+                    }},
+                    // ── Repeat last cue ──
+                    { re: /\b(repeat|say again|one more time|say it again)\b|^again$/, h: (t, app) => {
+                        if (app._lastSpokenMessage) {
                             try { window.speechSynthesis.cancel(); } catch(_){}
-                            const u = new SpeechSynthesisUtterance(this._lastSpokenMessage);
+                            const u = new SpeechSynthesisUtterance(app._lastSpokenMessage);
                             u.rate = 0.95; u.pitch = 1.0; u.volume = 1.0;
                             window.speechSynthesis.speak(u);
                         } else {
-                            this.speakCorrection('Nothing to repeat yet.', true);
+                            app.speakCorrection('Nothing to repeat yet.', true);
                         }
                         updateMicStatus(true, 'Repeat');
-                        return;
-                    }
-                    // VOICE GUIDE ON/OFF
-                    if (/\b(voice guide on|talk to me|start voice|enable voice|speak to me)\b/.test(transcript)) {
-                        this.ttsEnabled = true;
-                        this.speakCorrection('Voice guide on.', true);
+                        return true;
+                    }},
+                    // ── Voice guide on ──
+                    { re: /\b(voice guide on|turn on voice|talk to me|start voice|enable voice|speak to me)\b/, h: (t, app) => {
+                        app.ttsEnabled = true;
+                        app.speakCorrection('Voice guide on.', true);
                         updateMicStatus(true, 'Guide on');
-                        return;
-                    }
-                    if (/\b(voice guide off|be quiet|stop talking|silent mode)\b/.test(transcript)) {
-                        this.ttsEnabled = false;
-                        this.speakCorrection('Voice guide off.', true);
+                        return true;
+                    }},
+                    // ── Voice guide off ──
+                    { re: /\b(voice guide off|turn off voice|be quiet|stop talking|silent mode|no talking)\b/, h: (t, app) => {
+                        app.ttsEnabled = false;
+                        app.speakCorrection('Voice guide off.', true);
                         updateMicStatus(true, 'Guide off');
-                        return;
-                    }
-
-                    // ─── New commands (10+ in total with the above) ───
-                    // DIAGNOSTICS TOGGLE
-                    if (/\b(diagnostics|show rules|debug|details)\b/.test(transcript)) {
-                        if (this.toggleDiagnostics) this.toggleDiagnostics();
-                        this.speakCorrection('Diagnostics toggled.', true);
+                        return true;
+                    }},
+                    // ── Diagnostics toggle ──
+                    { re: /\b(diagnostics|show rules|debug mode|show details)\b/, h: (t, app) => {
+                        if (app.toggleDiagnostics) app.toggleDiagnostics();
+                        app.speakCorrection('Diagnostics toggled.', true);
                         updateMicStatus(true, 'Diagnostics');
-                        return;
-                    }
-                    // READ THIS SCREEN — narrate what's on screen
-                    if (/\b(read (this|the) (screen|page)|what(?:'s|s| is) on screen|read it to me|describe this page)\b/.test(transcript)) {
-                        this.readThisScreen && this.readThisScreen();
+                        return true;
+                    }},
+                    // ── Read screen ──
+                    { re: /\b(read (this|the) (screen|page)|what's on screen|what is on screen|describe this page|read it to me)\b/, h: (t, app) => {
+                        if (app.readThisScreen) app.readThisScreen();
                         updateMicStatus(true, 'Reading');
-                        return;
-                    }
-                    // MY STATS / PROGRESS
-                    if (/\b(my stats|progress|streak|how many sessions|how many days)\b/.test(transcript)) {
-                        this.speakMyStats && this.speakMyStats();
+                        return true;
+                    }},
+                    // ── My stats (handles natural question forms) ──
+                    { re: /\b(my (stats|progress|streak)|(what|show|tell me)('s| is|s)? (my )?(stats|progress|streak|sessions|active days|days)|how many (sessions|days|poses)|poses learned)\b/, h: (t, app) => {
+                        if (app.speakMyStats) app.speakMyStats();
                         updateMicStatus(true, 'Stats');
-                        return;
-                    }
-                    // RECOMMEND A POSE
-                    if (/\b(recommend|suggest|what should i do|pick for me|random pose)\b/.test(transcript)) {
-                        this.recommendPose && this.recommendPose();
+                        return true;
+                    }},
+                    // ── Recommend a pose ──
+                    { re: /\brecommend\b|\bsuggest (a )?pose\b|\bwhat should i (do|practise|practice)\b|\bpick (a |for me|one)\b|\brandom pose\b|\bsurprise me\b/, h: (t, app) => {
+                        if (app.recommendPose) app.recommendPose();
                         updateMicStatus(true, 'Picking');
-                        return;
-                    }
-                    // START COURSE TEST
-                    if (/\b(start (the )?course|begin (the )?course|test me|start test)\b/.test(transcript)) {
-                        this.navigate('course');
-                        this.speakCorrection('Opening the course. Tap begin test to start.', true);
+                        return true;
+                    }},
+                    // ── Start course / certificate ──
+                    { re: /\b(start (the )?course|begin (the )?course|take the course|test me|begin test|certificate|my certificate)\b/, h: (t, app) => {
+                        app.navigate('course');
+                        app.speakCorrection('Opening the course.', true);
                         updateMicStatus(true, 'Course');
-                        return;
-                    }
-                    // CERTIFICATE
-                    if (/\b(certificate|my certificate|show certificate)\b/.test(transcript)) {
-                        this.navigate('course');
-                        this.speakCorrection('Your certificate lives at the end of the course.', true);
-                        updateMicStatus(true, 'Certificate');
-                        return;
-                    }
-                    // BREATHING / CALM — quick guided breath
-                    if (/\b(breathing|breathe with me|calm me|anxious|anxiety|relax)\b/.test(transcript)) {
-                        this.guidedBreath && this.guidedBreath();
+                        return true;
+                    }},
+                    // ── Breathing / calm ──
+                    { re: /\b(breathe with me|breathing exercise|breath exercise|calm me|calm down|i('m| am) anxious|anxiety|help me relax|box breath)\b/, h: (t, app) => {
+                        if (app.guidedBreath) app.guidedBreath();
                         updateMicStatus(true, 'Breathing');
-                        return;
-                    }
-                    // COMMANDS / HELP — open the command library modal
-                    if (/\b(commands|command library|list commands|what can you do|what can i say|help me)\b/.test(transcript)) {
-                        this.openCommandLibrary && this.openCommandLibrary();
-                        this.speakCorrection('Opening the command library.', true);
+                        return true;
+                    }},
+                    // ── Command library ──
+                    { re: /\b(commands|command library|list commands|what can you do|what can i say|show me commands|help me|show help)\b/, h: (t, app) => {
+                        if (app.openCommandLibrary) app.openCommandLibrary();
+                        app.speakCorrection('Opening the command library.', true);
                         updateMicStatus(true, 'Commands');
-                        return;
-                    }
+                        return true;
+                    }},
+                    // ── Navigation (require "go to" or "open" prefix so
+                    //     "what is the course" doesn't navigate) ──
+                    { re: /\b(go (to )?home|open home|take me home|go (to )?today|open today)\b/, h: (t, app) => { app.navigate('dashboard'); app.speakCorrection('Home.', true); return true; }},
+                    { re: /\b(go (to )?library|open library|show library|open (the )?poses|show (the )?poses)\b/, h: (t, app) => { app.navigate('asana'); app.speakCorrection('Library.', true); return true; }},
+                    { re: /\b(go (to )?practice|open practice|start practice|open (the )?camera)\b/, h: (t, app) => { app.navigate('ar_correction'); app.speakCorrection('Practice.', true); return true; }},
+                    { re: /\b(go (to )?course|open course|show course)\b/, h: (t, app) => { app.navigate('course'); app.speakCorrection('Course.', true); return true; }},
+                    { re: /\b(open profile|my profile|show profile|go to profile)\b/, h: (t, app) => {
+                        app.speakCorrection('Opening your profile.', true);
+                        setTimeout(() => window.location.href = '/profile', 600);
+                        return true;
+                    }},
+                    { re: /\b(logout|log out|sign out|sign me out)\b/, h: (t, app) => {
+                        app.speakCorrection('Logging out.', true);
+                        setTimeout(() => window.location.href = '/logout', 800);
+                        return true;
+                    }},
+                ];
 
-                    // ─── Pose selection: "start Tree" / "do Warrior two" / "open Natarajasana" ───
+                // Pose name / alias matcher — only fires if none of the
+                // commands above matched. "Start Tadasana" / "Open Warrior II".
+                const POSE_ALIASES = {
+                    'tree': 'Vrikshasana', 'mountain': 'Tadasana', 'prayer': 'Anjali Mudra',
+                    'namaste': 'Anjali Mudra',
+                    'downward dog': 'Adho Mukha Svanasana', 'down dog': 'Adho Mukha Svanasana',
+                    'downward facing dog': 'Adho Mukha Svanasana',
+                    'warrior one': 'Virabhadrasana I', 'warrior 1': 'Virabhadrasana I',
+                    'warrior two': 'Virabhadrasana II', 'warrior 2': 'Virabhadrasana II',
+                    'warrior three': 'Virabhadrasana III', 'warrior 3': 'Virabhadrasana III',
+                    'triangle': 'Utthita Trikonasana', 'extended triangle': 'Utthita Trikonasana',
+                    'chair': 'Utkatasana', 'chair pose': 'Utkatasana',
+                    'side angle': 'Utthita Parsvakonasana', 'extended side angle': 'Utthita Parsvakonasana',
+                    'bridge': 'Setu Bandhasana', 'bridge pose': 'Setu Bandhasana',
+                    'half moon': 'Ardha Chandrasana', 'dancer': 'Natarajasana', 'dancer pose': 'Natarajasana',
+                    'child': 'Balasana', 'child pose': 'Balasana', 'childs pose': 'Balasana',
+                    'easy': 'Sukhasana', 'easy seat': 'Sukhasana', 'easy pose': 'Sukhasana',
+                    'staff': 'Dandasana', 'staff pose': 'Dandasana',
+                    'bound angle': 'Baddha Konasana', 'butterfly': 'Baddha Konasana',
+                    'forward fold': 'Paschimottanasana', 'seated forward fold': 'Paschimottanasana',
+                    'standing forward fold': 'Uttanasana', 'rag doll': 'Uttanasana',
+                    'upward salute': 'Urdhva Hastasana', 'reach up': 'Urdhva Hastasana',
+                    'mountain pose': 'Tadasana', 'tree pose': 'Vrikshasana',
+                };
+
+                const tryPoseMatch = (t) => {
                     const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
-                    // Match by either English name, Sanskrit, or imageKey alias.
-                    const aliases = {
-                        'tree': 'Vrikshasana', 'mountain': 'Tadasana', 'prayer': 'Anjali Mudra',
-                        'downward dog': 'Adho Mukha Svanasana', 'down dog': 'Adho Mukha Svanasana',
-                        'warrior one': 'Virabhadrasana I', 'warrior 1': 'Virabhadrasana I',
-                        'warrior two': 'Virabhadrasana II', 'warrior 2': 'Virabhadrasana II',
-                        'warrior three': 'Virabhadrasana III', 'warrior 3': 'Virabhadrasana III',
-                        'triangle': 'Utthita Trikonasana', 'chair': 'Utkatasana',
-                        'side angle': 'Utthita Parsvakonasana', 'bridge': 'Setu Bandhasana',
-                        'half moon': 'Ardha Chandrasana', 'dancer': 'Natarajasana',
-                        'child': 'Balasana', 'easy': 'Sukhasana', 'staff': 'Dandasana',
-                        'bound angle': 'Baddha Konasana', 'forward fold': 'Paschimottanasana',
-                        'standing forward fold': 'Uttanasana', 'upward salute': 'Urdhva Hastasana',
-                        'mountain pose': 'Tadasana',
-                    };
-                    let matched = null;
-                    for (const k of Object.keys(aliases)) {
-                        if (transcript.includes(k)) { matched = lib.find(a => a.name === aliases[k]); break; }
+                    // Only attempt pose match if the transcript has a verb
+                    // prefix or is 1-3 words long (i.e. the user is naming
+                    // a pose, not asking a question about it).
+                    const hasVerb = /\b(start|do|open|go to|practice|practise|take me to|begin|switch to)\b/.test(t);
+                    const shortPhrase = t.split(/\s+/).length <= 3;
+                    if (!hasVerb && !shortPhrase) return null;
+                    for (const alias of Object.keys(POSE_ALIASES)) {
+                        if (t.includes(alias)) return lib.find(a => a.name === POSE_ALIASES[alias]);
                     }
-                    if (!matched) {
-                        matched = lib.find(a => {
-                            const ln = a.name.toLowerCase();
-                            const ls = (a.sanskrit || '').toLowerCase();
-                            return transcript.includes(ln) || (ls && transcript.includes(ls));
-                        });
+                    return lib.find(a => {
+                        const ln = a.name.toLowerCase();
+                        const ls = (a.sanskrit || '').toLowerCase();
+                        return t.includes(ln) || (ls && t.includes(ls));
+                    });
+                };
+
+                this.recognitionInstance.onresult = async (event) => {
+                    // Try every alternative the engine returned — one of
+                    // them may be what the user actually said.
+                    const last = event.results.length - 1;
+                    const alts = event.results[last];
+                    const transcripts = [];
+                    for (let i = 0; i < alts.length; i++) {
+                        const raw = (alts[i].transcript || '').toLowerCase().trim();
+                        const cleaned = raw.replace(/^[.,!?;:"'`\-\s]+|[.,!?;:"'`\-\s]+$/g, '').trim();
+                        if (cleaned) transcripts.push(cleaned);
                     }
-                    if (matched) {
-                        // If an AR session is already running, switch to the new pose.
-                        // Otherwise navigate there.
-                        this.navigate('ar_correction');
-                        this.speakCorrection('Opening ' + matched.sanskrit + '.', true);
-                        setTimeout(() => this.selectAsanaAndStart(matched.name), 500);
-                        updateMicStatus(true, 'Opening');
-                        return;
+                    if (!transcripts.length) return;
+                    console.log('Voice alternatives:', transcripts);
+                    // Surface the top alternative so the user sees what was heard
+                    updateMicStatus(true, 'Heard: ' + transcripts[0].slice(0, 24));
+
+                    // 1) Try every command rule against every alternative.
+                    //    First match wins.
+                    for (const t of transcripts) {
+                        for (const cmd of COMMANDS) {
+                            if (cmd.re.test(t)) {
+                                try { if (cmd.h(t, this)) return; } catch (e) { console.warn('cmd handler error', e); }
+                            }
+                        }
                     }
 
-                    // ─── Screen navigation (requires a verb prefix so
-                    //     "what is this course" doesn't navigate to Course) ───
-                    const navMap = [
-                        { re: /\b(go (to|home)|open|show|take me to|navigate to)\\s+(home|today|dashboard)\b/, key: 'dashboard' },
-                        { re: /\b(go to|open|show|take me to|navigate to)\\s+(library|poses|asanas?)\b/, key: 'asana' },
-                        { re: /\b(go to|open|show|take me to|navigate to|start)\\s+(practice|camera|ar)\b/, key: 'ar_correction' },
-                        { re: /\b(go to|open|show|take me to|navigate to)\\s+(course|test mode)\b/, key: 'course' },
-                    ];
-                    for (const nav of navMap) {
-                        if (nav.re.test(transcript)) {
-                            this.navigate(nav.key);
-                            this.speakCorrection('Opening.', true);
-                            updateMicStatus(true, 'Done');
+                    // 2) Try pose match on every alternative.
+                    for (const t of transcripts) {
+                        const matched = tryPoseMatch(t);
+                        if (matched) {
+                            this.navigate('ar_correction');
+                            this.speakCorrection('Opening ' + matched.sanskrit + '.', true);
+                            setTimeout(() => this.selectAsanaAndStart(matched.name), 500);
+                            updateMicStatus(true, 'Opening');
                             return;
                         }
                     }
-                    } // end !isQuestion
 
-                    // ─── Everything else (and every question) → AI assistant ───
+                    // 3) Everything else → AI assistant (using the top alternative).
                     updateMicStatus(true, 'Thinking');
                     try {
-                        const response = await this.callGeminiAssistant(transcript);
+                        const response = await this.callGeminiAssistant(transcripts[0]);
+                        // Force-speak the AI reply even if voice-guide is off
+                        // (the user asked a question, they expect an answer).
                         this.speakCorrection(response.text || 'Not sure about that.', true);
-                        updateMicStatus(true, 'Done');
+                        updateMicStatus(true, 'Answered');
                     } catch (e) {
                         console.error('AI voice error:', e);
-                        this.speakCorrection('Try asking about a specific pose.', true);
+                        this.speakCorrection('Try asking about a specific pose, or say commands.', true);
                         updateMicStatus(true, 'Try again');
                     }
                 };
@@ -872,11 +892,21 @@
                 };
 
                 this.recognitionInstance.onend = () => {
+                    // With continuous=false the recogniser ends after each
+                    // utterance. Restart it immediately while the user keeps
+                    // the mic on — this gives rock-solid "always listening"
+                    // behaviour across Chrome, Edge, Safari, and Android.
                     if (this.isListening) {
                         setTimeout(() => {
                             try { this.recognitionInstance.start(); }
-                            catch (e) { console.warn('Voice restart failed:', e); updateMicStatus(false, 'Off'); }
-                        }, 400);
+                            catch (e) {
+                                // InvalidStateError: already started — safe to ignore
+                                if (!String(e).includes('already started')) {
+                                    console.warn('Voice restart failed:', e);
+                                    updateMicStatus(false, 'Off');
+                                }
+                            }
+                        }, 200);
                     } else {
                         updateMicStatus(false, 'Voice');
                     }

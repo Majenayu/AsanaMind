@@ -413,9 +413,10 @@
         }
 
         const rec = new SR();
-        rec.continuous = true;
+        rec.continuous = false;
         rec.interimResults = false;
         rec.lang = 'en-US';
+        rec.maxAlternatives = 3;
         let listening = false;
 
         function setStatus(on, label) {
@@ -463,47 +464,67 @@
 
         rec.onstart = () => setStatus(true, 'Listening');
         rec.onresult = (event) => {
-            const raw = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-            const t = raw.replace(/^[.,!?;:"'`\-\s]+|[.,!?;:"'`\-\s]+$/g, '').trim();
-            console.log('Voice:', t);
+            // Try every alternative
+            const alts = event.results[event.results.length - 1];
+            const candidates = [];
+            for (let i = 0; i < alts.length; i++) {
+                const raw = (alts[i].transcript || '').toLowerCase().trim();
+                const cleaned = raw.replace(/^[.,!?;:"'`\-\s]+|[.,!?;:"'`\-\s]+$/g, '').trim();
+                if (cleaned) candidates.push(cleaned);
+            }
+            if (!candidates.length) return;
+            console.log('Voice alternatives:', candidates);
+            setStatus(true, 'Heard: ' + candidates[0].slice(0, 24));
 
-            // Local commands
-            if (/\b(voice off|stop listening|turn off|mute)\b/.test(t)) {
-                listening = false;
-                rec.stop();
-                speak('Voice off.');
-                setStatus(false, 'Off');
-                return;
-            }
-            if (/\b(home|dashboard|today|go back)\b/.test(t) && !/^(what|why|how|is|are|tell)/.test(t)) {
-                speak('Going home.');
-                setTimeout(() => window.location.href = '/home', 500);
-                return;
-            }
-            if (/\b(logout|log out|sign out)\b/.test(t)) {
-                speak('Logging out.');
-                setTimeout(() => window.location.href = '/logout', 600);
-                return;
-            }
-            if (/\b(my stats|streak|how many sessions|how many days|poses learned)\b/.test(t)) {
-                const s = document.getElementById('kpi-sessions')?.textContent || '0';
-                const d = document.getElementById('kpi-days')?.textContent || '0';
-                const st = document.getElementById('kpi-streak')?.textContent || '0';
-                const p = document.getElementById('kpi-poses')?.textContent || '0';
-                speak(`You have ${s} sessions across ${d} active days, a best streak of ${st}, and ${p} poses learned.`);
-                setStatus(true, 'Stats');
-                return;
-            }
-            if (/\b(level|what level|current level)\b/.test(t)) {
-                const lvl = document.getElementById('level-name')?.textContent || 'Novice';
-                const hint = document.getElementById('level-hint')?.textContent || '';
-                speak(`You are at ${lvl}. ${hint}`);
-                setStatus(true, 'Level');
-                return;
+            // Dispatch table — first match on any alternative wins.
+            const HANDLERS = [
+                { re: /\b(voice off|stop listening|turn off mic|mute mic|pause voice)\b/, run: () => {
+                    listening = false; rec.stop(); speak('Voice off.'); setStatus(false, 'Off');
+                }},
+                { re: /\b(go (to )?home|open home|take me home|go (to )?today|open today)\b/, run: () => {
+                    speak('Going home.'); setTimeout(() => window.location.href = '/home', 500);
+                }},
+                { re: /\b(logout|log out|sign out|sign me out)\b/, run: () => {
+                    speak('Logging out.'); setTimeout(() => window.location.href = '/logout', 600);
+                }},
+                { re: /\b(my stats|(what|show|tell me) (are|is|my)? ?(stats|progress|streak|sessions|active days|days)|how many (sessions|days|poses)|poses learned)\b/, run: () => {
+                    const s = document.getElementById('kpi-sessions')?.textContent || '0';
+                    const d = document.getElementById('kpi-days')?.textContent || '0';
+                    const st = document.getElementById('kpi-streak')?.textContent || '0';
+                    const p = document.getElementById('kpi-poses')?.textContent || '0';
+                    speak(`You have ${s} sessions across ${d} active days, a best streak of ${st}, and ${p} poses learned.`);
+                    setStatus(true, 'Stats');
+                }},
+                { re: /\b((what('?s| is)? )?(my )?level|what level am i|current level)\b/, run: () => {
+                    const lvl = document.getElementById('level-name')?.textContent || 'Novice';
+                    const hint = document.getElementById('level-hint')?.textContent || '';
+                    speak(`You are at ${lvl}. ${hint}`);
+                    setStatus(true, 'Level');
+                }},
+                { re: /\b(commands|command library|list commands|what can you do|what can i say|help me|show help)\b/, run: () => {
+                    if (typeof openCommandLibrary === 'function') openCommandLibrary();
+                    speak('Opening the command library.');
+                    setStatus(true, 'Commands');
+                }},
+                { re: /\b(open (the )?library|go to library|show (the )?poses)\b/, run: () => {
+                    speak('Opening the library.'); setTimeout(() => window.location.href = '/home#library', 400);
+                }},
+                { re: /\b(start practice|go to practice|open (the )?camera|practice now)\b/, run: () => {
+                    speak('Opening practice.'); setTimeout(() => window.location.href = '/home#practice', 400);
+                }},
+                { re: /\b(start (the )?course|open (the )?course|take the course|test me|certificate|my certificate)\b/, run: () => {
+                    speak('Opening the course.'); setTimeout(() => window.location.href = '/home#course', 400);
+                }},
+            ];
+
+            for (const t of candidates) {
+                for (const h of HANDLERS) {
+                    if (h.re.test(t)) { try { h.run(); return; } catch (e) { console.warn(e); } }
+                }
             }
 
             // Everything else → AI with profile context
-            askAI(t);
+            askAI(candidates[0]);
         };
         rec.onerror = (event) => {
             if (event.error === 'not-allowed') {
@@ -517,7 +538,12 @@
         };
         rec.onend = () => {
             if (listening) {
-                setTimeout(() => { try { rec.start(); } catch(_) { setStatus(false, 'Off'); } }, 400);
+                setTimeout(() => {
+                    try { rec.start(); }
+                    catch (e) {
+                        if (!String(e).includes('already started')) setStatus(false, 'Off');
+                    }
+                }, 200);
             } else {
                 setStatus(false, 'Voice');
             }
