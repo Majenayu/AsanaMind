@@ -950,45 +950,38 @@
             },
 
             speakCorrection(message, force = false) {
-                // Check if browser supports speech synthesis
                 if (!('speechSynthesis' in window)) {
                     console.warn('Text-to-Speech not supported in this browser');
                     return;
                 }
 
-                // If force is false, don't interrupt if already speaking
-                if (!force && (this.isSpeaking || window.speechSynthesis.speaking)) {
-                    return;
-                }
-
-                // Cancel any pending speech if forcing
-                if (force) {
+                // --- Smart throttling: do not repeat the same cue within 6s.
+                //     A force=true call (from voice assistant) bypasses the
+                //     throttle, but still deduplicates identical messages.
+                const now = Date.now();
+                const MIN_GAP_MS = 6000;
+                if (!force) {
+                    if (!this.ttsEnabled) return;
+                    if (this.isSpeaking || window.speechSynthesis.speaking) return;
+                    if (this._lastSpokenMessage === message && now - (this._lastSpokenAt || 0) < MIN_GAP_MS) return;
+                } else {
                     window.speechSynthesis.cancel();
                 }
 
-
-                // Create utterance
                 const utterance = new SpeechSynthesisUtterance(message);
-                utterance.rate = 0.9; // Slightly slower for clarity
-                utterance.pitch = 1.0;
+                utterance.rate = 0.95;
+                utterance.pitch = 1.02;
                 utterance.volume = 1.0;
                 utterance.lang = 'en-US';
-
-                // Event handlers
-                utterance.onstart = () => {
-                    this.isSpeaking = true;
-                };
-
-                utterance.onend = () => {
-                    this.isSpeaking = false;
-                };
-
+                utterance.onstart = () => { this.isSpeaking = true; };
+                utterance.onend = () => { this.isSpeaking = false; };
                 utterance.onerror = (event) => {
-                    console.error('TTS Error:', event);
+                    console.warn('TTS Error:', event && event.error);
                     this.isSpeaking = false;
                 };
 
-                // Speak
+                this._lastSpokenMessage = message;
+                this._lastSpokenAt = now;
                 window.speechSynthesis.speak(utterance);
             },
 
@@ -1004,6 +997,14 @@
 
                 if (poseSelection) poseSelection.style.display = 'none';
                 if (arSession) arSession.style.display = 'block';
+
+                // Reset the engine: clear smoothing + hysteresis for the new pose.
+                if (typeof PoseEngine !== 'undefined' && PoseEngine.reset) {
+                    PoseEngine.reset();
+                }
+                // Reset voice throttle
+                this._lastSpokenMessage = null;
+                this._lastSpokenAt = 0;
 
                 // Find the asana data
                 const asana = asanaData.find(a => a.name === poseName);
@@ -1034,7 +1035,7 @@
                 // Initialize correction log
                 const correctionLog = document.getElementById('correction-log');
                 if (correctionLog) {
-                    correctionLog.innerHTML = '<p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>';
+                    correctionLog.innerHTML = '<span class="kicker" style="color:#6FA089">Correction log</span>';
                     this.correctionHistory = [];
                 }
 
@@ -1122,11 +1123,11 @@
              * Returns an array of correction messages.
              */
             checkPose(keypoints, poseName) {
-                // Delegate to the rule engine from /static/poses.js (20 poses).
                 if (typeof PoseEngine === 'undefined') return [];
                 const result = PoseEngine.evaluate(keypoints, poseName);
-                // Stash the score so the drawing / feedback loop can read it.
                 this._lastPoseScore = result.score;
+                this._lastDiagnostics = result.diagnostics || [];
+                this._lastStance = result.stance || null;
                 return result.corrections || [];
             },
 
@@ -1174,8 +1175,12 @@
                     try {
                         const model = poseDetection.SupportedModels.MoveNet;
                         const detectorConfig = {
-                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-                            defaultUrl: 'https://tfhub.dev/google/movenet/singlepose/lightning/4',
+                            // Thunder is ~3x more accurate than Lightning on joint
+                            // angles, which is what yoga pose rules rely on. Slower
+                            // fps (~10-15 on CPU, ~25 on GPU) is an acceptable trade.
+                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+                            enableSmoothing: true,
+                            minPoseScore: 0.3,
                         };
                         this.detector = await poseDetection.createDetector(model, detectorConfig);
                         updateStatus("Model loaded. Requesting camera access...");
@@ -1186,8 +1191,14 @@
                     }
                 }
 
-                // 2. Get Camera Stream
-                navigator.mediaDevices.getUserMedia({ video: true })
+                // 2. Get Camera Stream (ask for decent resolution so keypoints are precise)
+                navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user',
+                    },
+                })
                     .then((stream) => {
                         this.videoStream = stream;
                         video.srcObject = stream;
@@ -1325,14 +1336,16 @@
                                 highAccuracyTimer = 0;
                             }
 
-                            // Log all corrections to the correction log panel (much less frequently for TTS)
-                            // Update every 200 frames = ~6-7 seconds at 30fps
-                            if (correctionCounter % 200 === 0) {
+                            // Update the correction log every ~30 frames (~1s) so users see
+                            // responsive feedback. Voice speaks only when the top cue changes
+                            // and the throttle in speakCorrection prevents repetition spam.
+                            if (correctionCounter % 30 === 0) {
                                 this.logCorrections(corrections);
-                                // Speak corrections if TTS is enabled
-                                if (this.ttsEnabled && corrections.length > 0) {
-                                    this.speakCorrection(corrections[0].message);
-                                }
+                            }
+                            if (this.ttsEnabled && corrections.length > 0) {
+                                // Pick the first non-meta cue (skip "Close. One small refinement.")
+                                const spoken = corrections.find(c => c.priority !== 0) || corrections[0];
+                                this.speakCorrection(spoken.message);
                             }
 
                         } else {
@@ -1385,7 +1398,9 @@
             },
 
             /**
-             * Logs corrections to the correction log panel (max 5 recent corrections displayed).
+             * Logs corrections to the correction log panel with real-time diagnostics.
+             * Shows the most recent corrections plus (if diagnostic mode is on) live
+             * pass/fail state for every rule.
              */
             logCorrections(corrections) {
                 if (!this.correctionHistory) this.correctionHistory = [];
@@ -1393,49 +1408,60 @@
                 const correctionLog = document.getElementById('correction-log');
                 if (!correctionLog) return;
 
-                // Add only non-duplicate corrections to history (avoid spamming same message)
+                // Maintain a de-duplicated rolling list of the last 5 distinct cues.
                 corrections.forEach(corr => {
-                    const corrText = corr.message;
-                    const lastCorr = this.correctionHistory[this.correctionHistory.length - 1];
-
-                    // Only add if it's different from the last logged correction
-                    if (!lastCorr || lastCorr !== corrText) {
-                        this.correctionHistory.push(corrText);
-
-                        // Keep only last 5 corrections
-                        if (this.correctionHistory.length > 5) {
-                            this.correctionHistory.shift();
-                        }
-
-                        // Update the log display
-                        const logHtml = '<p class="text-xs text-gray-500 font-semibold mb-2">Correction Log & Suggestions:</p>' +
-                            this.correctionHistory.map((msg, idx) => {
-                                let icon = '•';
-                                let colorClass = 'text-gray-400';
-
-                                if (msg.includes('well') || msg.includes('perfect') || msg.includes('breath')) {
-                                    icon = '✓';
-                                    colorClass = 'text-green-400';
-                                } else if (msg.toLowerCase().includes('cannot')) {
-                                    icon = '⚠';
-                                    colorClass = 'text-yellow-400';
-                                } else if (corrections.find(c => c.message === msg && c.color === 'red')) {
-                                    icon = '✗';
-                                    colorClass = 'text-red-400';
-                                } else if (corrections.find(c => c.message === msg && c.color === 'yellow')) {
-                                    icon = '⚠';
-                                    colorClass = 'text-yellow-400';
-                                }
-
-                                return `<p class="text-xs ${colorClass} pl-2"><span class="font-bold">${icon}</span> ${msg}</p>`;
-                            }).join('');
-
-                        correctionLog.innerHTML = logHtml;
-
-                        // Auto-scroll to latest correction
-                        correctionLog.scrollTop = correctionLog.scrollHeight;
+                    const txt = corr.message;
+                    const last = this.correctionHistory[this.correctionHistory.length - 1];
+                    if (!last || last.message !== txt) {
+                        this.correctionHistory.push({ message: txt, color: corr.color, at: Date.now() });
+                        if (this.correctionHistory.length > 5) this.correctionHistory.shift();
                     }
                 });
+
+                // Render log (corrections with color-coded dots)
+                const dotColor = (c) => c === 'red' ? '#C2552F' : c === 'yellow' ? '#E0A23F' : c === 'green' ? '#6FA089' : '#A8A294';
+                const logHTML = `
+                    <span class="kicker" style="color:#6FA089; display:block; margin-bottom:8px">Correction log</span>
+                    ${this.correctionHistory.slice().reverse().map(h => `
+                        <div class="flex items-center" style="gap:8px; margin-bottom:6px">
+                            <span style="width:7px; height:7px; border-radius:999px; background:${dotColor(h.color)}; flex-shrink:0"></span>
+                            <span style="font-size:12px; color:#F5F2EB; line-height:1.5">${h.message}</span>
+                        </div>
+                    `).join('')}
+                `;
+
+                // Render diagnostics panel (live rule check-list)
+                const diag = this._lastDiagnostics || [];
+                let diagHTML = '';
+                if (diag.length && this._diagnosticsVisible) {
+                    diagHTML = `
+                        <div style="border-top:1px solid #1F5A44; margin-top:10px; padding-top:10px">
+                            <span class="kicker" style="color:#6FA089; display:block; margin-bottom:8px">Live rule check (${diag.filter(d => d.pass).length}/${diag.length} passing)</span>
+                            ${diag.map(d => {
+                                if (d.skipped) return '';
+                                const dot = d.pass ? '#6FA089' : (d.reported ? '#C2552F' : '#E0A23F');
+                                return `
+                                    <div class="flex items-center" style="gap:8px; margin-bottom:4px; font-size:11px">
+                                        <span style="width:6px; height:6px; border-radius:999px; background:${dot}; flex-shrink:0"></span>
+                                        <span style="color:#C7DBCE; flex:1">${d.message}</span>
+                                        <span style="color:#6FA089">${d.measured !== undefined ? d.measured : ''}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                correctionLog.innerHTML = logHTML + diagHTML;
+            },
+
+            /**
+             * Toggles the diagnostic rule panel (user-facing debug panel).
+             * Users can tap the score bubble to turn it on/off.
+             */
+            toggleDiagnostics() {
+                this._diagnosticsVisible = !this._diagnosticsVisible;
+                this.logCorrections([]);
             },
 
             /**
@@ -2096,6 +2122,10 @@
                                                 <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
                                             </svg>
                                             <span id="tts-status-text">Voice guide off</span>
+                                        </button>
+                                        <button onclick="app.toggleDiagnostics()" class="pressable flex items-center" style="gap:8px; background:#1F5A44; color:#F5F2EB; border:0; border-radius:9999px; padding:10px 18px; font-size:13px; font-weight:500; cursor:pointer" title="Show per-rule diagnostics">
+                                            <span style="width:12px; height:12px; border-radius:999px; background:#E0A23F"></span>
+                                            <span>Diagnostics</span>
                                         </button>
                                     ` : ''}
                                     <button onclick="${isCourseMode ? "app.endCourseTest(false, 'Test cancelled')" : 'app.stopARAssessment()'}" class="btn btn-accent pressable" style="flex:1; height:48px; min-width:160px">${isCourseMode ? 'Cancel test' : 'Stop AR tracking'}</button>

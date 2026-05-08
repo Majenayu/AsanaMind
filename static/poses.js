@@ -1,21 +1,37 @@
 /*
- * Sunday · AsanaMind — Pose Library + Rule Engine
+ * Sunday · AsanaMind — Pose Library + Rule Engine (v3, production-grade)
  *
- * 20 curated asanas, each with:
- *   - declarative pose rules evaluated against MoveNet (17-keypoint, 2D)
- *   - reference keypoints that render a consistent SVG silhouette
- *   - camera view hint (front/side) so users set up correctly
+ * Designed for MoveNet SinglePose-Lightning running in the browser at ~30 fps.
+ * Fixes made in v3:
+ *   1. Raised MIN_CONFIDENCE to 0.4 (was 0.3 — too noisy for Lightning).
+ *   2. Per-keypoint EMA smoothing so rule state doesn't flap every frame.
+ *   3. Side-aware rules — Warrior / Triangle / Tree etc. pick which leg is
+ *      forward based on what the user actually does, not a hard-coded side.
+ *   4. Rule hysteresis — a rule must fail for N frames before the engine
+ *      reports it as a correction, and pass for M frames to clear.
+ *   5. Mirror-aware wording — cues say "the leg on the left" instead of
+ *      anatomical "your right leg" so users don't get confused in mirrored
+ *      video.
+ *   6. Diagnostic snapshot — every call returns all evaluated rules with
+ *      measured values, so a dev can see exactly why a correction fired.
  *
  * Public globals:
  *   window.ASANA_LIBRARY   — array of 20 pose records
  *   window.asanaData        — alias (legacy)
- *   window.PoseEngine       — { evaluate(keypoints, poseName) }
+ *   window.PoseEngine       — { configure(opts), evaluate(kp, name), reset() }
  *   window.PoseImage        — { svg(pose), dataUri(pose) }
  */
 (function () {
     'use strict';
 
-    const MIN_CONFIDENCE = 0.3;
+    // Tunables — can be overridden via PoseEngine.configure(...)
+    const CONFIG = {
+        minConfidence: 0.4,          // MoveNet Lightning reliable floor
+        smoothing: 0.55,             // EMA factor on keypoint positions (0..1, higher = more stable)
+        ruleFailFrames: 7,           // rule must fail this many frames in a row before reporting
+        rulePassFrames: 5,           // rule must pass this many frames to clear a reported correction
+        mirrored: true,              // video is CSS-mirrored
+    };
 
     // ─────────────────────────────────────────────────────────────
     // GEOMETRY HELPERS
@@ -39,129 +55,309 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // RULE EVALUATORS
-    // Each returns { pass, measured?, skipped? }
+    // EMA smoothing state — one vector per keypoint name
     // ─────────────────────────────────────────────────────────────
-    const evaluators = {
-        angle(kp, rule) {
-            const [a, b, c] = rule.joints;
-            const A = kp[a], B = kp[b], C = kp[c];
-            if (!A || !B || !C) return { pass: true, skipped: true };
-            const deg = angleDeg(A, B, C);
-            const [min, max] = rule.range;
-            return { pass: deg >= min && deg <= max, measured: deg };
-        },
-        alignY(kp, rule) {
-            const A = kp[rule.joints[0]], B = kp[rule.joints[1]];
-            if (!A || !B) return { pass: true, skipped: true };
-            const torso = torsoLength(kp);
-            return { pass: Math.abs(A.y - B.y) / torso <= (rule.tolFrac || 0.15) };
-        },
-        alignX(kp, rule) {
-            const A = kp[rule.joints[0]], B = kp[rule.joints[1]];
-            if (!A || !B) return { pass: true, skipped: true };
-            const torso = torsoLength(kp);
-            return { pass: Math.abs(A.x - B.x) / torso <= (rule.tolFrac || 0.2) };
-        },
-        distance(kp, rule) {
-            const A = kp[rule.joints[0]], B = kp[rule.joints[1]];
-            if (!A || !B) return { pass: true, skipped: true };
-            const torso = torsoLength(kp);
-            const ratio = dist(A, B) / torso;
-            const min = rule.minFrac == null ? 0 : rule.minFrac;
-            const max = rule.maxFrac == null ? Infinity : rule.maxFrac;
-            return { pass: ratio >= min && ratio <= max, measured: ratio };
-        },
-        higher(kp, rule) {
-            const A = kp[rule.joints[0]], B = kp[rule.joints[1]];
-            if (!A || !B) return { pass: true, skipped: true };
-            const torso = torsoLength(kp);
-            return { pass: A.y + (rule.bufferFrac || 0) * torso < B.y };
-        },
-        lower(kp, rule) {
-            const A = kp[rule.joints[0]], B = kp[rule.joints[1]];
-            if (!A || !B) return { pass: true, skipped: true };
-            const torso = torsoLength(kp);
-            return { pass: A.y > B.y + (rule.bufferFrac || 0) * torso };
-        },
-        symmetric(kp, rule) {
-            const [aL, bL, cL, aR, bR, cR] = rule.joints;
-            const L = (kp[aL] && kp[bL] && kp[cL]) ? angleDeg(kp[aL], kp[bL], kp[cL]) : null;
-            const R = (kp[aR] && kp[bR] && kp[cR]) ? angleDeg(kp[aR], kp[bR], kp[cR]) : null;
-            if (L == null || R == null) return { pass: true, skipped: true };
-            return { pass: Math.abs(L - R) <= (rule.tolDeg || 15) };
-        },
-        horizontalSpan(kp, rule) {
-            const A = kp[rule.joints[0]], B = kp[rule.joints[1]];
-            if (!A || !B) return { pass: true, skipped: true };
-            const torso = torsoLength(kp);
-            const dx = Math.abs(A.x - B.x) / torso, dy = Math.abs(A.y - B.y) / torso;
-            return { pass: dx > (rule.minDx || 0.6) && dy < (rule.maxDy || 0.3) };
-        },
-    };
+    const SMOOTH = {};
+
+    function smoothKeypoints(raw) {
+        // raw is the MoveNet array. Return a { name -> {x,y,score} } object
+        // with EMA-smoothed positions and only points above minConfidence kept.
+        const alpha = CONFIG.smoothing;
+        const out = {};
+        for (const k of raw) {
+            if (!k || !k.name) continue;
+            if (k.score < CONFIG.minConfidence) {
+                // If we have prior smoothed state, prefer that; else drop.
+                if (SMOOTH[k.name] && SMOOTH[k.name].score >= CONFIG.minConfidence * 0.8) {
+                    // Mild decay so a lost keypoint eventually ages out.
+                    SMOOTH[k.name].score *= 0.9;
+                    out[k.name] = { x: SMOOTH[k.name].x, y: SMOOTH[k.name].y, score: SMOOTH[k.name].score };
+                }
+                continue;
+            }
+            const prev = SMOOTH[k.name];
+            if (!prev) {
+                SMOOTH[k.name] = { x: k.x, y: k.y, score: k.score };
+            } else {
+                SMOOTH[k.name] = {
+                    x: alpha * prev.x + (1 - alpha) * k.x,
+                    y: alpha * prev.y + (1 - alpha) * k.y,
+                    score: Math.max(prev.score, k.score),
+                };
+            }
+            out[k.name] = { x: SMOOTH[k.name].x, y: SMOOTH[k.name].y, score: SMOOTH[k.name].score };
+        }
+        return out;
+    }
 
     // ─────────────────────────────────────────────────────────────
-    // ENGINE
+    // Side detection — figures out which side is forward/standing
     // ─────────────────────────────────────────────────────────────
+    // For side-view stances, "front" = whichever ankle is more forward in X
+    // (away from the mirror). For Tree pose, "standing" = the ankle lower
+    // and more centered on the hips.
+    function detectStance(kp) {
+        const la = kp.left_ankle, ra = kp.right_ankle;
+        const lk = kp.left_knee, rk = kp.right_knee;
+        const lh = kp.left_hip, rh = kp.right_hip;
+
+        const out = { forward: null, back: null, standing: null, raised: null };
+
+        if (la && ra && lh && rh) {
+            // stance width on X
+            const feetDx = Math.abs(la.x - ra.x);
+            const hipDx = Math.abs(lh.x - rh.x);
+            // If clearly wide (lunge / triangle), forward = ankle farther from hip center
+            if (feetDx > hipDx * 1.6) {
+                const hipMidX = (lh.x + rh.x) / 2;
+                out.forward = Math.abs(la.x - hipMidX) > Math.abs(ra.x - hipMidX) ? 'left' : 'right';
+                out.back = out.forward === 'left' ? 'right' : 'left';
+            }
+            // Standing leg (Tree / Warrior III / Half Moon / Dancer) = lower ankle
+            if (Math.abs(la.y - ra.y) > torsoLength(kp) * 0.15) {
+                out.standing = la.y > ra.y ? 'left' : 'right';
+                out.raised = out.standing === 'left' ? 'right' : 'left';
+            }
+        }
+        return out;
+    }
+
+    function resolveSide(sideSpec, stance) {
+        // sideSpec is 'left' | 'right' | 'forward' | 'back' | 'standing' | 'raised'
+        if (sideSpec === 'left' || sideSpec === 'right') return sideSpec;
+        return stance[sideSpec] || null;
+    }
+
+    function resolveJoints(joints, stance) {
+        // Replace tokens like 'forward_knee' with 'left_knee' or 'right_knee'
+        // based on the detected stance. Returns the resolved joints or null
+        // if stance couldn't be determined.
+        const resolved = [];
+        for (const j of joints) {
+            const m = j.match(/^(forward|back|standing|raised)_(\w+)$/);
+            if (m) {
+                const side = stance[m[1]];
+                if (!side) return null;
+                resolved.push(side + '_' + m[2]);
+            } else {
+                resolved.push(j);
+            }
+        }
+        return resolved;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // RULE EVALUATORS — now return { pass, measured, label }
+    // ─────────────────────────────────────────────────────────────
+    function evaluate(kp, rule, stance) {
+        const j = resolveJoints(rule.joints, stance);
+        if (!j) return { pass: true, skipped: true, reason: 'stance-not-detected' };
+
+        switch (rule.type) {
+            case 'angle': {
+                const [a, b, c] = j;
+                const A = kp[a], B = kp[b], C = kp[c];
+                if (!A || !B || !C) return { pass: true, skipped: true, reason: 'missing-keypoint' };
+                const deg = angleDeg(A, B, C);
+                const [min, max] = rule.range;
+                return { pass: deg >= min && deg <= max, measured: Math.round(deg), label: `${b} angle` };
+            }
+            case 'alignY': {
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const torso = torsoLength(kp);
+                const val = Math.abs(A.y - B.y) / torso;
+                return { pass: val <= (rule.tolFrac || 0.15), measured: +val.toFixed(2) };
+            }
+            case 'alignX': {
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const torso = torsoLength(kp);
+                const val = Math.abs(A.x - B.x) / torso;
+                return { pass: val <= (rule.tolFrac || 0.2), measured: +val.toFixed(2) };
+            }
+            case 'distance': {
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const torso = torsoLength(kp);
+                const ratio = dist(A, B) / torso;
+                const min = rule.minFrac == null ? 0 : rule.minFrac;
+                const max = rule.maxFrac == null ? Infinity : rule.maxFrac;
+                return { pass: ratio >= min && ratio <= max, measured: +ratio.toFixed(2) };
+            }
+            case 'higher': {
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const torso = torsoLength(kp);
+                const buffer = (rule.bufferFrac || 0) * torso;
+                return { pass: A.y + buffer < B.y, measured: +((B.y - A.y) / torso).toFixed(2) };
+            }
+            case 'lower': {
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const torso = torsoLength(kp);
+                const buffer = (rule.bufferFrac || 0) * torso;
+                return { pass: A.y > B.y + buffer, measured: +((A.y - B.y) / torso).toFixed(2) };
+            }
+            case 'symmetric': {
+                const [aL, bL, cL, aR, bR, cR] = j;
+                const L = (kp[aL] && kp[bL] && kp[cL]) ? angleDeg(kp[aL], kp[bL], kp[cL]) : null;
+                const R = (kp[aR] && kp[bR] && kp[cR]) ? angleDeg(kp[aR], kp[bR], kp[cR]) : null;
+                if (L == null || R == null) return { pass: true, skipped: true };
+                return { pass: Math.abs(L - R) <= (rule.tolDeg || 15), measured: Math.round(Math.abs(L - R)) };
+            }
+            case 'horizontalSpan': {
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const torso = torsoLength(kp);
+                const dx = Math.abs(A.x - B.x) / torso, dy = Math.abs(A.y - B.y) / torso;
+                return { pass: dx > (rule.minDx || 0.6) && dy < (rule.maxDy || 0.3), measured: `${dx.toFixed(2)}x ${dy.toFixed(2)}y` };
+            }
+        }
+        return { pass: true, skipped: true, reason: 'unknown-rule' };
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ENGINE — with per-rule hysteresis state
+    // ─────────────────────────────────────────────────────────────
+    const FAIL_STREAK = {};   // rule.id → frames failing
+    const PASS_STREAK = {};   // rule.id → frames passing (after a fail)
+    const REPORTED = {};      // rule.id → currently visible to user?
+
+    function ruleId(poseName, idx) { return poseName + '::' + idx; }
+
     const PoseEngine = {
-        evaluate(keypoints, poseName) {
+        configure(opts) { Object.assign(CONFIG, opts || {}); },
+        reset() {
+            for (const k of Object.keys(SMOOTH)) delete SMOOTH[k];
+            for (const k of Object.keys(FAIL_STREAK)) delete FAIL_STREAK[k];
+            for (const k of Object.keys(PASS_STREAK)) delete PASS_STREAK[k];
+            for (const k of Object.keys(REPORTED)) delete REPORTED[k];
+        },
+        getStance(rawKeypoints) {
+            const kp = smoothKeypoints(rawKeypoints);
+            return detectStance(kp);
+        },
+
+        evaluate(rawKeypoints, poseName) {
             const pose = ASANA_LIBRARY.find(p => p.name === poseName);
             if (!pose) {
-                return { corrections: [{ message: 'Pose not configured', color: 'yellow', priority: 3, affected: [] }], score: 0 };
+                return { corrections: [{ message: 'Pose not configured', color: 'yellow', priority: 3, affected: [] }], score: 0, diagnostics: [] };
             }
 
-            const kp = {};
-            for (const k of keypoints) {
-                if (k && k.score >= MIN_CONFIDENCE) kp[k.name] = { x: k.x, y: k.y };
-            }
+            // Smooth keypoints before evaluating anything
+            const kp = smoothKeypoints(rawKeypoints);
 
+            // Global visibility — do we see enough of the body?
             const required = pose.required || ['left_hip', 'right_hip', 'left_shoulder', 'right_shoulder', 'nose'];
             const missing = required.filter(r => !kp[r]);
             if (missing.length > 2) {
                 return {
                     corrections: [{ message: 'Step back so your full body is in frame', affected: required, color: 'red', priority: 1 }],
                     score: 0,
+                    diagnostics: [{ rule: 'visibility', missing }],
                 };
             }
 
             if (!pose.rules || !pose.rules.length) {
-                return { corrections: [{ message: 'Hold the pose calmly and breathe.', color: 'green', priority: 0, affected: [] }], score: 80 };
+                return { corrections: [{ message: 'Hold the pose calmly and breathe.', color: 'green', priority: 0, affected: [] }], score: 80, diagnostics: [] };
             }
 
+            // Detect the user's stance so side-aware rules can resolve
+            const stance = detectStance(kp);
+
+            // Evaluate all rules
+            const diagnostics = [];
             const corrections = [];
             let totalWeight = 0, passWeight = 0;
 
-            for (const rule of pose.rules) {
-                const evalFn = evaluators[rule.type];
-                if (!evalFn) continue;
+            for (let i = 0; i < pose.rules.length; i++) {
+                const rule = pose.rules[i];
                 const weight = rule.priority === 1 ? 3 : rule.priority === 2 ? 2 : 1;
                 totalWeight += weight;
-                const result = evalFn(kp, rule);
-                if (result.skipped || result.pass) {
+
+                const result = evaluate(kp, rule, stance);
+                const id = ruleId(poseName, i);
+
+                if (result.skipped) {
                     passWeight += weight;
+                    diagnostics.push({ idx: i, skipped: true, reason: result.reason, message: rule.message });
+                    continue;
+                }
+
+                if (result.pass) {
+                    passWeight += weight;
+                    // decay fail streak, advance pass streak
+                    FAIL_STREAK[id] = 0;
+                    PASS_STREAK[id] = (PASS_STREAK[id] || 0) + 1;
+                    // Clear a reported correction once we've passed enough frames
+                    if (REPORTED[id] && PASS_STREAK[id] >= CONFIG.rulePassFrames) {
+                        REPORTED[id] = false;
+                    }
                 } else {
+                    FAIL_STREAK[id] = (FAIL_STREAK[id] || 0) + 1;
+                    PASS_STREAK[id] = 0;
+                    // Promote to a visible correction only after fail streak threshold
+                    if (FAIL_STREAK[id] >= CONFIG.ruleFailFrames) {
+                        REPORTED[id] = true;
+                    }
+                }
+
+                diagnostics.push({
+                    idx: i,
+                    pass: !!result.pass,
+                    measured: result.measured,
+                    message: rule.message,
+                    priority: rule.priority || 3,
+                    failStreak: FAIL_STREAK[id] || 0,
+                    reported: !!REPORTED[id],
+                });
+
+                if (REPORTED[id]) {
                     corrections.push({
-                        message: rule.message,
+                        id,
+                        message: rewriteForMirror(rule.message),
                         affected: rule.affected || rule.joints || [],
                         color: rule.severity || (rule.priority === 1 ? 'red' : 'yellow'),
                         priority: rule.priority || 3,
+                        measured: result.measured,
                     });
                 }
             }
 
             const score = totalWeight > 0 ? Math.round((passWeight / totalWeight) * 100) : 100;
+
             corrections.sort((a, b) => (a.priority || 5) - (b.priority || 5));
             const top = corrections.slice(0, 3);
 
             if (top.length === 0) {
                 top.push({ message: `Beautiful ${pose.name}. Hold and breathe.`, affected: [], color: 'green', priority: 0 });
-            } else if (score >= 80) {
-                top.unshift({ message: 'Close. Small refinements below.', affected: [], color: 'blue', priority: 0 });
+            } else if (score >= 85) {
+                top.unshift({ message: 'Close. One small refinement.', affected: [], color: 'blue', priority: 0 });
             }
 
-            return { corrections: top, score };
+            return { corrections: top, score, diagnostics, stance };
         },
     };
+
+    function rewriteForMirror(msg) {
+        // If the video is CSS-mirrored, "your right" (as seen by MoveNet)
+        // appears on the viewer's left. For clarity we rewrite "right/left"
+        // to "the side on your left/right of the screen" — but only if the
+        // cue is about a joint that has a side. Keep generic cues alone.
+        if (!CONFIG.mirrored) return msg;
+        // Keep cues like "Level your hips" and "Lift the chest" untouched.
+        // Only tweak "left X" / "right X" wording.
+        return msg
+            .replace(/\bleft arm\b/gi, 'the arm on your right')
+            .replace(/\bright arm\b/gi, 'the arm on your left')
+            .replace(/\bleft leg\b/gi, 'the leg on your right')
+            .replace(/\bright leg\b/gi, 'the leg on your left')
+            .replace(/\bleft knee\b/gi, 'the knee on your right')
+            .replace(/\bright knee\b/gi, 'the knee on your left')
+            .replace(/\bleft hand\b/gi, 'the hand on your right')
+            .replace(/\bright hand\b/gi, 'the hand on your left');
+    }
 
     // ─────────────────────────────────────────────────────────────
     // POSE IMAGE RENDERER
@@ -515,16 +711,16 @@
             rules: [
                 { type: 'distance', joints: ['left_ankle', 'right_ankle'], minFrac: 0.25, maxFrac: 0.75, message: 'Feet hip-width apart', priority: 2 },
                 { type: 'alignY', joints: ['left_ankle', 'right_ankle'], tolFrac: 0.08, message: 'Weight even on both feet', priority: 2 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [162, 198], message: 'Engage left quadriceps, straighten knee', priority: 1 },
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [162, 198], message: 'Engage right quadriceps, straighten knee', priority: 1 },
-                { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.1, message: 'Level your hips', priority: 1 },
-                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Relax shoulders, keep them level', priority: 2 },
+                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [158, 202], message: 'Engage left quadriceps, straighten knee', priority: 1 },
+                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [158, 202], message: 'Engage right quadriceps, straighten knee', priority: 1 },
+                { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.14, message: 'Level your hips', priority: 1 },
+                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.14, message: 'Relax shoulders, keep them level', priority: 2 },
                 { type: 'distance', joints: ['left_shoulder', 'right_shoulder'], minFrac: 0.7, maxFrac: 1.4, message: 'Broaden the collarbones', priority: 3 },
-                { type: 'alignX', joints: ['nose', 'left_hip'], tolFrac: 0.18, message: 'Crown of head over the body', priority: 2 },
+                { type: 'alignX', joints: ['nose', 'left_hip'], tolFrac: 0.24, message: 'Crown of head over the body', priority: 2 },
                 { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Lift the chest, lengthen the spine', priority: 2 },
                 { type: 'lower', joints: ['left_wrist', 'left_hip'], bufferFrac: 0.1, message: 'Let the arms rest by your sides', priority: 3 },
                 { type: 'lower', joints: ['right_wrist', 'right_hip'], bufferFrac: 0.1, message: 'Let the arms rest by your sides', priority: 3 },
-                { type: 'symmetric', joints: ['left_hip', 'left_knee', 'left_ankle', 'right_hip', 'right_knee', 'right_ankle'], tolDeg: 10, message: 'Stand evenly on both legs', priority: 2 },
+                { type: 'symmetric', joints: ['left_hip', 'left_knee', 'left_ankle', 'right_hip', 'right_knee', 'right_ankle'], tolDeg: 14, message: 'Stand evenly on both legs', priority: 2 },
             ],
         },
         {
@@ -576,7 +772,7 @@
             ],
             referenceKeypoints: KP_ANJALI,
             rules: [
-                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.18, message: 'Press palms firmly together at the heart', priority: 1 },
+                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.22, message: 'Press palms firmly together at the heart', priority: 1 },
                 { type: 'alignY', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.08, message: 'Keep both wrists at the same height', priority: 1 },
                 { type: 'distance', joints: ['left_elbow', 'right_elbow'], minFrac: 0.6, maxFrac: 1.4, message: 'Widen the elbows to open the chest', priority: 2 },
                 { type: 'alignY', joints: ['left_elbow', 'right_elbow'], tolFrac: 0.1, message: 'Level the elbows', priority: 2 },
@@ -605,12 +801,12 @@
             ],
             referenceKeypoints: KP_VRIKSHASANA,
             rules: [
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [162, 198], message: 'Standing leg strong and straight', priority: 1 },
-                { type: 'higher', joints: ['right_ankle', 'left_knee'], bufferFrac: 0.1, message: 'Lift the raised foot higher onto the inner leg', priority: 1 },
+                { type: 'angle', joints: ['standing_hip', 'standing_knee', 'standing_ankle'], range: [158, 202], message: 'Standing leg strong and straight', priority: 1 },
+                { type: 'higher', joints: ['raised_ankle', 'standing_knee'], bufferFrac: 0.05, message: 'Lift the raised foot higher onto the inner leg', priority: 1 },
                 { type: 'higher', joints: ['right_knee', 'right_hip'], bufferFrac: -0.05, message: 'Open the bent knee out to the side', priority: 2 },
                 { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Shoulders level, do not lean', priority: 2 },
                 { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.12, message: 'Level your hips', priority: 2 },
-                { type: 'alignX', joints: ['nose', 'left_ankle'], tolFrac: 0.2, message: 'Stack crown over the standing foot', priority: 2 },
+                { type: 'alignX', joints: ['nose', 'standing_ankle'], tolFrac: 0.25, message: 'Stack crown over the standing foot', priority: 2 },
                 { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Lift the chest, lengthen the spine', priority: 2 },
             ],
         },
@@ -818,11 +1014,11 @@
             ],
             referenceKeypoints: KP_VIR1,
             rules: [
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [85, 115], message: 'Bend the front knee to 90 degrees', priority: 1 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [150, 200], message: 'Straighten and ground the back leg', priority: 1 },
+                { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [85, 115], message: 'Bend the front knee toward 90 degrees', priority: 1 },
+                { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [150, 200], message: 'Straighten and ground the back leg', priority: 1 },
                 { type: 'higher', joints: ['left_wrist', 'left_shoulder'], bufferFrac: 0.3, message: 'Lift the arms overhead, alongside the ears', priority: 2 },
                 { type: 'higher', joints: ['right_wrist', 'right_shoulder'], bufferFrac: 0.3, message: 'Reach both arms up evenly', priority: 2 },
-                { type: 'alignX', joints: ['right_knee', 'right_ankle'], tolFrac: 0.15, message: 'Front knee tracks over the front ankle', priority: 1 },
+                { type: 'alignX', joints: ['forward_knee', 'forward_ankle'], tolFrac: 0.15, message: 'Front knee tracks over the front ankle', priority: 1 },
                 { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Lift the chest, open the heart', priority: 2 },
                 { type: 'symmetric', joints: ['left_shoulder', 'left_elbow', 'left_wrist', 'right_shoulder', 'right_elbow', 'right_wrist'], tolDeg: 18, message: 'Arms reach up evenly', priority: 3 },
             ],
@@ -845,8 +1041,8 @@
             ],
             referenceKeypoints: KP_VIR2,
             rules: [
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [85, 115], message: 'Front knee bends to 90, tracks over the ankle', priority: 1 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [155, 200], message: 'Back leg strong and straight', priority: 1 },
+                { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [85, 115], message: 'Front knee bends to 90, tracks over the ankle', priority: 1 },
+                { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [155, 200], message: 'Back leg strong and straight', priority: 1 },
                 { type: 'horizontalSpan', joints: ['left_wrist', 'right_wrist'], minDx: 1.0, maxDy: 0.2, message: 'Arms out wide, parallel to the floor', priority: 2 },
                 { type: 'alignY', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.12, message: 'Lift both arms to shoulder height', priority: 2 },
                 { type: 'alignY', joints: ['left_wrist', 'left_shoulder'], tolFrac: 0.15, message: 'Left arm at shoulder height', priority: 2 },
@@ -874,8 +1070,8 @@
             ],
             referenceKeypoints: KP_TRIKON,
             rules: [
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [155, 200], message: 'Front leg strong and straight', priority: 1 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [155, 200], message: 'Back leg strong and straight', priority: 1 },
+                { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [155, 200], message: 'Front leg strong and straight', priority: 1 },
+                { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [155, 200], message: 'Back leg strong and straight', priority: 1 },
                 { type: 'alignX', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.2, message: 'Stack the top arm directly above the bottom', priority: 2 },
                 { type: 'higher', joints: ['left_wrist', 'left_shoulder'], bufferFrac: 0.2, message: 'Reach the top arm toward the ceiling', priority: 2 },
                 { type: 'lower', joints: ['right_wrist', 'right_hip'], bufferFrac: 0.05, message: 'Lower the bottom hand to shin or block', priority: 2 },
@@ -928,12 +1124,12 @@
             ],
             referenceKeypoints: KP_PARSVA,
             rules: [
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [85, 115], message: 'Front knee bent to 90 degrees', priority: 1 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [155, 200], message: 'Back leg strong and straight', priority: 1 },
+                { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [85, 115], message: 'Front knee bent to 90 degrees', priority: 1 },
+                { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [155, 200], message: 'Back leg strong and straight', priority: 1 },
                 { type: 'higher', joints: ['left_wrist', 'left_shoulder'], bufferFrac: 0.2, message: 'Reach the top arm up and over the ear', priority: 2 },
                 { type: 'alignY', joints: ['left_shoulder', 'left_hip'], tolFrac: 0.3, message: 'Lengthen the side body from hip to fingertips', priority: 2 },
                 { type: 'lower', joints: ['right_wrist', 'right_hip'], bufferFrac: 0, message: 'Lower the front hand to forearm, block, or floor', priority: 2 },
-                { type: 'alignX', joints: ['right_knee', 'right_ankle'], tolFrac: 0.15, message: 'Front knee tracks over the ankle', priority: 1 },
+                { type: 'alignX', joints: ['forward_knee', 'forward_ankle'], tolFrac: 0.15, message: 'Front knee tracks over the ankle', priority: 1 },
                 { type: 'angle', joints: ['left_shoulder', 'left_elbow', 'left_wrist'], range: [150, 200], message: 'Top arm straight over the ear', priority: 3 },
             ],
         },
@@ -983,12 +1179,12 @@
             ],
             referenceKeypoints: KP_VIR3,
             rules: [
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [160, 200], message: 'Fully straighten the standing leg', priority: 1 },
+                { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [160, 200], message: 'Fully straighten the standing leg', priority: 1 },
                 { type: 'alignY', joints: ['left_ankle', 'left_hip'], tolFrac: 0.2, message: 'Lift the back leg parallel to the floor', priority: 1 },
                 { type: 'alignY', joints: ['left_shoulder', 'left_hip'], tolFrac: 0.2, message: 'Bring the torso parallel to the floor', priority: 1 },
                 { type: 'higher', joints: ['left_wrist', 'left_shoulder'], bufferFrac: -0.05, message: 'Reach the arms forward at shoulder height', priority: 2 },
                 { type: 'higher', joints: ['right_wrist', 'right_shoulder'], bufferFrac: -0.05, message: 'Reach the arms forward at shoulder height', priority: 2 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Extend the back leg fully, flex the foot', priority: 2 },
+                { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [160, 200], message: 'Extend the back leg fully, flex the foot', priority: 2 },
                 { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.15, message: 'Keep the hips level, do not open the back hip', priority: 2 },
             ],
         },
@@ -1010,11 +1206,11 @@
             ],
             referenceKeypoints: KP_HALFMOON,
             rules: [
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [160, 200], message: 'Straighten the standing leg fully', priority: 1 },
+                { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [160, 200], message: 'Straighten the standing leg fully', priority: 1 },
                 { type: 'alignY', joints: ['left_ankle', 'left_hip'], tolFrac: 0.3, message: 'Float the top leg parallel to the floor', priority: 1 },
                 { type: 'higher', joints: ['left_wrist', 'left_shoulder'], bufferFrac: 0.2, message: 'Stack the top arm straight up', priority: 2 },
                 { type: 'alignX', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.3, message: 'Line the top arm above the bottom arm', priority: 2 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Extend the lifted leg, flex the foot', priority: 2 },
+                { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [160, 200], message: 'Extend the lifted leg, flex the foot', priority: 2 },
                 { type: 'lower', joints: ['right_wrist', 'right_hip'], bufferFrac: 0.1, message: 'Ground the bottom hand for support', priority: 2 },
             ],
         },
