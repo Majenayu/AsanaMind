@@ -3,6 +3,9 @@ import pymongo
 from datetime import datetime, timedelta
 from collections import defaultdict
 import os
+import json
+import urllib.request
+import urllib.error
 
 app = Flask(__name__)
 # Use environment variable for secret key, fallback ONLY for local dev
@@ -430,6 +433,92 @@ def serve_asset(filename):
         return send_from_directory('assets', filename)
     except FileNotFoundError:
         return "Asset not found.", 404
+
+
+# =============================================================
+# AI Assistant proxy — keeps API key on the server, avoids
+# browser CORS, falls back to offline yoga tips when the
+# upstream AI is unreachable.
+# =============================================================
+
+YOGA_FALLBACKS = {
+    'tadasana': 'Tadasana, Mountain Pose. Stand with feet hip-width, weight even, crown lifting. Breathe and feel the length.',
+    'vrikshasana': 'Tree Pose. Root through the standing foot, place the raised sole on the inner calf or thigh, hands at heart or overhead.',
+    'tree': 'Tree Pose. Root through the standing foot, place the raised sole on the inner calf or thigh, hands at heart or overhead.',
+    'warrior': 'Warrior poses build strength in the legs and focus in the mind. Front knee bent, back leg long, spine tall.',
+    'downward': 'Downward Dog. Hips lifted, arms straight, heels reaching down. Press through the palms and lengthen the spine.',
+    'breathing': 'Try Ujjayi breath: inhale and exhale through the nose with a soft constriction in the throat. It keeps the mind anchored during practice.',
+    'breath': 'Try Ujjayi breath: inhale and exhale through the nose with a soft constriction in the throat.',
+    'meditation': 'Sit tall, close the eyes, let the breath be slow and even. Start with three minutes and build up.',
+    'stress': 'For stress, move slowly through Child\u2019s Pose, Seated Forward Fold, and long exhales. Let the body soften.',
+    'back pain': 'For back relief, try Cat\u2013Cow, gentle twists, and Legs Up the Wall. Move gently, never force.',
+}
+
+def yoga_fallback(prompt: str) -> str:
+    p = (prompt or '').lower()
+    for k, v in YOGA_FALLBACKS.items():
+        if k in p:
+            return v
+    return 'I\u2019m here to help with your practice. Ask me about a pose, breath work, or a focus like stress or back pain.'
+
+
+@app.route('/api/assistant', methods=['POST'])
+def assistant_proxy():
+    """Server-side proxy for the AI assistant. Prefers Gemini via
+    OpenRouter when a key is available; otherwise returns a curated
+    yoga fallback so the user never hears 'service unavailable'."""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get('prompt') or '').strip()
+    if not prompt:
+        return jsonify({'success': False, 'error': 'Empty prompt'}), 400
+
+    api_key = os.environ.get('OPENROUTER_API_KEY') or os.environ.get('GEMINI_API_KEY') or ''
+    # Fallback path — no key set or upstream unreachable.
+    if not api_key:
+        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+
+    system_msg = (
+        "You are Sunday, a calm certified yoga coach. Keep replies to 2 short sentences. "
+        "For pose questions, include the Sanskrit name and one key cue. "
+        "Avoid medical advice."
+    )
+    body = {
+        'model': 'google/gemini-2.0-flash-001',
+        'messages': [
+            {'role': 'system', 'content': system_msg},
+            {'role': 'user', 'content': prompt},
+        ],
+        'max_tokens': 180,
+        'temperature': 0.6,
+    }
+    req = urllib.request.Request(
+        'https://openrouter.ai/api/v1/chat/completions',
+        data=json.dumps(body).encode('utf-8'),
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}',
+            'HTTP-Referer': request.url_root.rstrip('/'),
+            'X-Title': 'Sunday AsanaMind',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode('utf-8')
+        data = json.loads(raw)
+        text = (data.get('choices') or [{}])[0].get('message', {}).get('content', '').strip()
+        if not text:
+            return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+        return jsonify({'success': True, 'source': 'ai', 'text': text})
+    except urllib.error.HTTPError as e:
+        print(f'AI upstream HTTP {e.code}: {e.reason}')
+        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+    except Exception as e:
+        print(f'AI upstream error: {e}')
+        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+
 
 if __name__ == '__main__':
     # Use dynamic port for Render

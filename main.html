@@ -513,94 +513,27 @@
              * Calls the OpenRouter API for the Virtual Assistant feature.
              * Enhanced with better error handling, logging, and fallback responses.
              */
-            async callGeminiAssistant(prompt, retries = 3) {
-                // OpenRouter API key
-                const OPENROUTER_API_KEY = "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";
-                const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-                // Fallback responses for common yoga questions when API is unavailable
-                const fallbackResponses = {
-                    'tadasana': 'Tadasana (Mountain Pose) is a foundational standing pose that improves posture and balance. Stand with feet together, arms at sides, and focus on grounding through your feet.',
-                    'downward': 'Adho Mukha Svanasana (Downward Dog) stretches the hamstrings, calves, and spine. Start on hands and knees, then lift hips up and back.',
-                    'warrior': 'Virabhadrasana (Warrior Pose) builds strength and stamina. It strengthens legs, opens hips and chest, and improves focus.',
-                    'breathing': 'Pranayama (breathing exercises) are essential in yoga. Try Ujjayi breath: inhale and exhale through your nose with a slight constriction in the throat.',
-                    'meditation': 'Start with 5 minutes of seated meditation. Focus on your breath, and gently return attention when the mind wanders.',
-                    'beginner': 'For beginners, start with Tadasana, Cat-Cow stretches, and Child\'s Pose. Practice 10-15 minutes daily and focus on breath.',
-                    'stress': 'For stress relief, try Child\'s Pose, Legs Up the Wall, and slow deep breathing. Hold each pose for 1-2 minutes.',
-                    'default': 'I\'m here to help with your yoga practice! Try asking about specific poses like Tadasana or Downward Dog, or about breathing techniques and meditation.'
-                };
-
-                // Check for fallback match
-                const getFallback = (text) => {
-                    const lowerPrompt = text.toLowerCase();
-                    for (const [key, response] of Object.entries(fallbackResponses)) {
-                        if (lowerPrompt.includes(key)) return response;
+            async callGeminiAssistant(prompt) {
+                // Route through our Flask proxy. It holds the server-side
+                // API key, handles CORS, and returns a curated yoga fallback
+                // when the upstream AI is unreachable — so the user never
+                // hears "service unavailable".
+                try {
+                    const res = await fetch('/api/assistant', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ prompt }),
+                    });
+                    if (!res.ok) {
+                        return { text: 'Let me stay with the breath for a moment. Ask me about a pose or a specific focus.' };
                     }
-                    return fallbackResponses.default;
-                };
-
-                for (let i = 0; i < retries; i++) {
-                    try {
-                        console.log(`[SUNDAY API] Attempt ${i + 1}/${retries} - Sending request...`);
-
-                        const response = await fetch(API_URL, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                                'HTTP-Referer': window.location.origin,
-                                'X-Title': 'SUNDAY Yoga Assistant'
-                            },
-                            body: JSON.stringify({
-                                model: OPENROUTER_MODEL,
-                                messages: [
-                                    { role: "system", content: VIRTUAL_ASSISTANT_SYSTEM_PROMPT },
-                                    { role: "user", content: prompt }
-                                ],
-                                max_tokens: 200,
-                                temperature: 0.7
-                            })
-                        });
-
-                        console.log(`[SUNDAY API] Response status: ${response.status}`);
-
-                        if (!response.ok) {
-                            const errorBody = await response.text();
-                            console.error(`[SUNDAY API] Error response: ${errorBody}`);
-
-                            // Handle specific error codes
-                            if (response.status === 401) {
-                                console.error('[SUNDAY API] API key invalid or expired');
-                                return { text: getFallback(prompt) + " (Note: Live AI is temporarily unavailable)" };
-                            }
-                            if (response.status === 429) {
-                                console.error('[SUNDAY API] Rate limit exceeded');
-                                if (i === retries - 1) {
-                                    return { text: getFallback(prompt) + " (Note: AI is busy, using cached response)" };
-                                }
-                                await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
-                                continue;
-                            }
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-
-                        const result = await response.json();
-                        console.log('[SUNDAY API] Success:', result);
-                        const text = result.choices?.[0]?.message?.content || getFallback(prompt);
-                        return { text };
-
-                    } catch (error) {
-                        console.error(`[SUNDAY API] Attempt ${i + 1} failed:`, error.message);
-
-                        if (i === retries - 1) {
-                            console.warn('[SUNDAY API] All retries failed, using fallback response');
-                            return { text: getFallback(prompt) };
-                        }
-                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-                    }
+                    const data = await res.json();
+                    return { text: data.text || 'I am here with you. Ask me about a pose.', source: data.source };
+                } catch (e) {
+                    console.warn('[Sunday AI] network error:', e && e.message);
+                    return { text: 'I cannot reach the assistant right now. Try asking about Tadasana or breathing and I will help offline.' };
                 }
-
-                return { text: getFallback(prompt) };
             },
 
             // --- Voice Command Integration ---
@@ -644,6 +577,7 @@
                     console.log('Voice:', transcript);
                     updateMicStatus(true, 'Got it');
 
+                    // ─── Meta commands ───
                     if (/\\b(profile|my profile)\\b/.test(transcript)) {
                         this.speakCorrection('Opening your profile.', true);
                         setTimeout(() => window.location.href = '/profile', 600);
@@ -662,25 +596,131 @@
                         return;
                     }
 
-                    const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
-                    const matched = lib.find(a => {
-                        const ln = a.name.toLowerCase();
-                        const ls = (a.sanskrit || '').toLowerCase();
-                        return transcript.includes(ln) || (ls && transcript.includes(ls));
-                    });
-                    if (matched && /\\b(start|practice|do|correct|try|open)\\b/.test(transcript)) {
-                        this.navigate('ar_correction');
-                        this.speakCorrection('Opening ' + matched.sanskrit + '.', true);
-                        setTimeout(() => this.selectAsanaAndStart(matched.name), 500);
-                        updateMicStatus(true, 'Done');
+                    // ─── In-session practice commands ───
+                    // REFERENCE — show the pose reference photo for 5 seconds
+                    if (/\\b(reference|show reference|show pose|show me|show image|picture|photo)\\b/.test(transcript)) {
+                        if (this.currentPose) {
+                            this.showReferenceOverlay(this.currentPose, 5000);
+                            this.speakCorrection('Showing reference.', true);
+                            updateMicStatus(true, 'Reference');
+                        } else {
+                            this.speakCorrection('Pick a pose first, then say reference.', true);
+                        }
+                        return;
+                    }
+                    // STOP / END — exit AR session
+                    if (/\\b(stop|end|quit|exit|finish|done)\\b/.test(transcript) && this.currentPose) {
+                        this.stopARAssessment && this.stopARAssessment();
+                        this.speakCorrection('Stopping practice.', true);
+                        updateMicStatus(true, 'Stopped');
+                        return;
+                    }
+                    // SCORE — speak the current alignment score
+                    if (/\\b(score|accuracy|how am i|how is it|status)\\b/.test(transcript) && this.currentPose) {
+                        const s = Math.round(this._lastPoseScore || 0);
+                        const msg = s >= 85 ? 'You are at ' + s + ' percent. Beautiful form. Hold and breathe.'
+                                   : s >= 70 ? 'You are at ' + s + ' percent. Small refinements will bring you home.'
+                                   : s >= 50 ? 'You are at ' + s + ' percent. Check the reference and ease toward it.'
+                                             : 'You are at ' + s + ' percent. Take a breath and re-enter the pose gently.';
+                        this.speakCorrection(msg, true);
+                        updateMicStatus(true, 'Score: ' + s);
+                        return;
+                    }
+                    // NEXT / PREVIOUS — cycle through the library
+                    if (/\\b(next|next pose|after this)\\b/.test(transcript) && this.currentPose) {
+                        const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
+                        const idx = lib.findIndex(a => a.name === this.currentPose);
+                        const nxt = lib[(idx + 1) % lib.length];
+                        if (nxt) {
+                            this.speakCorrection('Next, ' + nxt.sanskrit + '.', true);
+                            setTimeout(() => this.selectAsanaAndStart(nxt.name), 500);
+                            updateMicStatus(true, 'Next');
+                        }
+                        return;
+                    }
+                    if (/\\b(previous|back pose|go back)\\b/.test(transcript) && this.currentPose) {
+                        const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
+                        const idx = lib.findIndex(a => a.name === this.currentPose);
+                        const prev = lib[(idx - 1 + lib.length) % lib.length];
+                        if (prev) {
+                            this.speakCorrection('Back to ' + prev.sanskrit + '.', true);
+                            setTimeout(() => this.selectAsanaAndStart(prev.name), 500);
+                            updateMicStatus(true, 'Previous');
+                        }
+                        return;
+                    }
+                    // REPEAT — replay the latest correction
+                    if (/\\b(repeat|again|say again|one more time)\\b/.test(transcript)) {
+                        if (this._lastSpokenMessage) {
+                            // Bypass throttle by forcing through native speak
+                            try { window.speechSynthesis.cancel(); } catch(_){}
+                            const u = new SpeechSynthesisUtterance(this._lastSpokenMessage);
+                            u.rate = 0.95; u.pitch = 1.0; u.volume = 1.0;
+                            window.speechSynthesis.speak(u);
+                        } else {
+                            this.speakCorrection('Nothing to repeat yet.', true);
+                        }
+                        updateMicStatus(true, 'Repeat');
+                        return;
+                    }
+                    // VOICE GUIDE ON/OFF
+                    if (/\\b(voice guide on|talk to me|start voice|enable voice)\\b/.test(transcript)) {
+                        this.ttsEnabled = true;
+                        this.speakCorrection('Voice guide on.', true);
+                        updateMicStatus(true, 'Guide on');
+                        return;
+                    }
+                    if (/\\b(voice guide off|be quiet|stop talking|silent mode)\\b/.test(transcript)) {
+                        this.ttsEnabled = false;
+                        this.speakCorrection('Voice guide off.', true);
+                        updateMicStatus(true, 'Guide off');
                         return;
                     }
 
+                    // ─── Pose selection: "start Tree" / "do Warrior two" / "open Natarajasana" ───
+                    const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
+                    // Match by either English name, Sanskrit, or imageKey alias.
+                    const aliases = {
+                        'tree': 'Vrikshasana', 'mountain': 'Tadasana', 'prayer': 'Anjali Mudra',
+                        'downward dog': 'Adho Mukha Svanasana', 'down dog': 'Adho Mukha Svanasana',
+                        'warrior one': 'Virabhadrasana I', 'warrior 1': 'Virabhadrasana I',
+                        'warrior two': 'Virabhadrasana II', 'warrior 2': 'Virabhadrasana II',
+                        'warrior three': 'Virabhadrasana III', 'warrior 3': 'Virabhadrasana III',
+                        'triangle': 'Utthita Trikonasana', 'chair': 'Utkatasana',
+                        'side angle': 'Utthita Parsvakonasana', 'bridge': 'Setu Bandhasana',
+                        'half moon': 'Ardha Chandrasana', 'dancer': 'Natarajasana',
+                        'child': 'Balasana', 'easy': 'Sukhasana', 'staff': 'Dandasana',
+                        'bound angle': 'Baddha Konasana', 'forward fold': 'Paschimottanasana',
+                        'standing forward fold': 'Uttanasana', 'upward salute': 'Urdhva Hastasana',
+                        'mountain pose': 'Tadasana',
+                    };
+                    let matched = null;
+                    for (const k of Object.keys(aliases)) {
+                        if (transcript.includes(k)) { matched = lib.find(a => a.name === aliases[k]); break; }
+                    }
+                    if (!matched) {
+                        matched = lib.find(a => {
+                            const ln = a.name.toLowerCase();
+                            const ls = (a.sanskrit || '').toLowerCase();
+                            return transcript.includes(ln) || (ls && transcript.includes(ls));
+                        });
+                    }
+                    if (matched) {
+                        // If an AR session is already running, switch to the new pose.
+                        // Otherwise navigate there.
+                        this.navigate('ar_correction');
+                        this.speakCorrection('Opening ' + matched.sanskrit + '.', true);
+                        setTimeout(() => this.selectAsanaAndStart(matched.name), 500);
+                        updateMicStatus(true, 'Opening');
+                        return;
+                    }
+
+                    // ─── Screen navigation ───
                     const navMap = {
-                        'home': 'dashboard', 'dashboard': 'dashboard',
+                        'home': 'dashboard', 'dashboard': 'dashboard', 'today': 'dashboard',
                         'library': 'asana', 'poses': 'asana', 'asana': 'asana',
                         'practice': 'ar_correction', 'posture': 'ar_correction', 'camera': 'ar_correction',
-                        'course': 'course', 'test': 'course',
+                        'course': 'course', 'test mode': 'course',
                     };
                     for (const phrase of Object.keys(navMap)) {
                         if (transcript.includes(phrase)) {
@@ -691,20 +731,16 @@
                         }
                     }
 
-                    const isQuestion = /\\b(what|how|why|when|where|who|tell me|explain)\\b/.test(transcript) || transcript.includes('?');
-                    if (isQuestion || transcript.length > 15) {
-                        updateMicStatus(true, 'Thinking');
-                        try {
-                            const response = await this.callGeminiAssistant(transcript);
-                            this.speakCorrection(response.text || 'Not sure about that.', true);
-                            updateMicStatus(true, 'Done');
-                        } catch (e) {
-                            console.error('AI voice error:', e);
-                            updateMicStatus(true, 'Try again');
-                        }
-                    } else {
-                        this.speakCorrection('Try: home, library, practice, course, or a pose name.', true);
-                        updateMicStatus(true, 'No match');
+                    // ─── Everything else → AI assistant ───
+                    updateMicStatus(true, 'Thinking');
+                    try {
+                        const response = await this.callGeminiAssistant(transcript);
+                        this.speakCorrection(response.text || 'Not sure about that.', true);
+                        updateMicStatus(true, 'Done');
+                    } catch (e) {
+                        console.error('AI voice error:', e);
+                        this.speakCorrection('Try asking about a specific pose.', true);
+                        updateMicStatus(true, 'Try again');
                     }
                 };
 
@@ -1086,6 +1122,79 @@
                 }
                 imageElement.classList.add('hidden');
                 if (placeholder) placeholder.classList.remove('hidden');
+            },
+
+            /**
+             * Shows the pose reference photo as a large centered overlay
+             * for `durationMs` (default 5 seconds). Triggered by the voice
+             * command "reference" / "show pose" — useful when the phone is
+             * on a stand and the side panel is too small to read.
+             */
+            showReferenceOverlay(poseName, durationMs) {
+                durationMs = durationMs || 5000;
+                const asana = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(a => a.name === poseName) : null;
+                if (!asana) return;
+
+                // Remove any existing overlay
+                const existing = document.getElementById('reference-overlay');
+                if (existing) existing.remove();
+
+                const overlay = document.createElement('div');
+                overlay.id = 'reference-overlay';
+                overlay.style.cssText = [
+                    'position:fixed',
+                    'inset:0',
+                    'z-index:120',
+                    'background:rgba(15,19,12,0.92)',
+                    'backdrop-filter:blur(14px)',
+                    '-webkit-backdrop-filter:blur(14px)',
+                    'display:flex',
+                    'flex-direction:column',
+                    'align-items:center',
+                    'justify-content:center',
+                    'gap:16px',
+                    'padding:24px',
+                    'opacity:0',
+                    'transition:opacity 0.25s ease',
+                ].join(';');
+
+                const src = asana.imagePath ||
+                    (typeof PoseImage !== 'undefined' && asana.referenceKeypoints
+                        ? PoseImage.dataUri(asana, { bg: '#0F3D2E', body: '#C7DBCE', joint: '#E0A23F', width: 520, height: 640 })
+                        : '');
+
+                overlay.innerHTML = [
+                    '<span class="kicker" style="color:#E0A23F">Reference · shown for 5 seconds</span>',
+                    '<div style="max-width:90vw;max-height:70vh;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);background:#EEE9DE">',
+                    '  <img src="' + src + '" alt="' + asana.name + '" style="width:100%;height:100%;max-height:70vh;object-fit:contain;display:block"/>',
+                    '</div>',
+                    '<div style="text-align:center">',
+                    '  <div class="font-display" style="font-size:28px;font-weight:400;color:#F5F2EB;letter-spacing:-0.02em">' + asana.name + '</div>',
+                    '  <div class="kicker" style="color:#6FA089;margin-top:4px">' + (asana.sanskrit || '').toUpperCase() + ' · ' + (asana.view || 'front').toUpperCase() + ' VIEW</div>',
+                    '</div>',
+                    '<button type="button" aria-label="Dismiss" onclick="document.getElementById(\'reference-overlay\').remove()" style="position:absolute;top:16px;right:16px;width:44px;height:44px;border-radius:999px;background:rgba(245,242,235,0.12);color:#F5F2EB;border:0;font-size:22px;cursor:pointer">×</button>',
+                    '<div id="reference-overlay-progress" style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(224,162,63,0.25)">',
+                    '  <div id="reference-overlay-bar" style="height:100%;width:100%;background:#E0A23F;transition:width ' + durationMs + 'ms linear"></div>',
+                    '</div>'
+                ].join('');
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) overlay.remove();
+                });
+
+                document.body.appendChild(overlay);
+                // Kick off fade-in and the progress bar drain
+                requestAnimationFrame(() => {
+                    overlay.style.opacity = '1';
+                    const bar = document.getElementById('reference-overlay-bar');
+                    if (bar) { bar.style.width = '0%'; }
+                });
+                setTimeout(() => {
+                    const o = document.getElementById('reference-overlay');
+                    if (o) {
+                        o.style.opacity = '0';
+                        setTimeout(() => { if (o.parentNode) o.remove(); }, 260);
+                    }
+                }, durationMs);
             },
 
             /**
