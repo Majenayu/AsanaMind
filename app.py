@@ -452,37 +452,97 @@ YOGA_FALLBACKS = {
     'meditation': 'Sit tall, close the eyes, let the breath be slow and even. Start with three minutes and build up.',
     'stress': 'For stress, move slowly through Child\u2019s Pose, Seated Forward Fold, and long exhales. Let the body soften.',
     'back pain': 'For back relief, try Cat\u2013Cow, gentle twists, and Legs Up the Wall. Move gently, never force.',
+    'course': 'The Sunday course walks you through twenty poses. Hold each at ninety percent alignment for ten seconds to pass. Three attempts per pose, and the full set earns your certificate.',
+    'certificate': 'The certificate lives at the end of the course. Finish all twenty poses at ninety percent and it\u2019s yours.',
+    'library': 'The library holds twenty curated poses, ten beginner, seven intermediate, three advanced. Tap any to enter a practice session.',
+    'practice': 'Practice uses your camera and the MoveNet model to check your alignment in real time, with spoken cues.',
+    'profile': 'Your profile shows sessions, active days, streaks, and the poses you return to most.',
+    'how am i doing': 'If you\u2019re reading this, the assistant is running in offline mode. Check the alignment percentage on screen, or say \u201cscore\u201d during practice.',
+    'score': 'Say \u201cscore\u201d during practice and I\u2019ll read your current alignment percentage.',
+    'help': 'Try: \u201cstart tree pose\u201d, \u201cshow reference\u201d, \u201cscore\u201d, \u201cnext\u201d, \u201crepeat\u201d, \u201cbreathe with me\u201d, or \u201cread this screen\u201d.',
 }
 
-def yoga_fallback(prompt: str) -> str:
+SCREEN_FALLBACKS = {
+    'Home / Today': 'You\u2019re on the home screen. Start today\u2019s practice, browse the library, or open the course.',
+    'Asana library': 'You\u2019re in the asana library. Pick any of the twenty poses to start practising.',
+    'AR practice session': 'You\u2019re in the practice screen. Your camera scores alignment against the reference in real time.',
+    'Certificate course': 'You\u2019re in the course. Hold each pose at ninety percent for ten seconds, three attempts, twenty poses, one certificate.',
+}
+
+def yoga_fallback(prompt: str, ctx: dict = None) -> str:
     p = (prompt or '').lower()
+    ctx = ctx or {}
+
+    # "what is this / where am i" should describe the current screen.
+    if any(phrase in p for phrase in ('what is this', 'what\u2019s this', 'whats this', 'where am i', 'what am i looking at', 'what page')):
+        screen = ctx.get('screen')
+        if screen and screen in SCREEN_FALLBACKS:
+            return SCREEN_FALLBACKS[screen]
+        if ctx.get('pose') and ctx.get('poseSanskrit'):
+            return f"You\u2019re practising {ctx['poseSanskrit']}. Keep the breath steady and ease toward the reference."
+
+    # Pose-on-screen shortcut — "tell me about this pose"
+    if ('this pose' in p or 'about this' in p) and ctx.get('poseSanskrit'):
+        return f"This is {ctx['poseSanskrit']}. A {ctx.get('poseLevel', 'foundational')} posture. Use the reference image and say score to hear how you\u2019re doing."
+
     for k, v in YOGA_FALLBACKS.items():
         if k in p:
             return v
-    return 'I\u2019m here to help with your practice. Ask me about a pose, breath work, or a focus like stress or back pain.'
+    return 'I\u2019m here to help with your practice. Ask me about a pose, the course, breath work, or say \u201chelp\u201d for what I can do.'
 
 
 @app.route('/api/assistant', methods=['POST'])
 def assistant_proxy():
     """Server-side proxy for the AI assistant. Prefers Gemini via
     OpenRouter when a key is available; otherwise returns a curated
-    yoga fallback so the user never hears 'service unavailable'."""
+    yoga fallback so the user never hears 'service unavailable'.
+
+    Accepts an optional `context` object describing the user's current
+    screen, pose, score, and level, so the model can answer questions
+    like 'what is this course?' or 'how am I doing?' with awareness
+    instead of a generic reply.
+    """
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     data = request.get_json(silent=True) or {}
     prompt = (data.get('prompt') or '').strip()
     if not prompt:
         return jsonify({'success': False, 'error': 'Empty prompt'}), 400
+    ctx = data.get('context') or {}
 
     api_key = os.environ.get('OPENROUTER_API_KEY') or os.environ.get('GEMINI_API_KEY') or ''
     # Fallback path — no key set or upstream unreachable.
     if not api_key:
-        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt, ctx)})
+
+    # Build a compact context line the model can reason over. We keep it
+    # short (models do better with tight system prompts) and strip any
+    # fields the client did not send.
+    ctx_bits = []
+    if ctx.get('screen'):
+        ctx_bits.append(f"Screen: {ctx['screen']}")
+    if ctx.get('pose'):
+        pose_bit = ctx['pose']
+        if ctx.get('poseSanskrit') and ctx['poseSanskrit'] != pose_bit:
+            pose_bit = f"{pose_bit} ({ctx['poseSanskrit']})"
+        if ctx.get('poseLevel'):
+            pose_bit += f", {ctx['poseLevel']}"
+        ctx_bits.append(f"Current pose: {pose_bit}")
+    if ctx.get('score') is not None:
+        ctx_bits.append(f"Alignment: {ctx['score']}%")
+    if ctx.get('courseMode'):
+        ctx_bits.append("In course test mode")
+    if ctx.get('courseCompleted') is not None and ctx.get('courseTotal'):
+        ctx_bits.append(f"Course progress: {ctx['courseCompleted']} of {ctx['courseTotal']} complete")
+    ctx_line = " | ".join(ctx_bits) if ctx_bits else "No screen context"
 
     system_msg = (
-        "You are Sunday, a calm certified yoga coach. Keep replies to 2 short sentences. "
+        "You are Sunday, a calm certified yoga coach inside the AsanaMind app. "
+        "Keep replies to 2 short sentences, warm and editorial. "
+        "If the user asks 'what is this' or 'where am I', explain the current screen or pose from the context. "
         "For pose questions, include the Sanskrit name and one key cue. "
-        "Avoid medical advice."
+        "Decline medical advice gently and redirect to a teacher or clinician.\n"
+        f"Context: {ctx_line}"
     )
     body = {
         'model': 'google/gemini-2.0-flash-001',
@@ -490,7 +550,7 @@ def assistant_proxy():
             {'role': 'system', 'content': system_msg},
             {'role': 'user', 'content': prompt},
         ],
-        'max_tokens': 180,
+        'max_tokens': 220,
         'temperature': 0.6,
     }
     req = urllib.request.Request(
@@ -510,14 +570,14 @@ def assistant_proxy():
         data = json.loads(raw)
         text = (data.get('choices') or [{}])[0].get('message', {}).get('content', '').strip()
         if not text:
-            return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+            return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt, ctx)})
         return jsonify({'success': True, 'source': 'ai', 'text': text})
     except urllib.error.HTTPError as e:
         print(f'AI upstream HTTP {e.code}: {e.reason}')
-        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt, ctx)})
     except Exception as e:
         print(f'AI upstream error: {e}')
-        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt)})
+        return jsonify({'success': True, 'source': 'fallback', 'text': yoga_fallback(prompt, ctx)})
 
 
 if __name__ == '__main__':

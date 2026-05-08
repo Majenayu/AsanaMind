@@ -151,6 +151,13 @@
                 <a href="/profile" class="nav-link active">Profile</a>
             </nav>
             <div class="nav-right">
+                <button id="voice-toggle" onclick="toggleProfileVoice()" title="Voice assistant" aria-label="Toggle voice assistant"
+                    style="display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:9999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);font-size:12px;font-weight:500;cursor:pointer">
+                    <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px">
+                        <path fill-rule="evenodd" d="M12 1.5a4.5 4.5 0 0 0-4.5 4.5v6a4.5 4.5 0 1 0 9 0V6A4.5 4.5 0 0 0 12 1.5ZM4.5 10.5a.75.75 0 0 0-1.5 0v1.5a9 9 0 0 0 8.25 8.972v2.278a.75.75 0 0 0 1.5 0v-2.278A9 9 0 0 0 21 12v-1.5a.75.75 0 0 0-1.5 0V12a7.5 7.5 0 0 1-15 0v-1.5Z" clip-rule="evenodd" />
+                    </svg>
+                    <span id="mic-status-text">Voice</span>
+                </button>
                 <a href="/logout" class="signout">Sign out</a>
                 <span class="avatar" id="avatar-initial">A</span>
             </div>
@@ -378,6 +385,152 @@
                 </div>`;
             ach.appendChild(el);
         }
+    })();
+    </script>
+
+    <script>
+    // ─── Profile voice assistant ───
+    // Self-contained because profile.html doesn't share the main.html app
+    // object. Routes everything through /api/assistant so users can ask
+    // questions about their stats, streaks, or yoga in general without
+    // leaving the page. Commands: stats, streak, go home, logout, voice off.
+    (function(){
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const btn = document.getElementById('voice-toggle');
+        const statusEl = document.getElementById('mic-status-text');
+        const iconEl = document.getElementById('mic-icon');
+
+        if (!SR) {
+            if (statusEl) statusEl.textContent = 'Voice N/A';
+            if (btn) btn.disabled = true;
+            return;
+        }
+
+        const rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.lang = 'en-US';
+        let listening = false;
+
+        function setStatus(on, label) {
+            listening = on;
+            if (statusEl) statusEl.textContent = label || (on ? 'Listening' : 'Voice');
+            if (iconEl) {
+                iconEl.style.color = on ? '#C2552F' : '';
+                iconEl.style.animation = on ? 'pulse 1.4s infinite' : '';
+            }
+        }
+
+        function speak(msg) {
+            try { window.speechSynthesis.cancel(); } catch(_){}
+            if (!('speechSynthesis' in window)) return;
+            const u = new SpeechSynthesisUtterance(msg);
+            u.rate = 0.95; u.pitch = 1.0; u.volume = 1.0;
+            window.speechSynthesis.speak(u);
+        }
+
+        async function askAI(prompt) {
+            setStatus(true, 'Thinking');
+            const ctx = {
+                screen: 'Profile',
+                kpiSessions: document.getElementById('kpi-sessions')?.textContent,
+                kpiDays: document.getElementById('kpi-days')?.textContent,
+                kpiStreak: document.getElementById('kpi-streak')?.textContent,
+                kpiPoses: document.getElementById('kpi-poses')?.textContent,
+                level: document.getElementById('level-name')?.textContent,
+            };
+            try {
+                const r = await fetch('/api/assistant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ prompt, context: ctx }),
+                });
+                const d = await r.json();
+                speak(d.text || 'Not sure about that.');
+                setStatus(true, 'Done');
+            } catch (e) {
+                speak('I can\u2019t reach the assistant right now.');
+                setStatus(true, 'Error');
+            }
+        }
+
+        rec.onstart = () => setStatus(true, 'Listening');
+        rec.onresult = (event) => {
+            const t = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+            console.log('Voice:', t);
+
+            // Local commands
+            if (/\b(voice off|stop listening|turn off|mute)\b/.test(t)) {
+                listening = false;
+                rec.stop();
+                speak('Voice off.');
+                setStatus(false, 'Off');
+                return;
+            }
+            if (/\b(home|dashboard|today|go back)\b/.test(t) && !/^(what|why|how|is|are|tell)/.test(t)) {
+                speak('Going home.');
+                setTimeout(() => window.location.href = '/home', 500);
+                return;
+            }
+            if (/\b(logout|log out|sign out)\b/.test(t)) {
+                speak('Logging out.');
+                setTimeout(() => window.location.href = '/logout', 600);
+                return;
+            }
+            if (/\b(my stats|streak|how many sessions|how many days|poses learned)\b/.test(t)) {
+                const s = document.getElementById('kpi-sessions')?.textContent || '0';
+                const d = document.getElementById('kpi-days')?.textContent || '0';
+                const st = document.getElementById('kpi-streak')?.textContent || '0';
+                const p = document.getElementById('kpi-poses')?.textContent || '0';
+                speak(`You have ${s} sessions across ${d} active days, a best streak of ${st}, and ${p} poses learned.`);
+                setStatus(true, 'Stats');
+                return;
+            }
+            if (/\b(level|what level|current level)\b/.test(t)) {
+                const lvl = document.getElementById('level-name')?.textContent || 'Novice';
+                const hint = document.getElementById('level-hint')?.textContent || '';
+                speak(`You are at ${lvl}. ${hint}`);
+                setStatus(true, 'Level');
+                return;
+            }
+
+            // Everything else → AI with profile context
+            askAI(t);
+        };
+        rec.onerror = (event) => {
+            if (event.error === 'not-allowed') {
+                setStatus(false, 'Blocked');
+                alert('Microphone access is blocked. Enable it in your browser settings and reload.');
+            } else if (event.error === 'audio-capture') {
+                setStatus(false, 'No mic');
+            } else if (event.error !== 'no-speech') {
+                setStatus(false, 'Error');
+            }
+        };
+        rec.onend = () => {
+            if (listening) {
+                setTimeout(() => { try { rec.start(); } catch(_) { setStatus(false, 'Off'); } }, 400);
+            } else {
+                setStatus(false, 'Voice');
+            }
+        };
+
+        window.toggleProfileVoice = function() {
+            if (listening) {
+                listening = false;
+                rec.stop();
+                setStatus(false, 'Off');
+            } else {
+                listening = true;
+                try {
+                    rec.start();
+                    setStatus(true, 'Listening');
+                } catch (e) {
+                    setStatus(false, 'Error');
+                }
+            }
+        };
     })();
     </script>
 </body>

@@ -518,12 +518,17 @@
                 // API key, handles CORS, and returns a curated yoga fallback
                 // when the upstream AI is unreachable — so the user never
                 // hears "service unavailable".
+                //
+                // We attach a lightweight context snapshot so the model can
+                // answer "what is this?" with awareness of the current
+                // screen / pose / score / level.
+                const ctx = this.buildAssistantContext ? this.buildAssistantContext() : {};
                 try {
                     const res = await fetch('/api/assistant', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'same-origin',
-                        body: JSON.stringify({ prompt }),
+                        body: JSON.stringify({ prompt, context: ctx }),
                     });
                     if (!res.ok) {
                         return { text: 'Let me stay with the breath for a moment. Ask me about a pose or a specific focus.' };
@@ -534,6 +539,43 @@
                     console.warn('[Sunday AI] network error:', e && e.message);
                     return { text: 'I cannot reach the assistant right now. Try asking about Tadasana or breathing and I will help offline.' };
                 }
+            },
+
+            /**
+             * Produces a lightweight snapshot of what the user is looking at
+             * right now, so the AI can answer "what is this?", "how am I
+             * doing?", "what comes next?" with real awareness.
+             */
+            buildAssistantContext() {
+                const viewLabels = {
+                    dashboard: 'Home / Today',
+                    asana: 'Asana library',
+                    ar_correction: 'AR practice session',
+                    course: 'Certificate course',
+                    assistant: 'AI assistant',
+                };
+                const ctx = {
+                    screen: viewLabels[this.currentView] || this.currentView || 'unknown',
+                    pose: this.currentPose || null,
+                    score: this._lastPoseScore != null ? Math.round(this._lastPoseScore) : null,
+                    courseMode: !!this.courseMode,
+                    ttsEnabled: !!this.ttsEnabled,
+                };
+                if (ctx.pose && typeof ASANA_LIBRARY !== 'undefined') {
+                    const a = ASANA_LIBRARY.find(x => x.name === ctx.pose);
+                    if (a) {
+                        ctx.poseSanskrit = a.sanskrit;
+                        ctx.poseLevel = a.level;
+                        ctx.poseView = a.view;
+                        ctx.poseBenefits = a.benefits || null;
+                    }
+                }
+                if (this.currentView === 'course' && this.courseProgress) {
+                    const done = (this.courseProgress.poses || []).filter(p => p.completed).length;
+                    ctx.courseCompleted = done;
+                    ctx.courseTotal = (this.courseProgress.poses || []).length;
+                }
+                return ctx;
             },
 
             // --- Voice Command Integration ---
@@ -577,8 +619,15 @@
                     console.log('Voice:', transcript);
                     updateMicStatus(true, 'Got it');
 
+                    // ─── Question detector — "what/why/how/when/where/which/who/tell me/explain" ───
+                    // Route straight to the AI so "what is this course?" gets a real answer
+                    // instead of navigating somewhere.
+                    const isQuestion = /^(what|why|how|when|where|which|who|is it|are these|tell me|explain|describe|can you|could you|should i|do i|define|help me understand)\b/.test(transcript)
+                                    || /\?$/.test(transcript);
+
+                    if (!isQuestion) {
                     // ─── Meta commands ───
-                    if (/\\b(profile|my profile)\\b/.test(transcript)) {
+                    if (/\\b(profile|my profile|open profile|show profile)\\b/.test(transcript)) {
                         this.speakCorrection('Opening your profile.', true);
                         setTimeout(() => window.location.href = '/profile', 600);
                         return;
@@ -588,7 +637,7 @@
                         setTimeout(() => window.location.href = '/logout', 800);
                         return;
                     }
-                    if (/\\b(stop listening|voice off|turn off|mute)\\b/.test(transcript)) {
+                    if (/\\b(stop listening|voice off|turn off|mute|pause voice)\\b/.test(transcript)) {
                         this.isListening = false;
                         this.recognitionInstance.stop();
                         this.speakCorrection('Voice off.', true);
@@ -616,7 +665,7 @@
                         return;
                     }
                     // SCORE — speak the current alignment score
-                    if (/\\b(score|accuracy|how am i|how is it|status)\\b/.test(transcript) && this.currentPose) {
+                    if (/\\b(score|accuracy|how am i doing|how is it|status)\\b/.test(transcript) && this.currentPose) {
                         const s = Math.round(this._lastPoseScore || 0);
                         const msg = s >= 85 ? 'You are at ' + s + ' percent. Beautiful form. Hold and breathe.'
                                    : s >= 70 ? 'You are at ' + s + ' percent. Small refinements will bring you home.'
@@ -627,7 +676,7 @@
                         return;
                     }
                     // NEXT / PREVIOUS — cycle through the library
-                    if (/\\b(next|next pose|after this)\\b/.test(transcript) && this.currentPose) {
+                    if (/\\b(next|next pose|after this|skip)\\b/.test(transcript) && this.currentPose) {
                         const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
                         const idx = lib.findIndex(a => a.name === this.currentPose);
                         const nxt = lib[(idx + 1) % lib.length];
@@ -638,7 +687,7 @@
                         }
                         return;
                     }
-                    if (/\\b(previous|back pose|go back)\\b/.test(transcript) && this.currentPose) {
+                    if (/\\b(previous|back pose|go back|last one)\\b/.test(transcript) && this.currentPose) {
                         const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
                         const idx = lib.findIndex(a => a.name === this.currentPose);
                         const prev = lib[(idx - 1 + lib.length) % lib.length];
@@ -664,7 +713,7 @@
                         return;
                     }
                     // VOICE GUIDE ON/OFF
-                    if (/\\b(voice guide on|talk to me|start voice|enable voice)\\b/.test(transcript)) {
+                    if (/\\b(voice guide on|talk to me|start voice|enable voice|speak to me)\\b/.test(transcript)) {
                         this.ttsEnabled = true;
                         this.speakCorrection('Voice guide on.', true);
                         updateMicStatus(true, 'Guide on');
@@ -674,6 +723,53 @@
                         this.ttsEnabled = false;
                         this.speakCorrection('Voice guide off.', true);
                         updateMicStatus(true, 'Guide off');
+                        return;
+                    }
+
+                    // ─── New commands (10+ in total with the above) ───
+                    // DIAGNOSTICS TOGGLE
+                    if (/\\b(diagnostics|show rules|debug|details)\\b/.test(transcript)) {
+                        if (this.toggleDiagnostics) this.toggleDiagnostics();
+                        this.speakCorrection('Diagnostics toggled.', true);
+                        updateMicStatus(true, 'Diagnostics');
+                        return;
+                    }
+                    // READ THIS SCREEN — narrate what's on screen
+                    if (/\\b(read (this|the) (screen|page)|what(?:'s|s| is) on screen|read it to me|describe this page)\\b/.test(transcript)) {
+                        this.readThisScreen && this.readThisScreen();
+                        updateMicStatus(true, 'Reading');
+                        return;
+                    }
+                    // MY STATS / PROGRESS
+                    if (/\\b(my stats|progress|streak|how many sessions|how many days)\\b/.test(transcript)) {
+                        this.speakMyStats && this.speakMyStats();
+                        updateMicStatus(true, 'Stats');
+                        return;
+                    }
+                    // RECOMMEND A POSE
+                    if (/\\b(recommend|suggest|what should i do|pick for me|random pose)\\b/.test(transcript)) {
+                        this.recommendPose && this.recommendPose();
+                        updateMicStatus(true, 'Picking');
+                        return;
+                    }
+                    // START COURSE TEST
+                    if (/\\b(start (the )?course|begin (the )?course|test me|start test)\\b/.test(transcript)) {
+                        this.navigate('course');
+                        this.speakCorrection('Opening the course. Tap begin test to start.', true);
+                        updateMicStatus(true, 'Course');
+                        return;
+                    }
+                    // CERTIFICATE
+                    if (/\\b(certificate|my certificate|show certificate)\\b/.test(transcript)) {
+                        this.navigate('course');
+                        this.speakCorrection('Your certificate lives at the end of the course.', true);
+                        updateMicStatus(true, 'Certificate');
+                        return;
+                    }
+                    // BREATHING / CALM — quick guided breath
+                    if (/\\b(breathing|breathe with me|calm me|anxious|anxiety|relax)\\b/.test(transcript)) {
+                        this.guidedBreath && this.guidedBreath();
+                        updateMicStatus(true, 'Breathing');
                         return;
                     }
 
@@ -715,23 +811,25 @@
                         return;
                     }
 
-                    // ─── Screen navigation ───
-                    const navMap = {
-                        'home': 'dashboard', 'dashboard': 'dashboard', 'today': 'dashboard',
-                        'library': 'asana', 'poses': 'asana', 'asana': 'asana',
-                        'practice': 'ar_correction', 'posture': 'ar_correction', 'camera': 'ar_correction',
-                        'course': 'course', 'test mode': 'course',
-                    };
-                    for (const phrase of Object.keys(navMap)) {
-                        if (transcript.includes(phrase)) {
-                            this.navigate(navMap[phrase]);
-                            this.speakCorrection('Going to ' + phrase + '.', true);
+                    // ─── Screen navigation (requires a verb prefix so
+                    //     "what is this course" doesn't navigate to Course) ───
+                    const navMap = [
+                        { re: /\\b(go (to|home)|open|show|take me to|navigate to)\\s+(home|today|dashboard)\\b/, key: 'dashboard' },
+                        { re: /\\b(go to|open|show|take me to|navigate to)\\s+(library|poses|asanas?)\\b/, key: 'asana' },
+                        { re: /\\b(go to|open|show|take me to|navigate to|start)\\s+(practice|camera|ar)\\b/, key: 'ar_correction' },
+                        { re: /\\b(go to|open|show|take me to|navigate to)\\s+(course|test mode)\\b/, key: 'course' },
+                    ];
+                    for (const nav of navMap) {
+                        if (nav.re.test(transcript)) {
+                            this.navigate(nav.key);
+                            this.speakCorrection('Opening.', true);
                             updateMicStatus(true, 'Done');
                             return;
                         }
                     }
+                    } // end !isQuestion
 
-                    // ─── Everything else → AI assistant ───
+                    // ─── Everything else (and every question) → AI assistant ───
                     updateMicStatus(true, 'Thinking');
                     try {
                         const response = await this.callGeminiAssistant(transcript);
@@ -1195,6 +1293,109 @@
                         setTimeout(() => { if (o.parentNode) o.remove(); }, 260);
                     }
                 }, durationMs);
+            },
+
+            /**
+             * Narrates a short description of the current screen — useful
+             * for "read this screen" / "what's on screen".
+             */
+            readThisScreen() {
+                let msg = '';
+                switch (this.currentView) {
+                    case 'dashboard':
+                        msg = 'You are on the home screen. You can start today\u2019s practice, browse the library, or open the course.';
+                        break;
+                    case 'asana':
+                        msg = 'You are in the asana library. Pick any of the twenty poses to enter a practice session.';
+                        break;
+                    case 'ar_correction':
+                        if (this.currentPose) {
+                            const a = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(x => x.name === this.currentPose) : null;
+                            const s = Math.round(this._lastPoseScore || 0);
+                            msg = 'You are practising ' + (a ? a.sanskrit : this.currentPose) + '. Alignment is ' + s + ' percent.';
+                        } else {
+                            msg = 'You are in the practice screen. Pick a pose to begin.';
+                        }
+                        break;
+                    case 'course':
+                        const done = this.courseProgress ? this.courseProgress.poses.filter(p => p.completed).length : 0;
+                        const total = this.courseProgress ? this.courseProgress.poses.length : 0;
+                        msg = 'You are in the course. ' + done + ' of ' + total + ' poses complete. Hold each pose at ninety percent for ten seconds to pass.';
+                        break;
+                    default:
+                        msg = 'You are in Sunday. Ask me to open home, library, practice, course, or profile.';
+                }
+                this.speakCorrection(msg, true);
+            },
+
+            /**
+             * Speaks the user's practice stats — answers "my stats" /
+             * "how many sessions". Pulls from the dashboard user object
+             * when available, falls back to a gentle prompt.
+             */
+            async speakMyStats() {
+                try {
+                    const r = await fetch('/api/profile', { credentials: 'same-origin' });
+                    if (!r.ok) throw new Error('not ok');
+                    const d = await r.json();
+                    const completed = d.completed_asanas || {};
+                    const total = Object.values(completed).reduce((a, b) => a + (Number(b) || 0), 0);
+                    const days = d.total_active_days || (d.activity_log || []).length;
+                    const learned = Object.keys(completed).length;
+                    this.speakCorrection('You have completed ' + total + ' sessions across ' + days + ' active days, and learned ' + learned + ' poses. Keep the practice steady.', true);
+                } catch (e) {
+                    this.speakCorrection('I could not pull your stats. Check your profile page for the full picture.', true);
+                }
+            },
+
+            /**
+             * Picks an appropriate pose based on the current hour and
+             * starts it — the voice equivalent of the "start today's
+             * practice" button.
+             */
+            recommendPose() {
+                const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
+                if (!lib.length) { this.speakCorrection('The library is still loading.', true); return; }
+                const hour = new Date().getHours();
+                let candidates;
+                if (hour < 10) candidates = lib.filter(a => a.level === 'Beginner');
+                else if (hour < 18) candidates = lib.filter(a => a.level === 'Intermediate' || a.level === 'Beginner');
+                else candidates = lib.filter(a => a.name === 'Balasana' || a.name === 'Sukhasana' || a.name === 'Paschimottanasana' || a.name === 'Setu Bandhasana');
+                if (!candidates.length) candidates = lib;
+                const pick = candidates[Math.floor(Math.random() * candidates.length)];
+                this.speakCorrection('Try ' + pick.sanskrit + '. A good fit for right now.', true);
+                this.navigate('ar_correction');
+                setTimeout(() => this.selectAsanaAndStart(pick.name), 600);
+            },
+
+            /**
+             * Four-round box breath (4-4-4-4). Spoken cues, no UI needed —
+             * voice-only is the whole point for "calm me" / "anxious".
+             */
+            guidedBreath() {
+                if (this._breathTimer) { clearTimeout(this._breathTimer); this._breathTimer = null; }
+                const cues = [
+                    'Let\u2019s breathe together.',
+                    'Inhale, four counts.',
+                    'Hold, four counts.',
+                    'Exhale, four counts.',
+                    'Hold empty, four counts.',
+                    'Again. Inhale.',
+                    'Hold.',
+                    'Exhale.',
+                    'Hold.',
+                    'One more. Inhale.',
+                    'Hold.',
+                    'Exhale, all the way.',
+                    'Good. Return to natural breath.',
+                ];
+                let i = 0;
+                const step = () => {
+                    if (i >= cues.length) { this._breathTimer = null; return; }
+                    this.speakCorrection(cues[i++], true);
+                    this._breathTimer = setTimeout(step, 4200);
+                };
+                step();
             },
 
             /**
