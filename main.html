@@ -357,14 +357,21 @@
                 </svg>
             </button>
 
-            <!-- Editorial hero -->
-            <div class="relative bg-forest-900 text-cream px-6 md:px-12 pt-12 pb-14 overflow-hidden">
+            <!-- Editorial hero with pose silhouette -->
+            <div class="relative bg-forest-900 text-cream overflow-hidden grid md:grid-cols-[1fr_auto]">
                 <div style="position:absolute; width:500px; height:500px; border-radius:9999px; background:rgba(74,107,77,0.45); filter:blur(110px); top:-100px; right:-100px; pointer-events:none;"></div>
                 <div style="position:absolute; width:340px; height:340px; border-radius:9999px; background:rgba(184,87,62,0.3); filter:blur(90px); bottom:-120px; left:-80px; pointer-events:none;"></div>
-                <div class="relative">
+                <div class="relative z-10 px-6 md:px-12 pt-12 pb-10 md:pb-14">
+                    <div class="flex flex-wrap items-center gap-2 mb-4">
+                        <span class="kicker text-[11px] px-2.5 py-1 rounded-full bg-saffron-500 text-forest-900">Reference</span>
+                        <span id="modal-view-badge" class="kicker text-[11px] px-2.5 py-1 rounded-full bg-forest-700 text-saffron-500">FRONT VIEW</span>
+                    </div>
                     <p class="kicker text-[11px] text-saffron-500 mb-3"><span id="modal-asana-category-kicker">Beginner</span> · Foundation</p>
                     <h3 id="modal-asana-name" class="font-display text-[44px] md:text-[64px] font-light leading-[1] tracking-tight">Asana Name</h3>
                     <p id="modal-asana-sanskrit" class="font-display text-[22px] md:text-[26px] text-forest-300 mt-2">Sanskrit Name</p>
+                </div>
+                <div class="relative z-10 hidden md:flex items-center justify-center pr-8 py-8">
+                    <img id="modal-asana-silhouette" alt="" class="w-[220px] lg:w-[260px] h-[280px] lg:h-[320px] rounded-2xl shadow-xl shadow-black/25" />
                 </div>
             </div>
 
@@ -1139,27 +1146,40 @@
             },
 
             /**
-             * Loads reference image for the selected pose
+             * Loads the reference silhouette for the selected pose.
+             * Prefers a SVG illustration from the rule engine's pose library
+             * (so every asana has a consistent reference), with legacy photos
+             * as an optional fallback.
              */
             loadReferenceImage(poseName) {
                 const imageElement = document.getElementById('reference-image');
                 const placeholder = document.getElementById('reference-placeholder');
+                if (!imageElement) return;
 
-                // Map pose names to reference images
+                const asana = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(a => a.name === poseName) : null;
+
+                // 1) Prefer the SVG silhouette (consistent across all 20 poses).
+                if (asana && typeof PoseImage !== 'undefined' && asana.referenceKeypoints) {
+                    imageElement.src = PoseImage.dataUri(asana, { bg: '#F3EEE5', body: '#1E2E1F', joint: '#D4A04A', width: 400, height: 460 });
+                    imageElement.alt = asana.name + ' reference';
+                    imageElement.classList.remove('hidden');
+                    if (placeholder) placeholder.classList.add('hidden');
+                    return;
+                }
+
+                // 2) Legacy photos (kept for backwards compatibility).
                 const imageMap = {
-                    'Tadasana': 'assets/poses/tadasana.jpg',
-                    'Vrikshasana': 'assets/poses/vrikshasana.jpg',
-                    'Namastey': 'assets/poses/namaste.png'
+                    'Tadasana': '/assets/poses/tadasana.jpg',
+                    'Vrikshasana': '/assets/poses/vrikshasana.jpg',
+                    'Anjali Mudra': '/assets/poses/namaste.png',
                 };
-
                 const imagePath = imageMap[poseName];
-
-                if (imagePath && imageElement) {
+                if (imagePath) {
                     imageElement.src = imagePath;
                     imageElement.classList.remove('hidden');
                     if (placeholder) placeholder.classList.add('hidden');
                 } else {
-                    if (imageElement) imageElement.classList.add('hidden');
+                    imageElement.classList.add('hidden');
                     if (placeholder) placeholder.classList.remove('hidden');
                 }
             },
@@ -1887,6 +1907,7 @@
                                             <p class="font-display text-[16px] md:text-[18px] text-ink-900 truncate">${p.name}</p>
                                             <p class="kicker text-[10px] text-ink-500 mt-0.5 truncate">${(a?.sanskrit || '').toUpperCase()} · ${cat}</p>
                                         </div>
+                                        <span class="kicker text-[9px] md:text-[10px] px-2 py-0.5 rounded-full bg-paper text-ink-500 shrink-0 hidden sm:inline-flex">${((a?.view) || 'front').toUpperCase()}</span>
                                         <div class="text-right shrink-0">
                                             <p class="font-semibold text-[14px] md:text-[15px] text-ink-900">${pct}%</p>
                                             <p class="kicker text-[9px] text-ink-300 mt-0.5">${p.completed ? 'DONE' : p.locked ? 'LOCKED' : 'IN PROGRESS'}</p>
@@ -1945,21 +1966,28 @@
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
                         ${asanaData.map((asana, i) => {
                             const p = palettes[i % palettes.length];
-                            const darkBg = ['#1E2E1F','#B8573E','#2F4A31','#3D3A33','#D4866F'].includes(p.bg);
+                            const svgBg = p.bg === '#F3EEE5' ? '#FAF7F2' : '#F3EEE5';
+                            const svgDataUri = (typeof PoseImage !== 'undefined' && asana.referenceKeypoints)
+                                ? PoseImage.dataUri(asana, { bg: svgBg, body: '#1E2E1F', joint: '#D4A04A', width: 400, height: 420 })
+                                : null;
                             return `
                                 <div onclick="app.showAsanaDetails('${asana.name}')"
-                                     class="asana-tile relative rounded-[18px] md:rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-[4/3.2] p-4 md:p-6 flex flex-col justify-between"
+                                     class="asana-tile relative rounded-[18px] md:rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-[4/4.4] flex flex-col justify-between"
                                      style="background:${p.bg}; color:${p.fg};">
-                                    <div class="flex items-start justify-between">
+                                    <div class="absolute top-3 left-3 right-3 flex items-start justify-between z-10">
                                         <span class="kicker text-[9px] md:text-[10px] px-2 py-1 rounded-full border" style="border-color:${p.fg}; opacity:0.85;">${asana.category.toUpperCase()}</span>
-                                        <span class="font-display text-[22px] md:text-[26px] font-light opacity-80" style="color:${p.fg};">→</span>
+                                        <span class="kicker text-[9px] md:text-[10px] px-2 py-1 rounded-full" style="background:${p.fg}; color:${p.bg};">${(asana.view || 'front').toUpperCase()} VIEW</span>
                                     </div>
-                                    <div class="flex-1 flex items-center justify-center">
-                                        <span class="font-display text-[72px] md:text-[110px] font-light leading-none" style="color:${p.fg};">${asana.emoji || '🧘'}</span>
-                                    </div>
-                                    <div>
+                                    ${svgDataUri ? `
+                                        <img src="${svgDataUri}" alt="${asana.name}" class="w-full flex-1 object-contain" style="min-height:0;">
+                                    ` : `
+                                        <div class="flex-1 flex items-center justify-center">
+                                            <span class="font-display text-[72px] md:text-[110px] font-light leading-none" style="color:${p.fg};">${asana.emoji || '🧘'}</span>
+                                        </div>
+                                    `}
+                                    <div class="p-4 md:p-5 pt-2" style="background:${p.bg};">
                                         <p class="kicker text-[9px] md:text-[10px] opacity-80 mb-1" style="color:${p.fg};">${asana.sanskrit.toUpperCase()}</p>
-                                        <h3 class="font-display text-[18px] md:text-[26px] leading-tight" style="color:${p.fg};">${asana.name}</h3>
+                                        <h3 class="font-display text-[18px] md:text-[24px] leading-tight" style="color:${p.fg};">${asana.name}</h3>
                                     </div>
                                 </div>
                             `;
@@ -1994,6 +2022,15 @@
                 // Update kicker category label
                 const kicker = document.getElementById('modal-asana-category-kicker');
                 if (kicker) kicker.textContent = asana.category;
+
+                // View badge + silhouette illustration
+                const viewBadge = document.getElementById('modal-view-badge');
+                if (viewBadge) viewBadge.textContent = ((asana.view || 'front') + ' VIEW').toUpperCase();
+                const silhouette = document.getElementById('modal-asana-silhouette');
+                if (silhouette && typeof PoseImage !== 'undefined' && asana.referenceKeypoints) {
+                    silhouette.src = PoseImage.dataUri(asana, { bg: '#F3EEE5', body: '#1E2E1F', joint: '#D4A04A', width: 520, height: 640 });
+                    silhouette.alt = asana.name + ' reference silhouette';
+                }
 
                 steps.innerHTML = asana.steps.map((step, idx) => `
                     <li class="flex items-start gap-3">
@@ -2033,6 +2070,20 @@
                         </h1>
                         <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Your camera stays on your device. Sunday reads 17 body keypoints at 30 frames per second and whispers one correction at a time.</p>
                     </header>
+                    <div class="rounded-[22px] bg-paper border border-stone p-5 md:p-6 grid md:grid-cols-3 gap-4 md:gap-6">
+                        <div>
+                            <p class="kicker text-[10px] text-terracotta-600 mb-1">Camera setup</p>
+                            <p class="text-[13px] md:text-[14px] text-ink-700 leading-[1.6]">Stand 6–8 feet from the camera. Full body visible — head to feet.</p>
+                        </div>
+                        <div>
+                            <p class="kicker text-[10px] text-terracotta-600 mb-1">View badge</p>
+                            <p class="text-[13px] md:text-[14px] text-ink-700 leading-[1.6]">Each pose shows <strong>FRONT</strong> or <strong>SIDE</strong> — turn your camera accordingly.</p>
+                        </div>
+                        <div>
+                            <p class="kicker text-[10px] text-terracotta-600 mb-1">Light</p>
+                            <p class="text-[13px] md:text-[14px] text-ink-700 leading-[1.6]">Soft light from the front. Avoid strong backlight or busy backgrounds.</p>
+                        </div>
+                    </div>
                     ` : ''}
 
                     ${isCourseMode ? `
@@ -2057,20 +2108,28 @@
                     ` : ''}
 
                     <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5" style="${isCourseMode ? 'display: none;' : ''}">
-                        ${asanaData.map(asana => `
+                        ${asanaData.map(asana => {
+                            const svgUri = (typeof PoseImage !== 'undefined' && asana.referenceKeypoints)
+                                ? PoseImage.dataUri(asana, { bg: '#2F4A31', body: '#D4E0D5', joint: '#D4A04A', width: 400, height: 400 })
+                                : null;
+                            return `
                             <button onclick="app.selectAsanaAndStart('${asana.name}')"
-                                    class="asana-tile text-left rounded-[18px] md:rounded-[22px] bg-forest-900 text-cream p-4 md:p-6 flex flex-col justify-between min-h-[200px] md:min-h-[240px]">
-                                <div class="flex items-center justify-between">
-                                    <span class="kicker text-[9px] md:text-[10px] text-saffron-500">${asana.category.toUpperCase()}</span>
-                                    <span class="font-display text-[22px] opacity-70">→</span>
+                                    class="asana-tile relative overflow-hidden text-left rounded-[18px] md:rounded-[22px] bg-forest-900 text-cream flex flex-col justify-between min-h-[240px] md:min-h-[280px]">
+                                <div class="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
+                                    <span class="kicker text-[9px] text-saffron-500">${asana.category.toUpperCase()}</span>
+                                    <span class="kicker text-[9px] px-2 py-0.5 rounded-full bg-saffron-500 text-forest-900">${(asana.view || 'front').toUpperCase()}</span>
                                 </div>
-                                <span class="font-display text-[56px] md:text-[80px] leading-none text-forest-100 my-3">${asana.emoji || '🧘'}</span>
-                                <div>
+                                ${svgUri ? `
+                                    <img src="${svgUri}" alt="${asana.name}" class="w-full flex-1 object-contain" style="min-height:0;"/>
+                                ` : `
+                                    <span class="font-display text-[56px] md:text-[80px] leading-none text-forest-100 my-auto self-center">${asana.emoji || '🧘'}</span>
+                                `}
+                                <div class="p-4 md:p-5 pt-2 bg-forest-900">
                                     <p class="kicker text-[9px] text-saffron-500 mb-1">${asana.sanskrit.toUpperCase()}</p>
                                     <h3 class="font-display text-[18px] md:text-[22px] text-cream">${asana.name}</h3>
                                 </div>
                             </button>
-                        `).join('')}
+                        `;}).join('')}
                     </div>
 
                     <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
@@ -2189,6 +2248,7 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3 md:gap-4 md:ml-auto shrink-0">
+                                    <span class="kicker text-[9px] px-2 py-0.5 rounded-full hidden sm:inline-flex" style="background:${pose.completed ? 'rgba(212,160,74,0.2)' : 'rgba(0,0,0,0.06)'}; color:${pose.completed ? '#D4A04A' : '#6B6657'};">${((a?.view) || 'front').toUpperCase()}</span>
                                     <span class="kicker text-[10px]" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#8BA88D' : '#6B6657')};">${rightLabel}</span>
                                     ${!pose.locked && !pose.completed ? `
                                         <button onclick="app.startCourseTest('${pose.name}')"
