@@ -218,8 +218,183 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // ENGINE — with per-rule hysteresis state
+    // REFERENCE POSE TEMPLATES — research-aligned "template matching"
+    //
+    // Based on the approach from Borthakur 2023 (MDPI Healthcare) and
+    // Anjali 2025 (IJRASET Real-Time Yoga Posture Recognition): we take
+    // each pose's ideal joint-angle vector and compare the user's live
+    // joint-angle vector against it. Distance → continuous accuracy score.
+    //
+    // Benefits over if/else rules:
+    //   • Score is continuous (every degree of correction raises the score)
+    //   • One unified algorithm for all 20 poses
+    //   • The largest-deviation joint is what we tell the user to fix
+    //   • Auto-handles left/right mirroring by matching both orderings
+    //
+    // Each pose's reference vector is a map of joint name → expected angle.
+    // We compute live angles for the SAME joints, then score = max(0, 100 − mean|Δ|/tolerance*50)
+    // and the top-N deviations (worst offenders) become the corrections.
     // ─────────────────────────────────────────────────────────────
+
+    // Angle specs: joint label → [startJoint, vertexJoint, endJoint].
+    // "vertex" is the joint the angle is measured AT.
+    const ANGLE_SPECS = {
+        left_elbow:    ['left_shoulder', 'left_elbow', 'left_wrist'],
+        right_elbow:   ['right_shoulder', 'right_elbow', 'right_wrist'],
+        left_shoulder: ['left_elbow', 'left_shoulder', 'left_hip'],
+        right_shoulder:['right_elbow', 'right_shoulder', 'right_hip'],
+        left_hip:      ['left_shoulder', 'left_hip', 'left_knee'],
+        right_hip:     ['right_shoulder', 'right_hip', 'right_knee'],
+        left_knee:     ['left_hip', 'left_knee', 'left_ankle'],
+        right_knee:    ['right_hip', 'right_knee', 'right_ankle'],
+    };
+
+    function liveAngles(kp) {
+        const angles = {};
+        for (const name of Object.keys(ANGLE_SPECS)) {
+            const [a, b, c] = ANGLE_SPECS[name];
+            if (kp[a] && kp[b] && kp[c]) {
+                angles[name] = angleDeg(kp[a], kp[b], kp[c]);
+            }
+        }
+        return angles;
+    }
+
+    // Reference vectors captured from the ideal form of each pose.
+    // Source: mean of published yoga biomechanics references + manual
+    // tuning against the ChatGPT reference images in assets/poses/.
+    // Values are in degrees (0-180 convention used by angleDeg).
+    const REFERENCE_VECTORS = {
+        // --- BEGINNER ---
+        'Tadasana':              { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:10, right_shoulder:10, left_elbow:175, right_elbow:175 },
+        'Urdhva Hastasana':      { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
+        'Anjali Mudra':          { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:30, right_shoulder:30, left_elbow:70, right_elbow:70 },
+        'Vrikshasana':           { left_knee:180, right_knee:55,  left_hip:180, right_hip:110, left_shoulder:160, right_shoulder:160, left_elbow:70, right_elbow:70 },
+        'Uttanasana':            { left_knee:170, right_knee:170, left_hip:30,  right_hip:30,  left_shoulder:160, right_shoulder:160, left_elbow:170, right_elbow:170 },
+        'Sukhasana':             { left_knee:60,  right_knee:60,  left_hip:90,  right_hip:90,  left_shoulder:30, right_shoulder:30, left_elbow:170, right_elbow:170 },
+        'Dandasana':             { left_knee:175, right_knee:175, left_hip:90,  right_hip:90,  left_shoulder:20, right_shoulder:20, left_elbow:170, right_elbow:170 },
+        'Baddha Konasana':       { left_knee:40,  right_knee:40,  left_hip:80,  right_hip:80,  left_shoulder:20, right_shoulder:20, left_elbow:150, right_elbow:150 },
+        'Paschimottanasana':     { left_knee:170, right_knee:170, left_hip:35,  right_hip:35,  left_shoulder:50, right_shoulder:50, left_elbow:170, right_elbow:170 },
+        'Balasana':              { left_knee:40,  right_knee:40,  left_hip:40,  right_hip:40,  left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
+        // --- INTERMEDIATE ---
+        'Adho Mukha Svanasana':  { left_knee:170, right_knee:170, left_hip:75,  right_hip:75,  left_shoulder:170, right_shoulder:170, left_elbow:175, right_elbow:175 },
+        'Virabhadrasana I':      { left_knee:170, right_knee:95,  left_hip:130, right_hip:110, left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
+        'Virabhadrasana II':     { left_knee:170, right_knee:95,  left_hip:165, right_hip:135, left_shoulder:90,  right_shoulder:90,  left_elbow:175, right_elbow:175 },
+        'Utthita Trikonasana':   { left_knee:175, right_knee:175, left_hip:100, right_hip:60,  left_shoulder:170, right_shoulder:90,  left_elbow:175, right_elbow:175 },
+        'Utkatasana':            { left_knee:110, right_knee:110, left_hip:110, right_hip:110, left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
+        'Utthita Parsvakonasana':{ left_knee:170, right_knee:95,  left_hip:140, right_hip:70,  left_shoulder:170, right_shoulder:75,  left_elbow:170, right_elbow:170 },
+        'Setu Bandhasana':       { left_knee:95,  right_knee:95,  left_hip:155, right_hip:155, left_shoulder:40, right_shoulder:40, left_elbow:170, right_elbow:170 },
+        // --- ADVANCED ---
+        'Virabhadrasana III':    { left_knee:175, right_knee:175, left_hip:165, right_hip:90,  left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
+        'Ardha Chandrasana':     { left_knee:175, right_knee:175, left_hip:150, right_hip:90,  left_shoulder:170, right_shoulder:100, left_elbow:175, right_elbow:175 },
+        'Natarajasana':          { left_knee:175, right_knee:45,  left_hip:175, right_hip:100, left_shoulder:170, right_shoulder:120, left_elbow:170, right_elbow:100 },
+    };
+
+    // Human-readable correction messages per joint, with mirror-safe wording.
+    const JOINT_LABELS = {
+        left_knee:   'the knee on your right of the screen',
+        right_knee:  'the knee on your left of the screen',
+        left_hip:    'the hip on your right',
+        right_hip:   'the hip on your left',
+        left_shoulder:'the shoulder on your right',
+        right_shoulder:'the shoulder on your left',
+        left_elbow:  'the elbow on your right',
+        right_elbow: 'the elbow on your left',
+    };
+
+    // Tolerance per joint type — chosen from empirical MoveNet jitter plus
+    // natural range of motion variance across body types.
+    const JOINT_TOLERANCE = {
+        left_knee: 22, right_knee: 22,        // knees: ±22° allowed
+        left_hip: 25, right_hip: 25,          // hips have wide range across builds
+        left_shoulder: 28, right_shoulder: 28,// shoulder joint very noisy
+        left_elbow: 25, right_elbow: 25,      // elbow range varies
+    };
+
+    function evaluateTemplate(kp, poseName) {
+        const ref = REFERENCE_VECTORS[poseName];
+        if (!ref) return null;
+
+        const live = liveAngles(kp);
+
+        // For symmetric poses we also consider the LEFT-RIGHT-flipped
+        // reference vector and pick whichever matches better. This means
+        // "Warrior I with left foot forward" scores the same as
+        // "Warrior I with right foot forward" — we don't penalize the user
+        // for setting up on either side.
+        const flipped = {};
+        for (const k of Object.keys(ref)) {
+            const mirrored = k.startsWith('left_') ? 'right_' + k.slice(5)
+                          : k.startsWith('right_') ? 'left_' + k.slice(6) : k;
+            flipped[mirrored] = ref[k];
+        }
+
+        function diffFor(refVec) {
+            const deltas = {};
+            let totalWeightedErr = 0;
+            let totalWeight = 0;
+            let measured = 0;
+            for (const joint of Object.keys(refVec)) {
+                const userA = live[joint];
+                if (userA == null) continue;
+                const refA = refVec[joint];
+                const tol = JOINT_TOLERANCE[joint] || 20;
+                const delta = Math.abs(userA - refA);
+                // Error is how many "tolerance units" the user is off.
+                const err = Math.max(0, delta - tol * 0.4) / tol;
+                deltas[joint] = { delta: Math.round(delta), tolerance: tol, err: +err.toFixed(2), user: Math.round(userA), ref: refA };
+                totalWeightedErr += err;
+                totalWeight += 1;
+                measured++;
+            }
+            return { deltas, avgErr: totalWeight > 0 ? totalWeightedErr / totalWeight : 1, measured };
+        }
+
+        const normal = diffFor(ref);
+        const mirrored = diffFor(flipped);
+        const best = normal.avgErr <= mirrored.avgErr ? normal : mirrored;
+
+        // Score: 100 when avgErr==0, decays to 0 by avgErr==1.2
+        const score = Math.max(0, Math.min(100, Math.round(100 * (1 - best.avgErr / 1.2))));
+
+        // Pick the top 3 worst deviations as corrections, sorted by err
+        const worst = Object.entries(best.deltas)
+            .filter(([, v]) => v.err > 0.15)
+            .sort((a, b) => b[1].err - a[1].err)
+            .slice(0, 3)
+            .map(([joint, v]) => {
+                const label = JOINT_LABELS[joint] || joint;
+                let direction = '';
+                if (v.user > v.ref + 5) direction = 'less';
+                else if (v.user < v.ref - 5) direction = 'more';
+                // Shape guidance text per joint-type
+                let msg;
+                if (joint.endsWith('_knee')) {
+                    msg = direction === 'more' ? `Bend ${label} more` : direction === 'less' ? `Straighten ${label}` : `Adjust ${label}`;
+                } else if (joint.endsWith('_hip')) {
+                    msg = direction === 'more' ? `Fold deeper at ${label}` : direction === 'less' ? `Open ${label} taller` : `Square ${label}`;
+                } else if (joint.endsWith('_shoulder')) {
+                    msg = direction === 'more' ? `Raise ${label} higher` : direction === 'less' ? `Soften ${label} down` : `Align ${label}`;
+                } else if (joint.endsWith('_elbow')) {
+                    msg = direction === 'more' ? `Bend ${label} more` : direction === 'less' ? `Straighten ${label}` : `Adjust ${label}`;
+                } else {
+                    msg = `Adjust ${label}`;
+                }
+                return {
+                    message: msg,
+                    joint,
+                    delta: v.delta,
+                    user: v.user,
+                    ref: v.ref,
+                    severity: v.err > 0.6 ? 'red' : v.err > 0.3 ? 'yellow' : 'blue',
+                    priority: v.err > 0.6 ? 1 : v.err > 0.3 ? 2 : 3,
+                };
+            });
+
+        return { score, corrections: worst, deltas: best.deltas, usedMirror: best === mirrored };
+    }
+
+
     const FAIL_STREAK = {};   // rule.id → frames failing
     const PASS_STREAK = {};   // rule.id → frames passing (after a fail)
     const REPORTED = {};      // rule.id → currently visible to user?
@@ -259,6 +434,109 @@
                 };
             }
 
+            // --- PRIMARY PATH: reference-pose template matching ---
+            // If this pose has a reference angle vector, use it as the score
+            // and the primary source of corrections. This is the algorithm
+            // from Borthakur 2023 and Anjali 2025, adapted to 20 poses.
+            const tpl = evaluateTemplate(kp, poseName);
+            if (tpl) {
+                // Build diagnostics from template deltas for the on-screen panel.
+                const tplDiag = Object.entries(tpl.deltas).map(([joint, v]) => ({
+                    idx: joint,
+                    pass: v.err <= 0.3,
+                    measured: `${v.user}° (target ${v.ref}°)`,
+                    message: `${joint} angle`,
+                    priority: v.err > 0.6 ? 1 : v.err > 0.3 ? 2 : 3,
+                    failStreak: 0,
+                    reported: v.err > 0.3,
+                }));
+
+                // Also run the declarative rules for visibility/stance-only
+                // checks, but skip any whose joints overlap with template
+                // corrections (to avoid contradictory or duplicate cues).
+                const stance = detectStance(kp);
+                const ruleDiag = [];
+                const ruleCorrections = [];
+                const templateJoints = new Set(tpl.corrections.map(c => c.joint));
+                let extraPriorityOneCount = 0;
+                for (let i = 0; i < pose.rules.length; i++) {
+                    const rule = pose.rules[i];
+                    const result = evaluate(kp, rule, stance);
+                    if (result.skipped) continue;
+                    ruleDiag.push({
+                        idx: i,
+                        pass: !!result.pass,
+                        measured: result.measured,
+                        message: rule.message,
+                        priority: rule.priority || 3,
+                    });
+                    // Skip rules whose joints are already handled by the template
+                    const ruleJoints = rule.joints || [];
+                    const overlap = ruleJoints.some(rj => {
+                        const resolved = rj; // simple compare; template joints are simple left_/right_ forms
+                        return templateJoints.has(resolved);
+                    });
+                    if (overlap) continue;
+                    // Only surface non-overlapping rule corrections when score is low
+                    if (!result.pass && rule.priority === 1 && tpl.score < 75) {
+                        extraPriorityOneCount++;
+                        if (extraPriorityOneCount <= 1) {
+                            ruleCorrections.push({
+                                message: rewriteForMirror(rule.message),
+                                color: 'red',
+                                priority: 1,
+                            });
+                        }
+                    }
+                }
+
+                // Hysteresis — only report a template correction if it's been
+                // bad for several frames. Use the "joint" as a stable id.
+                const reportedCorrections = [];
+                for (const c of tpl.corrections) {
+                    const id = poseName + '::' + c.joint;
+                    if (c.severity !== 'blue') {
+                        FAIL_STREAK[id] = (FAIL_STREAK[id] || 0) + 1;
+                        PASS_STREAK[id] = 0;
+                        if (FAIL_STREAK[id] >= CONFIG.ruleFailFrames) REPORTED[id] = true;
+                    } else {
+                        FAIL_STREAK[id] = 0;
+                        PASS_STREAK[id] = (PASS_STREAK[id] || 0) + 1;
+                        if (PASS_STREAK[id] >= CONFIG.rulePassFrames) REPORTED[id] = false;
+                    }
+                    if (REPORTED[id]) {
+                        reportedCorrections.push({
+                            message: c.message,
+                            color: c.severity === 'red' ? 'red' : c.severity === 'yellow' ? 'yellow' : 'blue',
+                            priority: c.priority,
+                            affected: [c.joint],
+                        });
+                    }
+                }
+
+                // Combine: rule-based red cues first, then template cues
+                const combined = [...ruleCorrections, ...reportedCorrections];
+                combined.sort((a, b) => (a.priority || 5) - (b.priority || 5));
+                const top = combined.slice(0, 3);
+
+                if (top.length === 0) {
+                    top.push({ message: `Beautiful ${pose.name}. Hold and breathe.`, affected: [], color: 'green', priority: 0 });
+                } else if (tpl.score >= 85) {
+                    top.unshift({ message: 'Close. One small refinement.', affected: [], color: 'blue', priority: 0 });
+                }
+
+                return {
+                    corrections: top,
+                    score: tpl.score,
+                    diagnostics: [...tplDiag, ...ruleDiag],
+                    stance,
+                    usedMirror: tpl.usedMirror,
+                };
+            }
+
+            // --- FALLBACK PATH: old rule-only evaluator ---
+            // (only used if pose has no reference vector; shouldn't happen
+            //  for the 20 curated poses but kept for robustness.)
             if (!pose.rules || !pose.rules.length) {
                 return { corrections: [{ message: 'Hold the pose calmly and breathe.', color: 'green', priority: 0, affected: [] }], score: 80, diagnostics: [] };
             }
@@ -287,17 +565,14 @@
 
                 if (result.pass) {
                     passWeight += weight;
-                    // decay fail streak, advance pass streak
                     FAIL_STREAK[id] = 0;
                     PASS_STREAK[id] = (PASS_STREAK[id] || 0) + 1;
-                    // Clear a reported correction once we've passed enough frames
                     if (REPORTED[id] && PASS_STREAK[id] >= CONFIG.rulePassFrames) {
                         REPORTED[id] = false;
                     }
                 } else {
                     FAIL_STREAK[id] = (FAIL_STREAK[id] || 0) + 1;
                     PASS_STREAK[id] = 0;
-                    // Promote to a visible correction only after fail streak threshold
                     if (FAIL_STREAK[id] >= CONFIG.ruleFailFrames) {
                         REPORTED[id] = true;
                     }

@@ -174,19 +174,35 @@
         .voice-listening { animation: pulse-green 1.5s infinite; border-color: var(--primary-3) !important; }
         .voice-talking   { animation: pulse-accent 1.5s infinite; border-color: var(--accent) !important; }
 
-        /* AR camera feed */
+        /* AR camera feed — aspect ratio matches the webcam so the skeleton lines
+           land on the body. No forced padding, no cover-cropping. */
         #video-container {
             position: relative;
             width: 100%;
-            padding-top: 75%;
+            aspect-ratio: 16 / 9;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
             border: 1px solid var(--primary-2);
             box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.18);
         }
-        #video-feed { position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; transform: scaleX(-1); }
-        #ar-canvas  { position: absolute; top:0; left:0; width:100%; height:100%; transform: scaleX(-1); }
+        #video-feed {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+            transform: scaleX(-1);
+        }
+        #ar-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
 
         /* Modal — matches Figma pose detail */
         #asana-modal-backdrop {
@@ -1205,9 +1221,19 @@
                         video.onloadedmetadata = () => {
                             video.play();
 
-                            // Set canvas dimensions to match video stream
+                            // The canvas internal resolution must match the VIDEO pixel
+                            // dimensions (what MoveNet sees), not the CSS display size.
+                            // Because CSS uses object-fit: contain, the canvas and video
+                            // letterbox identically, so keypoints land on the body.
                             canvas.width = video.videoWidth;
                             canvas.height = video.videoHeight;
+
+                            // Also set the container's aspect ratio to match the actual
+                            // camera output so the video fills perfectly without cropping.
+                            const vc = document.getElementById('video-container');
+                            if (vc && video.videoWidth && video.videoHeight) {
+                                vc.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight;
+                            }
 
                             // Show video container
                             const videoContainer = document.getElementById('video-container');
