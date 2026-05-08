@@ -463,7 +463,8 @@
 
         rec.onstart = () => setStatus(true, 'Listening');
         rec.onresult = (event) => {
-            const t = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+            const raw = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+            const t = raw.replace(/^[.,!?;:"'`\-\s]+|[.,!?;:"'`\-\s]+$/g, '').trim();
             console.log('Voice:', t);
 
             // Local commands

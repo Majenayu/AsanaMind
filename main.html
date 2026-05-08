@@ -621,7 +621,10 @@
 
                 this.recognitionInstance.onresult = async (event) => {
                     const last = event.results.length - 1;
-                    const transcript = event.results[last][0].transcript.toLowerCase().trim();
+                    // Normalize: lowercase, trim, strip leading/trailing
+                    // punctuation so "Stop." and "Profile?" still match.
+                    const raw = event.results[last][0].transcript.toLowerCase().trim();
+                    const transcript = raw.replace(/^[.,!?;:"'`\-\s]+|[.,!?;:"'`\-\s]+$/g, '').trim();
                     console.log('Voice:', transcript);
                     updateMicStatus(true, 'Got it');
 
@@ -633,17 +636,17 @@
 
                     if (!isQuestion) {
                     // ─── Meta commands ───
-                    if (/\\b(profile|my profile|open profile|show profile)\\b/.test(transcript)) {
+                    if (/\b(profile|my profile|open profile|show profile)\b/.test(transcript)) {
                         this.speakCorrection('Opening your profile.', true);
                         setTimeout(() => window.location.href = '/profile', 600);
                         return;
                     }
-                    if (/\\b(logout|log out|sign out|signout)\\b/.test(transcript)) {
+                    if (/\b(logout|log out|sign out|signout)\b/.test(transcript)) {
                         this.speakCorrection('Logging out.', true);
                         setTimeout(() => window.location.href = '/logout', 800);
                         return;
                     }
-                    if (/\\b(stop listening|voice off|turn off|mute|pause voice)\\b/.test(transcript)) {
+                    if (/\b(stop listening|voice off|turn off|mute|pause voice)\b/.test(transcript)) {
                         this.isListening = false;
                         this.recognitionInstance.stop();
                         this.speakCorrection('Voice off.', true);
@@ -653,7 +656,7 @@
 
                     // ─── In-session practice commands ───
                     // REFERENCE — show the pose reference photo for 5 seconds
-                    if (/\\b(reference|show reference|show pose|show me|show image|picture|photo)\\b/.test(transcript)) {
+                    if (/\b(reference|show reference|show pose|show me|show image|picture|photo)\b/.test(transcript)) {
                         if (this.currentPose) {
                             this.showReferenceOverlay(this.currentPose, 5000);
                             this.speakCorrection('Showing reference.', true);
@@ -664,14 +667,14 @@
                         return;
                     }
                     // STOP / END — exit AR session
-                    if (/\\b(stop|end|quit|exit|finish|done)\\b/.test(transcript) && this.currentPose) {
+                    if (/\b(stop|end|quit|exit|finish|done)\b/.test(transcript) && this.currentPose) {
                         this.stopARAssessment && this.stopARAssessment();
                         this.speakCorrection('Stopping practice.', true);
                         updateMicStatus(true, 'Stopped');
                         return;
                     }
                     // SCORE — speak the current alignment score
-                    if (/\\b(score|accuracy|how am i doing|how is it|status)\\b/.test(transcript) && this.currentPose) {
+                    if (/\b(score|accuracy|how am i doing|how is it|status)\b/.test(transcript) && this.currentPose) {
                         const s = Math.round(this._lastPoseScore || 0);
                         const msg = s >= 85 ? 'You are at ' + s + ' percent. Beautiful form. Hold and breathe.'
                                    : s >= 70 ? 'You are at ' + s + ' percent. Small refinements will bring you home.'
@@ -682,7 +685,7 @@
                         return;
                     }
                     // NEXT / PREVIOUS — cycle through the library
-                    if (/\\b(next|next pose|after this|skip)\\b/.test(transcript) && this.currentPose) {
+                    if (/\b(next|next pose|after this|skip)\b/.test(transcript) && this.currentPose) {
                         const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
                         const idx = lib.findIndex(a => a.name === this.currentPose);
                         const nxt = lib[(idx + 1) % lib.length];
@@ -693,7 +696,7 @@
                         }
                         return;
                     }
-                    if (/\\b(previous|back pose|go back|last one)\\b/.test(transcript) && this.currentPose) {
+                    if (/\b(previous|back pose|go back|last one)\b/.test(transcript) && this.currentPose) {
                         const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
                         const idx = lib.findIndex(a => a.name === this.currentPose);
                         const prev = lib[(idx - 1 + lib.length) % lib.length];
@@ -705,7 +708,7 @@
                         return;
                     }
                     // REPEAT — replay the latest correction
-                    if (/\\b(repeat|again|say again|one more time)\\b/.test(transcript)) {
+                    if (/\b(repeat|again|say again|one more time)\b/.test(transcript)) {
                         if (this._lastSpokenMessage) {
                             // Bypass throttle by forcing through native speak
                             try { window.speechSynthesis.cancel(); } catch(_){}
@@ -719,13 +722,13 @@
                         return;
                     }
                     // VOICE GUIDE ON/OFF
-                    if (/\\b(voice guide on|talk to me|start voice|enable voice|speak to me)\\b/.test(transcript)) {
+                    if (/\b(voice guide on|talk to me|start voice|enable voice|speak to me)\b/.test(transcript)) {
                         this.ttsEnabled = true;
                         this.speakCorrection('Voice guide on.', true);
                         updateMicStatus(true, 'Guide on');
                         return;
                     }
-                    if (/\\b(voice guide off|be quiet|stop talking|silent mode)\\b/.test(transcript)) {
+                    if (/\b(voice guide off|be quiet|stop talking|silent mode)\b/.test(transcript)) {
                         this.ttsEnabled = false;
                         this.speakCorrection('Voice guide off.', true);
                         updateMicStatus(true, 'Guide off');
@@ -734,52 +737,52 @@
 
                     // ─── New commands (10+ in total with the above) ───
                     // DIAGNOSTICS TOGGLE
-                    if (/\\b(diagnostics|show rules|debug|details)\\b/.test(transcript)) {
+                    if (/\b(diagnostics|show rules|debug|details)\b/.test(transcript)) {
                         if (this.toggleDiagnostics) this.toggleDiagnostics();
                         this.speakCorrection('Diagnostics toggled.', true);
                         updateMicStatus(true, 'Diagnostics');
                         return;
                     }
                     // READ THIS SCREEN — narrate what's on screen
-                    if (/\\b(read (this|the) (screen|page)|what(?:'s|s| is) on screen|read it to me|describe this page)\\b/.test(transcript)) {
+                    if (/\b(read (this|the) (screen|page)|what(?:'s|s| is) on screen|read it to me|describe this page)\b/.test(transcript)) {
                         this.readThisScreen && this.readThisScreen();
                         updateMicStatus(true, 'Reading');
                         return;
                     }
                     // MY STATS / PROGRESS
-                    if (/\\b(my stats|progress|streak|how many sessions|how many days)\\b/.test(transcript)) {
+                    if (/\b(my stats|progress|streak|how many sessions|how many days)\b/.test(transcript)) {
                         this.speakMyStats && this.speakMyStats();
                         updateMicStatus(true, 'Stats');
                         return;
                     }
                     // RECOMMEND A POSE
-                    if (/\\b(recommend|suggest|what should i do|pick for me|random pose)\\b/.test(transcript)) {
+                    if (/\b(recommend|suggest|what should i do|pick for me|random pose)\b/.test(transcript)) {
                         this.recommendPose && this.recommendPose();
                         updateMicStatus(true, 'Picking');
                         return;
                     }
                     // START COURSE TEST
-                    if (/\\b(start (the )?course|begin (the )?course|test me|start test)\\b/.test(transcript)) {
+                    if (/\b(start (the )?course|begin (the )?course|test me|start test)\b/.test(transcript)) {
                         this.navigate('course');
                         this.speakCorrection('Opening the course. Tap begin test to start.', true);
                         updateMicStatus(true, 'Course');
                         return;
                     }
                     // CERTIFICATE
-                    if (/\\b(certificate|my certificate|show certificate)\\b/.test(transcript)) {
+                    if (/\b(certificate|my certificate|show certificate)\b/.test(transcript)) {
                         this.navigate('course');
                         this.speakCorrection('Your certificate lives at the end of the course.', true);
                         updateMicStatus(true, 'Certificate');
                         return;
                     }
                     // BREATHING / CALM — quick guided breath
-                    if (/\\b(breathing|breathe with me|calm me|anxious|anxiety|relax)\\b/.test(transcript)) {
+                    if (/\b(breathing|breathe with me|calm me|anxious|anxiety|relax)\b/.test(transcript)) {
                         this.guidedBreath && this.guidedBreath();
                         updateMicStatus(true, 'Breathing');
                         return;
                     }
                     // COMMANDS / HELP — open the command library modal
-                    if (/\\b(commands|command library|list commands|what can you do|what can i say|help me)\\b/.test(transcript)) {
+                    if (/\b(commands|command library|list commands|what can you do|what can i say|help me)\b/.test(transcript)) {
                         this.openCommandLibrary && this.openCommandLibrary();
                         this.speakCorrection('Opening the command library.', true);
                         updateMicStatus(true, 'Commands');
@@ -827,10 +830,10 @@
                     // ─── Screen navigation (requires a verb prefix so
                     //     "what is this course" doesn't navigate to Course) ───
                     const navMap = [
-                        { re: /\\b(go (to|home)|open|show|take me to|navigate to)\\s+(home|today|dashboard)\\b/, key: 'dashboard' },
-                        { re: /\\b(go to|open|show|take me to|navigate to)\\s+(library|poses|asanas?)\\b/, key: 'asana' },
-                        { re: /\\b(go to|open|show|take me to|navigate to|start)\\s+(practice|camera|ar)\\b/, key: 'ar_correction' },
-                        { re: /\\b(go to|open|show|take me to|navigate to)\\s+(course|test mode)\\b/, key: 'course' },
+                        { re: /\b(go (to|home)|open|show|take me to|navigate to)\\s+(home|today|dashboard)\b/, key: 'dashboard' },
+                        { re: /\b(go to|open|show|take me to|navigate to)\\s+(library|poses|asanas?)\b/, key: 'asana' },
+                        { re: /\b(go to|open|show|take me to|navigate to|start)\\s+(practice|camera|ar)\b/, key: 'ar_correction' },
+                        { re: /\b(go to|open|show|take me to|navigate to)\\s+(course|test mode)\b/, key: 'course' },
                     ];
                     for (const nav of navMap) {
                         if (nav.re.test(transcript)) {
