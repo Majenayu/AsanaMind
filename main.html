@@ -321,13 +321,15 @@
 
             <div class="flex items-center gap-2">
                 <button id="voice-toggle" onclick="app.toggleVoiceControl()"
-                    class="hidden sm:flex items-center gap-2 text-[12px] px-4 py-2 rounded-full bg-paper hover:bg-sand border border-stone text-ink-700 font-medium transition-all active:scale-95">
+                    title="Voice assistant"
+                    aria-label="Toggle voice assistant"
+                    class="flex items-center gap-2 text-[12px] px-3 sm:px-4 py-2 rounded-full bg-paper hover:bg-sand border border-stone text-ink-700 font-medium transition-all active:scale-95">
                     <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 transition-colors duration-300">
                         <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
                         <path fill-rule="evenodd" d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
                         <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
                     </svg>
-                    <span id="mic-status-text" class="kicker text-[10px]">Standby</span>
+                    <span id="mic-status-text" class="kicker text-[10px] hidden sm:inline">Voice</span>
                 </button>
                 <a href="/profile" class="w-10 h-10 rounded-full bg-forest-900 text-saffron-500 font-display text-[16px] flex items-center justify-center hover:bg-forest-700 transition-colors" id="avatar-btn">A</a>
                 <a href="/logout" class="hidden md:inline-flex text-[12px] text-ink-500 hover:text-terracotta-600 kicker ml-3">Sign out</a>
@@ -336,7 +338,7 @@
     </header>
 
     <div id="app" class="w-full">
-        <main id="content" class="max-w-[1400px] mx-auto px-5 md:px-12 py-8 md:py-14 pb-28 md:pb-14">
+        <main id="content" class="max-w-[1400px] mx-auto px-4 md:px-10 lg:px-12 py-6 md:py-10 pb-24 md:pb-12">
         </main>
 
         <!-- Mobile bottom tab bar -->
@@ -626,197 +628,130 @@
 
             // --- Voice Command Integration ---
             setupVoiceCommands() {
-                if (!('webkitSpeechRecognition' in window)) {
-                    document.getElementById('mic-status-text').textContent = "Voice N/A";
-                    document.getElementById('voice-toggle').disabled = true;
-                    console.warn("Speech Recognition not supported in this browser.");
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const toggleBtn = document.getElementById('voice-toggle');
+                const statusText = document.getElementById('mic-status-text');
+
+                if (!SR) {
+                    if (statusText) statusText.textContent = 'Voice N/A';
+                    if (toggleBtn) toggleBtn.disabled = true;
+                    console.warn('Speech Recognition not supported in this browser.');
                     return;
                 }
 
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                this.recognitionInstance = new SpeechRecognition();
+                this.recognitionInstance = new SR();
                 this.recognitionInstance.continuous = true;
                 this.recognitionInstance.interimResults = false;
                 this.recognitionInstance.lang = 'en-US';
 
                 const micIcon = document.getElementById('mic-icon');
-                const micStatusText = document.getElementById('mic-status-text');
 
-                const updateMicStatus = (listening, statusText = null) => {
+                const updateMicStatus = (listening, label) => {
                     this.isListening = listening;
-                    if (listening) {
-                        micIcon.classList.remove('text-red-500');
-                        micIcon.classList.add('text-primary', 'animate-pulse');
-                        micStatusText.textContent = statusText || "Listening...";
-                    } else {
-                        micIcon.classList.remove('text-primary', 'animate-pulse');
-                        micIcon.classList.add('text-red-500');
-                        micStatusText.textContent = statusText || "Voice Off";
+                    if (micIcon) {
+                        if (listening) micIcon.classList.add('text-terracotta-600', 'animate-pulse');
+                        else micIcon.classList.remove('animate-pulse');
                     }
+                    if (toggleBtn) {
+                        if (listening) toggleBtn.classList.add('voice-listening');
+                        else toggleBtn.classList.remove('voice-listening', 'voice-talking');
+                    }
+                    if (statusText) statusText.textContent = label || (listening ? 'Listening' : 'Voice');
                 };
 
-                this.recognitionInstance.onstart = () => {
-                    updateMicStatus(true, "Listening...");
-                };
+                this.recognitionInstance.onstart = () => updateMicStatus(true, 'Listening');
 
                 this.recognitionInstance.onresult = async (event) => {
                     const last = event.results.length - 1;
                     const transcript = event.results[last][0].transcript.toLowerCase().trim();
-                    console.log('Voice Command Received:', transcript);
+                    console.log('Voice:', transcript);
+                    updateMicStatus(true, 'Got it');
 
-                    // Acknowledge the command via UI/Console
-                    updateMicStatus(true, `Heard: "${transcript}"`);
-
-                    // === COMMAND HANDLING ===
-                    let commandExecuted = false;
-
-                    // Navigation commands
-                    const navigationMap = {
-                        'home': 'dashboard',
-                        'dashboard': 'dashboard',
-                        'pose library': 'asana',
-                        'library': 'asana',
-                        'asana': 'asana',
-                        'poses': 'asana',
-                        'ar correction': 'ar_correction',
-                        'posture correction': 'ar_correction',
-                        'posture': 'ar_correction',
-                        'camera': 'ar_correction',
-                        'course': 'course',
-                        'test': 'course',
-                        'certification': 'course',
-                        'assistant': 'assistant',
-                        'chat': 'assistant',
-                        'help': 'assistant'
-                    };
-
-                    // Profile command
-                    if (transcript.includes('profile') || transcript.includes('my profile') || transcript.includes('show profile')) {
-                        window.location.href = '/profile';
+                    if (/\\b(profile|my profile)\\b/.test(transcript)) {
                         this.speakCorrection('Opening your profile.', true);
-                        updateMicStatus(true, 'Done');
-                        commandExecuted = true;
+                        setTimeout(() => window.location.href = '/profile', 600);
                         return;
                     }
-
-                    // Logout command
-                    if (transcript.includes('logout') || transcript.includes('log out') || transcript.includes('sign out') || transcript.includes('signout')) {
-                        this.speakCorrection('Logging you out. Goodbye!', true);
-                        updateMicStatus(true, 'Done');
-                        setTimeout(() => { window.location.href = '/logout'; }, 1500);
-                        commandExecuted = true;
+                    if (/\\b(logout|log out|sign out|signout)\\b/.test(transcript)) {
+                        this.speakCorrection('Logging out.', true);
+                        setTimeout(() => window.location.href = '/logout', 800);
                         return;
                     }
-
-                    // Voice off command
-                    if (transcript.includes('stop listening') || transcript.includes('voice off') || transcript.includes('turn off') ||
-                        transcript.includes('mute') || transcript.includes('silence') || transcript.includes('shut up')) {
+                    if (/\\b(stop listening|voice off|turn off|mute)\\b/.test(transcript)) {
                         this.isListening = false;
                         this.recognitionInstance.stop();
-                        this.speakCorrection('Voice assistant turned off. Click the mic button to turn me back on.', true);
-                        updateMicStatus(false, 'Done');
-                        commandExecuted = true;
+                        this.speakCorrection('Voice off.', true);
+                        updateMicStatus(false, 'Off');
                         return;
                     }
 
-                    // Pose-specific AR correction commands (detects pose names and starts AR session)
-                    const poseKeywords = {
-                        'tadasana': 'Tadasana (Mountain Pose)',
-                        'mountain pose': 'Tadasana (Mountain Pose)',
-                        'namaste': 'Namastey (Prayer Position)',
-                        'prayer': 'Namastey (Prayer Position)',
-                        'vrikshasana': 'Vrikshasana (Tree Pose)',
-                        'tree pose': 'Vrikshasana (Tree Pose)',
-                        'warrior': 'Virabhadrasana (Warrior Pose)',
-                        'virabhadrasana': 'Virabhadrasana (Warrior Pose)',
-                        'downward dog': 'Adho Mukha Svanasana (Downward Dog)',
-                        'downward': 'Adho Mukha Svanasana (Downward Dog)',
-                        'child pose': 'Balasana (Child Pose)',
-                        'balasana': 'Balasana (Child Pose)'
+                    const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
+                    const matched = lib.find(a => {
+                        const ln = a.name.toLowerCase();
+                        const ls = (a.sanskrit || '').toLowerCase();
+                        return transcript.includes(ln) || (ls && transcript.includes(ls));
+                    });
+                    if (matched && /\\b(start|practice|do|correct|try|open)\\b/.test(transcript)) {
+                        this.navigate('ar_correction');
+                        this.speakCorrection('Opening ' + matched.sanskrit + '.', true);
+                        setTimeout(() => this.selectAsanaAndStart(matched.name), 500);
+                        updateMicStatus(true, 'Done');
+                        return;
+                    }
+
+                    const navMap = {
+                        'home': 'dashboard', 'dashboard': 'dashboard',
+                        'library': 'asana', 'poses': 'asana', 'asana': 'asana',
+                        'practice': 'ar_correction', 'posture': 'ar_correction', 'camera': 'ar_correction',
+                        'course': 'course', 'test': 'course',
                     };
-
-                    for (const [keyword, poseName] of Object.entries(poseKeywords)) {
-                        if (transcript.includes(keyword) && (transcript.includes('start') || transcript.includes('practice') ||
-                            transcript.includes('do') || transcript.includes('correct') || transcript.includes('ar'))) {
-                            this.navigate('ar_correction');
-                            setTimeout(() => {
-                                this.selectAsanaAndStart(poseName.split('(')[0].trim());
-                            }, 500);
-                            this.speakCorrection(`Starting AR correction for ${poseName}. Get ready!`, true);
-                            updateMicStatus(true, 'Done');
-                            commandExecuted = true;
-                            return;
-                        }
-                    }
-
-                    // Standard navigation
-                    for (const phrase in navigationMap) {
+                    for (const phrase of Object.keys(navMap)) {
                         if (transcript.includes(phrase)) {
-                            const targetView = navigationMap[phrase];
-                            this.navigate(targetView);
-                            this.speakCorrection(`Done. Navigated to ${targetView.replace('_', ' ')}.`, true);
+                            this.navigate(navMap[phrase]);
+                            this.speakCorrection('Going to ' + phrase + '.', true);
                             updateMicStatus(true, 'Done');
-                            commandExecuted = true;
                             return;
                         }
                     }
 
-                    // If no command recognized, try AI assistant or say "no command"
-                    if (!commandExecuted) {
-                        // Check if it's a question (contains question words)
-                        const isQuestion = transcript.includes('what') || transcript.includes('how') || transcript.includes('why') ||
-                            transcript.includes('when') || transcript.includes('where') || transcript.includes('who') ||
-                            transcript.includes('tell me') || transcript.includes('explain') || transcript.includes('?');
-
-                        if (isQuestion || transcript.length > 15) {
-                            // Longer text or questions go to AI
-                            updateMicStatus(true, "Thinking...");
-                            try {
-                                const response = await app.callGeminiAssistant(transcript);
-                                const text = response.text || "I'm not sure about that.";
-                                this.speakCorrection(text, true);
-                                updateMicStatus(true, "Done");
-                            } catch (error) {
-                                console.error("AI Voice Error:", error);
-                                updateMicStatus(true, "Try Again");
-                            }
-                        } else {
-                            // Short unrecognized text = no command
-                            this.speakCorrection("No command recognized. Try saying: home, library, profile, or logout.", true);
-                            updateMicStatus(true, "No Command");
+                    const isQuestion = /\\b(what|how|why|when|where|who|tell me|explain)\\b/.test(transcript) || transcript.includes('?');
+                    if (isQuestion || transcript.length > 15) {
+                        updateMicStatus(true, 'Thinking');
+                        try {
+                            const response = await this.callGeminiAssistant(transcript);
+                            this.speakCorrection(response.text || 'Not sure about that.', true);
+                            updateMicStatus(true, 'Done');
+                        } catch (e) {
+                            console.error('AI voice error:', e);
+                            updateMicStatus(true, 'Try again');
                         }
+                    } else {
+                        this.speakCorrection('Try: home, library, practice, course, or a pose name.', true);
+                        updateMicStatus(true, 'No match');
                     }
                 };
 
                 this.recognitionInstance.onerror = (event) => {
                     console.error('Speech Recognition Error:', event.error);
-                    updateMicStatus(false, "Error: Check Console");
-
-                    // Specific error handling for permission issues
                     if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                        updateMicStatus(false, "Permission Blocked!");
-                    } else if (event.error === 'no-speech') {
-                        // Common error when it stops due to no speech, but should restart onend
-                        updateMicStatus(true);
+                        this.isListening = false;
+                        updateMicStatus(false, 'Blocked');
+                        alert('Microphone access is blocked. Enable it in your browser settings and reload.');
+                    } else if (event.error === 'audio-capture') {
+                        updateMicStatus(false, 'No mic');
+                    } else if (event.error !== 'no-speech') {
+                        updateMicStatus(false, 'Error');
                     }
                 };
 
-                // Restart listening after a pause or processing, unless manually stopped
                 this.recognitionInstance.onend = () => {
                     if (this.isListening) {
-                        // Attempt to restart listening only if the flag is still true
-                        // FIX: Add a small delay to prevent browser conflict during rapid restart
                         setTimeout(() => {
-                            try {
-                                this.recognitionInstance.start(); // Status update handled by onstart
-                            } catch (e) {
-                                console.warn("Recognition restart failed:", e);
-                                updateMicStatus(false);
-                            }
-                        }, 500); // Increased delay to 500ms for better stability
+                            try { this.recognitionInstance.start(); }
+                            catch (e) { console.warn('Voice restart failed:', e); updateMicStatus(false, 'Off'); }
+                        }, 400);
                     } else {
-                        // If listening was manually turned off/navigation occurred, confirm status is 'Voice Off'
-                        updateMicStatus(false);
+                        updateMicStatus(false, 'Voice');
                     }
                 };
             },
@@ -1831,100 +1766,98 @@
                 const continueList = (this.courseProgress?.poses || []).slice(0, 3);
 
                 return `
-                <div class="space-y-8 md:space-y-12">
+                <div class="space-y-6 md:space-y-10">
 
                     <!-- Hero -->
-                    <section class="relative overflow-hidden rounded-[28px] md:rounded-[36px] bg-forest-900 text-cream p-6 md:p-12 lg:p-14">
-                        <div style="position:absolute; width:640px; height:640px; border-radius:9999px; background:rgba(74,107,77,0.38); filter:blur(130px); top:-180px; right:-160px; pointer-events:none;"></div>
-                        <div style="position:absolute; width:420px; height:420px; border-radius:9999px; background:rgba(184,87,62,0.28); filter:blur(110px); bottom:-180px; left:-120px; pointer-events:none;"></div>
+                    <section class="relative overflow-hidden rounded-[24px] md:rounded-[32px] bg-forest-900 text-cream p-6 md:p-10 lg:p-12">
+                        <div style="position:absolute; width:560px; height:560px; border-radius:9999px; background:rgba(74,107,77,0.38); filter:blur(120px); top:-160px; right:-140px; pointer-events:none;"></div>
+                        <div style="position:absolute; width:360px; height:360px; border-radius:9999px; background:rgba(184,87,62,0.28); filter:blur(100px); bottom:-140px; left:-100px; pointer-events:none;"></div>
 
-                        <div class="relative grid md:grid-cols-[1.3fr_1fr] gap-6 md:gap-10 items-center">
-                            <div class="space-y-5 md:space-y-6">
+                        <div class="relative grid md:grid-cols-[1.3fr_1fr] gap-5 md:gap-10 items-center">
+                            <div class="space-y-4 md:space-y-5">
                                 <p class="kicker text-[10px] md:text-[11px] text-saffron-500">${dayName} · ${tod} · ${timeStr}</p>
-                                <h1 class="font-display font-light text-[44px] md:text-[72px] lg:text-[84px] leading-[1.02] tracking-tight">
+                                <h1 class="font-display font-light text-[36px] md:text-[56px] lg:text-[68px] leading-[1.05] tracking-tight">
                                     ${tod === 'MORNING' ? 'Good morning' : tod === 'AFTERNOON' ? 'Good afternoon' : tod === 'EVENING' ? 'Good evening' : 'Welcome back'},<br>${first}.
                                 </h1>
-                                <p class="text-[15px] md:text-[17px] text-forest-100/90 leading-[1.7] max-w-[560px]">
-                                    ${activeDays > 0 ? `Your body has had <strong class="text-cream">${activeDays} day${activeDays===1?'':'s'}</strong> of practice. ` : 'Welcome to Sunday. '}Today, return to ${todayName} and move gently through your flow.
+                                <p class="text-[14px] md:text-[16px] text-forest-100/90 leading-[1.6] max-w-[520px]">
+                                    ${activeDays > 0 ? `<strong class="text-cream">${activeDays} day${activeDays===1?'':'s'}</strong> of practice so far. ` : ''}Today, return to ${todayName}.
                                 </p>
-                                <div class="flex flex-wrap items-center gap-3 pt-2">
-                                    <button onclick="app.navigate('ar_correction')" class="pressable inline-flex items-center gap-2 px-6 md:px-8 py-3.5 md:py-4 rounded-full bg-cream text-ink-900 font-semibold text-[14px] md:text-[15px] shadow-lg shadow-black/25 hover:bg-paper">
-                                        Start today's practice <span class="opacity-70">→</span>
+                                <div class="flex flex-wrap items-center gap-3 pt-1">
+                                    <button onclick="app.navigate('ar_correction')" class="pressable inline-flex items-center gap-2 px-5 md:px-7 py-3 md:py-3.5 rounded-full bg-cream text-ink-900 font-semibold text-[13px] md:text-[14px] shadow-lg shadow-black/25 hover:bg-paper">
+                                        Start practice <span class="opacity-70">→</span>
                                     </button>
-                                    <button onclick="app.navigate('asana')" class="pressable inline-flex items-center gap-2 px-6 md:px-8 py-3.5 md:py-4 rounded-full border border-forest-300/60 text-forest-100 font-semibold text-[14px] md:text-[15px] hover:bg-forest-700/40">
-                                        Just browse for now
+                                    <button onclick="app.navigate('asana')" class="pressable inline-flex items-center gap-2 px-5 md:px-7 py-3 md:py-3.5 rounded-full border border-forest-300/60 text-forest-100 font-semibold text-[13px] md:text-[14px] hover:bg-forest-700/40">
+                                        Browse poses
                                     </button>
                                 </div>
                             </div>
-                            <div class="relative rounded-[24px] md:rounded-[28px] bg-forest-700 aspect-[4/3] md:aspect-auto md:h-[320px] flex flex-col items-center justify-center overflow-hidden">
+                            <div class="relative rounded-[20px] md:rounded-[24px] bg-forest-700 aspect-[4/3] hidden md:flex flex-col items-center justify-center overflow-hidden">
                                 <div style="position:absolute; inset:0; background: radial-gradient(circle at 50% 40%, rgba(212,160,74,0.25), transparent 60%);"></div>
-                                <span class="relative text-[120px] md:text-[160px] leading-none font-display font-light text-forest-100">${todayAsana.emoji || '🧘'}</span>
-                                <div class="absolute bottom-5 left-5 right-5">
-                                    <p class="kicker text-[10px] text-saffron-500">TODAY'S FOCUS</p>
-                                    <p class="font-display text-[22px] md:text-[24px] text-cream mt-1">${todayAsana.name}</p>
+                                <span class="relative text-[140px] leading-none font-display font-light text-forest-100">${todayAsana.emoji || '🧘'}</span>
+                                <div class="absolute bottom-4 left-4 right-4">
+                                    <p class="kicker text-[10px] text-saffron-500">TODAY</p>
+                                    <p class="font-display text-[22px] text-cream mt-0.5">${todayAsana.name}</p>
                                 </div>
                             </div>
                         </div>
                     </section>
 
                     <!-- KPIs -->
-                    <section class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+                    <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
                         ${[
                             {k:'STREAK', v: activeDays, s:'active days'},
                             {k:'SESSIONS', v: totalSessions, s:'poses completed'},
-                            {k:'LEARNING', v: Object.keys(completedAsanas).length, s:'poses in rotation'},
-                            {k:'LEVEL', v: activeDays>=60?'III': activeDays>=14?'II':'I', s:'practitioner rank'},
+                            {k:'LEARNING', v: Object.keys(completedAsanas).length, s:'in rotation'},
+                            {k:'LEVEL', v: activeDays>=60?'III': activeDays>=14?'II':'I', s:'rank'},
                         ].map(kpi => `
-                            <div class="rounded-[18px] md:rounded-[22px] bg-paper p-5 md:p-6 flex flex-col justify-between min-h-[140px] md:min-h-[170px]">
-                                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">${kpi.k}</p>
+                            <div class="rounded-[16px] md:rounded-[20px] bg-paper p-4 md:p-5 flex flex-col justify-between min-h-[110px] md:min-h-[140px]">
+                                <p class="kicker text-[10px] text-terracotta-600">${kpi.k}</p>
                                 <div>
-                                    <p class="font-display text-[48px] md:text-[68px] leading-[0.95] font-light text-ink-900">${kpi.v}</p>
-                                    <p class="text-[12px] md:text-[13px] text-ink-500 mt-1">${kpi.s}</p>
+                                    <p class="font-display text-[40px] md:text-[54px] leading-[0.95] font-light text-ink-900">${kpi.v}</p>
+                                    <p class="text-[11px] md:text-[12px] text-ink-500 mt-0.5">${kpi.s}</p>
                                 </div>
                             </div>
                         `).join('')}
                     </section>
 
                     <!-- Continue + Quote -->
-                    <section class="grid md:grid-cols-[1.1fr_1fr] gap-5">
-                        <div class="rounded-[22px] md:rounded-[28px] bg-paper p-5 md:p-8">
-                            <div class="flex items-start justify-between mb-5">
+                    <section class="grid md:grid-cols-[1.1fr_1fr] gap-4">
+                        <div class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-7">
+                            <div class="flex items-start justify-between mb-4">
                                 <div>
-                                    <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Continue</p>
-                                    <h3 class="font-display text-[24px] md:text-[32px] text-ink-900 mt-1">Where you left off</h3>
+                                    <p class="kicker text-[10px] text-terracotta-600">Continue</p>
+                                    <h3 class="font-display text-[22px] md:text-[28px] text-ink-900 mt-1">Where you left off</h3>
                                 </div>
                                 <button onclick="app.navigate('asana')" class="kicker text-[11px] text-ink-500 hover:text-ink-900 hidden md:inline-flex">ALL →</button>
                             </div>
-                            <div class="space-y-3">
+                            <div class="space-y-2.5">
                                 ${continueList.map(p => {
                                     const a = asanaData.find(x => x.name === p.name);
                                     const cat = (a?.category || 'Beginner').toUpperCase();
                                     const pct = Math.round(p.bestAccuracy || 0);
                                     return `
-                                    <button onclick="app.showAsanaDetails('${p.name}')" class="pressable w-full text-left flex items-center gap-4 p-3 md:p-4 rounded-[16px] bg-cream hover:bg-sand transition-colors">
-                                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-[12px] bg-forest-900 text-saffron-500 flex items-center justify-center text-[22px] md:text-[26px] shrink-0">${a?.emoji || '🧘'}</div>
+                                    <button onclick="app.showAsanaDetails('${p.name}')" class="pressable w-full text-left flex items-center gap-3 md:gap-4 p-3 rounded-[14px] bg-cream hover:bg-sand transition-colors">
+                                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-forest-900 text-saffron-500 flex items-center justify-center text-[18px] md:text-[22px] shrink-0">${a?.emoji || '🧘'}</div>
                                         <div class="flex-1 min-w-0">
-                                            <p class="font-display text-[16px] md:text-[18px] text-ink-900 truncate">${p.name}</p>
-                                            <p class="kicker text-[10px] text-ink-500 mt-0.5 truncate">${(a?.sanskrit || '').toUpperCase()} · ${cat}</p>
+                                            <p class="font-display text-[15px] md:text-[17px] text-ink-900 truncate">${p.name}</p>
+                                            <p class="kicker text-[9px] text-ink-500 mt-0.5 truncate">${(a?.sanskrit || '').toUpperCase()} · ${cat}</p>
                                         </div>
-                                        <span class="kicker text-[9px] md:text-[10px] px-2 py-0.5 rounded-full bg-paper text-ink-500 shrink-0 hidden sm:inline-flex">${((a?.view) || 'front').toUpperCase()}</span>
+                                        <span class="kicker text-[9px] px-2 py-0.5 rounded-full bg-paper text-ink-500 shrink-0 hidden sm:inline-flex">${((a?.view) || 'front').toUpperCase()}</span>
                                         <div class="text-right shrink-0">
-                                            <p class="font-semibold text-[14px] md:text-[15px] text-ink-900">${pct}%</p>
-                                            <p class="kicker text-[9px] text-ink-300 mt-0.5">${p.completed ? 'DONE' : p.locked ? 'LOCKED' : 'IN PROGRESS'}</p>
+                                            <p class="font-semibold text-[13px] md:text-[14px] text-ink-900">${pct}%</p>
+                                            <p class="kicker text-[9px] text-ink-300 mt-0.5">${p.completed ? 'DONE' : p.locked ? 'LOCKED' : 'ACTIVE'}</p>
                                         </div>
                                     </button>
                                 `;}).join('')}
                             </div>
                         </div>
 
-                        <div class="rounded-[22px] md:rounded-[28px] bg-forest-900 text-cream p-6 md:p-8 flex flex-col justify-between min-h-[260px] md:min-h-0">
-                            <p class="kicker text-[10px] md:text-[11px] text-saffron-500">A QUIET REMINDER</p>
-                            <p class="font-display text-[26px] md:text-[34px] leading-[1.25] text-cream mt-4">
+                        <div class="rounded-[20px] md:rounded-[24px] bg-forest-900 text-cream p-5 md:p-7 flex flex-col justify-between min-h-[180px] md:min-h-0">
+                            <p class="kicker text-[10px] text-saffron-500">A QUIET REMINDER</p>
+                            <p class="font-display text-[22px] md:text-[30px] leading-[1.25] text-cream mt-2">
                                 "Consistency is louder than intensity."
                             </p>
-                            <div class="mt-6">
-                                <p class="kicker text-[10px] text-forest-300">Sunday · a coach who whispers</p>
-                            </div>
+                            <p class="kicker text-[9px] text-forest-300 mt-4">Sunday · a coach who whispers</p>
                         </div>
                     </section>
                 </div>`;
@@ -1945,49 +1878,49 @@
                 ];
 
                 return `
-                <div class="space-y-8 md:space-y-12">
+                <div class="space-y-6 md:space-y-10">
                     <!-- Editorial header -->
                     <header class="max-w-3xl">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">The Library</p>
-                        <h1 class="font-display font-light text-[44px] md:text-[72px] lg:text-[88px] leading-[1.02] tracking-tight text-ink-900">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-2">The Library</p>
+                        <h1 class="font-display font-light text-[32px] md:text-[56px] lg:text-[72px] leading-[1.05] tracking-tight text-ink-900">
                             ${asanaData.length} poses.<br>A lifetime of practice.
                         </h1>
-                        <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Tap any pose to see its purpose, the shape of the practice, and how Sunday will coach you through it.</p>
+                        <p class="text-[13px] md:text-[16px] text-ink-500 mt-3 max-w-xl leading-[1.6]">Tap any pose to see how Sunday will coach you through it.</p>
                     </header>
 
                     <!-- Filter chips -->
-                    <div class="flex flex-wrap items-center gap-2 md:gap-3">
-                        ${['All', 'Beginner', 'Intermediate', 'Advanced', 'Foundation', 'Balance', 'Flexibility'].map((f, i) => `
-                            <button class="px-4 py-2 rounded-full text-[12px] md:text-[13px] font-medium transition ${i===0 ? 'bg-forest-900 text-cream' : 'bg-cream text-ink-700 border border-stone hover:bg-paper'}">${f}</button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        ${['All', 'Beginner', 'Intermediate', 'Advanced', 'Front', 'Side'].map((f, i) => `
+                            <button class="px-3.5 py-1.5 rounded-full text-[11px] md:text-[12px] font-medium transition ${i===0 ? 'bg-forest-900 text-cream' : 'bg-cream text-ink-700 border border-stone hover:bg-paper'}">${f}</button>
                         `).join('')}
                     </div>
 
                     <!-- Grid -->
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                         ${asanaData.map((asana, i) => {
                             const p = palettes[i % palettes.length];
                             const svgBg = p.bg === '#F3EEE5' ? '#FAF7F2' : '#F3EEE5';
                             const svgDataUri = (typeof PoseImage !== 'undefined' && asana.referenceKeypoints)
-                                ? PoseImage.dataUri(asana, { bg: svgBg, body: '#1E2E1F', joint: '#D4A04A', width: 400, height: 420 })
+                                ? PoseImage.dataUri(asana, { bg: svgBg, body: '#1E2E1F', accent: '#D4A04A', width: 400, height: 420 })
                                 : null;
                             return `
                                 <div onclick="app.showAsanaDetails('${asana.name}')"
-                                     class="asana-tile relative rounded-[18px] md:rounded-[24px] overflow-hidden aspect-[4/5] md:aspect-[4/4.4] flex flex-col justify-between"
+                                     class="asana-tile relative rounded-[16px] md:rounded-[20px] overflow-hidden aspect-[4/5] flex flex-col justify-between"
                                      style="background:${p.bg}; color:${p.fg};">
-                                    <div class="absolute top-3 left-3 right-3 flex items-start justify-between z-10">
-                                        <span class="kicker text-[9px] md:text-[10px] px-2 py-1 rounded-full border" style="border-color:${p.fg}; opacity:0.85;">${asana.category.toUpperCase()}</span>
-                                        <span class="kicker text-[9px] md:text-[10px] px-2 py-1 rounded-full" style="background:${p.fg}; color:${p.bg};">${(asana.view || 'front').toUpperCase()} VIEW</span>
+                                    <div class="absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between z-10 gap-1">
+                                        <span class="kicker text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full border" style="border-color:${p.fg}; opacity:0.85;">${asana.category.toUpperCase().slice(0,4)}</span>
+                                        <span class="kicker text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full" style="background:${p.fg}; color:${p.bg};">${(asana.view || 'front').toUpperCase()}</span>
                                     </div>
                                     ${svgDataUri ? `
                                         <img src="${svgDataUri}" alt="${asana.name}" class="w-full flex-1 object-contain" style="min-height:0;">
                                     ` : `
                                         <div class="flex-1 flex items-center justify-center">
-                                            <span class="font-display text-[72px] md:text-[110px] font-light leading-none" style="color:${p.fg};">${asana.emoji || '🧘'}</span>
+                                            <span class="font-display text-[72px] font-light leading-none" style="color:${p.fg};">${asana.emoji || '🧘'}</span>
                                         </div>
                                     `}
-                                    <div class="p-4 md:p-5 pt-2" style="background:${p.bg};">
-                                        <p class="kicker text-[9px] md:text-[10px] opacity-80 mb-1" style="color:${p.fg};">${asana.sanskrit.toUpperCase()}</p>
-                                        <h3 class="font-display text-[18px] md:text-[24px] leading-tight" style="color:${p.fg};">${asana.name}</h3>
+                                    <div class="px-3 md:px-4 pb-3 md:pb-4 pt-1" style="background:${p.bg};">
+                                        <p class="kicker text-[8px] opacity-70 mb-0.5 truncate" style="color:${p.fg};">${asana.sanskrit.toUpperCase()}</p>
+                                        <h3 class="font-display text-[15px] md:text-[18px] leading-tight truncate" style="color:${p.fg};">${asana.name}</h3>
                                     </div>
                                 </div>
                             `;
@@ -2061,27 +1994,26 @@
                 const poseProgress = this.currentPose ? this.courseProgress.poses.find(p => p.name === this.currentPose) : null;
 
                 return `
-                <div class="space-y-8">
+                <div class="space-y-6">
                     ${!isCourseMode ? `
                     <header class="max-w-3xl">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">AR practice</p>
-                        <h1 class="font-display font-light text-[40px] md:text-[64px] lg:text-[76px] leading-[1.02] tracking-tight text-ink-900">
-                            Choose your pose.<br>Step into frame.
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-2">AR practice</p>
+                        <h1 class="font-display font-light text-[32px] md:text-[52px] lg:text-[60px] leading-[1.05] tracking-tight text-ink-900">
+                            Choose your pose.
                         </h1>
-                        <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Your camera stays on your device. Sunday reads 17 body keypoints at 30 frames per second and whispers one correction at a time.</p>
                     </header>
-                    <div class="rounded-[22px] bg-paper border border-stone p-5 md:p-6 grid md:grid-cols-3 gap-4 md:gap-6">
-                        <div>
-                            <p class="kicker text-[10px] text-terracotta-600 mb-1">Camera setup</p>
-                            <p class="text-[13px] md:text-[14px] text-ink-700 leading-[1.6]">Stand 6–8 feet from the camera. Full body visible — head to feet.</p>
+                    <div class="rounded-[18px] bg-paper border border-stone p-4 md:p-5 flex flex-wrap md:flex-nowrap items-start gap-4 md:gap-8">
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <span class="kicker text-[9px] text-terracotta-600 mt-0.5 shrink-0">01</span>
+                            <p class="text-[12px] md:text-[13px] text-ink-700 leading-[1.5]"><strong>Stand 6–8 ft</strong> from the camera, full body in frame.</p>
                         </div>
-                        <div>
-                            <p class="kicker text-[10px] text-terracotta-600 mb-1">View badge</p>
-                            <p class="text-[13px] md:text-[14px] text-ink-700 leading-[1.6]">Each pose shows <strong>FRONT</strong> or <strong>SIDE</strong> — turn your camera accordingly.</p>
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <span class="kicker text-[9px] text-terracotta-600 mt-0.5 shrink-0">02</span>
+                            <p class="text-[12px] md:text-[13px] text-ink-700 leading-[1.5]"><strong>Match the view badge</strong> on each pose — FRONT or SIDE.</p>
                         </div>
-                        <div>
-                            <p class="kicker text-[10px] text-terracotta-600 mb-1">Light</p>
-                            <p class="text-[13px] md:text-[14px] text-ink-700 leading-[1.6]">Soft light from the front. Avoid strong backlight or busy backgrounds.</p>
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <span class="kicker text-[9px] text-terracotta-600 mt-0.5 shrink-0">03</span>
+                            <p class="text-[12px] md:text-[13px] text-ink-700 leading-[1.5]"><strong>Soft front light.</strong> Avoid backlight or busy backgrounds.</p>
                         </div>
                     </div>
                     ` : ''}
@@ -2107,26 +2039,26 @@
                         </div>
                     ` : ''}
 
-                    <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5" style="${isCourseMode ? 'display: none;' : ''}">
+                    <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" style="${isCourseMode ? 'display: none;' : ''}">
                         ${asanaData.map(asana => {
                             const svgUri = (typeof PoseImage !== 'undefined' && asana.referenceKeypoints)
-                                ? PoseImage.dataUri(asana, { bg: '#2F4A31', body: '#D4E0D5', joint: '#D4A04A', width: 400, height: 400 })
+                                ? PoseImage.dataUri(asana, { bg: '#2F4A31', body: '#D4E0D5', accent: '#D4A04A', width: 400, height: 400 })
                                 : null;
                             return `
                             <button onclick="app.selectAsanaAndStart('${asana.name}')"
-                                    class="asana-tile relative overflow-hidden text-left rounded-[18px] md:rounded-[22px] bg-forest-900 text-cream flex flex-col justify-between min-h-[240px] md:min-h-[280px]">
-                                <div class="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
-                                    <span class="kicker text-[9px] text-saffron-500">${asana.category.toUpperCase()}</span>
-                                    <span class="kicker text-[9px] px-2 py-0.5 rounded-full bg-saffron-500 text-forest-900">${(asana.view || 'front').toUpperCase()}</span>
+                                    class="asana-tile relative overflow-hidden text-left rounded-[16px] md:rounded-[20px] bg-forest-900 text-cream flex flex-col justify-between aspect-[4/5]">
+                                <div class="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10">
+                                    <span class="kicker text-[8px] text-saffron-500">${asana.category.toUpperCase().slice(0,4)}</span>
+                                    <span class="kicker text-[8px] px-1.5 py-0.5 rounded-full bg-saffron-500 text-forest-900">${(asana.view || 'front').toUpperCase()}</span>
                                 </div>
                                 ${svgUri ? `
                                     <img src="${svgUri}" alt="${asana.name}" class="w-full flex-1 object-contain" style="min-height:0;"/>
                                 ` : `
-                                    <span class="font-display text-[56px] md:text-[80px] leading-none text-forest-100 my-auto self-center">${asana.emoji || '🧘'}</span>
+                                    <span class="font-display text-[72px] leading-none text-forest-100 my-auto self-center">${asana.emoji || '🧘'}</span>
                                 `}
-                                <div class="p-4 md:p-5 pt-2 bg-forest-900">
-                                    <p class="kicker text-[9px] text-saffron-500 mb-1">${asana.sanskrit.toUpperCase()}</p>
-                                    <h3 class="font-display text-[18px] md:text-[22px] text-cream">${asana.name}</h3>
+                                <div class="px-3 pb-3 pt-1 bg-forest-900">
+                                    <p class="kicker text-[8px] text-saffron-500 mb-0.5 truncate">${asana.sanskrit.toUpperCase()}</p>
+                                    <h3 class="font-display text-[15px] md:text-[18px] text-cream truncate">${asana.name}</h3>
                                 </div>
                             </button>
                         `;}).join('')}
@@ -2199,94 +2131,93 @@
                 const progressPercent = (completedCount / totalPoses) * 100;
 
                 return `
-                <div id="course-container" class="space-y-8">
+                <div id="course-container" class="space-y-6">
                     <header class="max-w-3xl">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">The Course</p>
-                        <h1 class="font-display font-light text-[40px] md:text-[64px] lg:text-[76px] leading-[1.02] tracking-tight text-ink-900">
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-2">The Course</p>
+                        <h1 class="font-display font-light text-[32px] md:text-[52px] lg:text-[60px] leading-[1.05] tracking-tight text-ink-900">
                             Practice, tested.
                         </h1>
-                        <p class="text-[15px] md:text-[17px] text-ink-500 mt-5 max-w-xl leading-[1.7]">Hold each asana at 90% accuracy for ten continuous seconds. Three attempts per pose. Complete all seven to earn your certificate.</p>
+                        <p class="text-[13px] md:text-[15px] text-ink-500 mt-3 max-w-xl leading-[1.6]">Hold each asana at 90% for ten continuous seconds. Three attempts per pose.</p>
                     </header>
 
                     <!-- Progress card -->
-                    <div class="rounded-[22px] md:rounded-[28px] bg-forest-900 text-cream p-6 md:p-8 space-y-5">
+                    <div class="rounded-[18px] md:rounded-[22px] bg-forest-900 text-cream p-5 md:p-7 space-y-3">
                         <div class="flex items-end justify-between gap-4">
                             <div>
-                                <p class="kicker text-[10px] md:text-[11px] text-saffron-500">PROGRESS</p>
-                                <p class="font-display text-[32px] md:text-[44px] font-light mt-1">${completedCount} of ${totalPoses}</p>
+                                <p class="kicker text-[10px] text-saffron-500">PROGRESS</p>
+                                <p class="font-display text-[28px] md:text-[36px] font-light mt-0.5">${completedCount} of ${totalPoses}</p>
                             </div>
-                            <p class="kicker text-[11px] text-forest-300">${Math.round(progressPercent)}% COMPLETE</p>
+                            <p class="kicker text-[10px] text-forest-300">${Math.round(progressPercent)}% DONE</p>
                         </div>
-                        <div class="w-full bg-forest-700 rounded-full h-2 overflow-hidden">
+                        <div class="w-full bg-forest-700 rounded-full h-1.5 overflow-hidden">
                             <div class="h-full bg-saffron-500 rounded-full transition-all duration-500" style="width: ${progressPercent}%"></div>
                         </div>
                     </div>
 
                     <!-- Pose list -->
-                    <div class="space-y-3 md:space-y-4">
+                    <div class="space-y-2">
                         ${this.courseProgress.poses.map((pose, idx) => {
                             const a = asanaData.find(x => x.name === pose.name);
                             let rightLabel = '';
                             let bg = 'bg-paper';
-                            let accent = 'text-ink-900';
-                            if (pose.completed) { rightLabel = 'COMPLETED'; bg = 'bg-forest-900 text-cream'; accent = 'text-saffron-500'; }
-                            else if (pose.locked) { rightLabel = 'LOCKED'; bg = 'bg-sand'; accent = 'text-ink-500'; }
-                            else { rightLabel = `${pose.attemptsRemaining}/3 ATTEMPTS`; }
-                            const isDark = pose.completed;
-                            const textColor = isDark ? '#FAF7F2' : '#1A1814';
-                            const subColor = isDark ? '#8BA88D' : '#6B6657';
+                            if (pose.completed) { rightLabel = 'DONE'; bg = 'bg-forest-900 text-cream'; }
+                            else if (pose.locked) { rightLabel = 'LOCKED'; bg = 'bg-sand'; }
+                            else { rightLabel = `${pose.attemptsRemaining}/3`; }
+                            const textColor = pose.completed ? '#FAF7F2' : '#1A1814';
+                            const subColor = pose.completed ? '#8BA88D' : '#6B6657';
                             return `
-                            <div class="rounded-[18px] md:rounded-[22px] ${bg} p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
-                                <div class="flex items-center gap-4 md:gap-5 flex-1 min-w-0">
-                                    <span class="font-display text-[40px] md:text-[56px] font-light leading-none shrink-0" style="color:${textColor}; opacity:${pose.locked ? 0.35 : 1};">${String(idx+1).padStart(2,'0')}</span>
-                                    <div class="min-w-0">
-                                        <p class="kicker text-[10px] mb-1" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#D4A04A' : '#B8573E')};">${(a?.sanskrit || pose.name).toUpperCase()}</p>
-                                        <h4 class="font-display text-[20px] md:text-[26px] leading-tight truncate" style="color:${textColor}; opacity:${pose.locked ? 0.45 : 1};">${pose.name}</h4>
-                                        ${pose.bestAccuracy > 0 ? `
-                                            <p class="text-[12px] md:text-[13px] mt-1.5" style="color:${subColor};">Best ${Math.round(pose.bestAccuracy)}% · held ${pose.timeHeld}s</p>
-                                        ` : ''}
-                                    </div>
+                            <div class="rounded-[14px] md:rounded-[16px] ${bg} p-3.5 md:p-4 flex items-center gap-3 md:gap-4">
+                                <span class="font-display text-[26px] md:text-[32px] font-light leading-none shrink-0 w-10 md:w-12 text-center" style="color:${textColor}; opacity:${pose.locked ? 0.35 : 1};">${String(idx+1).padStart(2,'0')}</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="kicker text-[9px] mb-0.5 truncate" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#D4A04A' : '#B8573E')};">${(a?.sanskrit || pose.name).toUpperCase()}</p>
+                                    <h4 class="font-display text-[16px] md:text-[20px] leading-tight truncate" style="color:${textColor}; opacity:${pose.locked ? 0.5 : 1};">${pose.name}</h4>
+                                    ${pose.bestAccuracy > 0 ? `<p class="text-[11px] mt-0.5 truncate" style="color:${subColor};">Best ${Math.round(pose.bestAccuracy)}% · ${pose.timeHeld}s</p>` : ''}
                                 </div>
-                                <div class="flex items-center gap-3 md:gap-4 md:ml-auto shrink-0">
-                                    <span class="kicker text-[9px] px-2 py-0.5 rounded-full hidden sm:inline-flex" style="background:${pose.completed ? 'rgba(212,160,74,0.2)' : 'rgba(0,0,0,0.06)'}; color:${pose.completed ? '#D4A04A' : '#6B6657'};">${((a?.view) || 'front').toUpperCase()}</span>
-                                    <span class="kicker text-[10px]" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#8BA88D' : '#6B6657')};">${rightLabel}</span>
+                                <div class="flex items-center gap-2 md:gap-3 shrink-0">
+                                    <span class="kicker text-[9px] px-1.5 py-0.5 rounded-full hidden sm:inline-flex" style="background:${pose.completed ? 'rgba(212,160,74,0.18)' : 'rgba(0,0,0,0.06)'}; color:${pose.completed ? '#D4A04A' : '#6B6657'};">${((a?.view) || 'front').toUpperCase()}</span>
+                                    <span class="kicker text-[10px] shrink-0" style="color:${pose.locked ? '#A8A294' : (pose.completed ? '#8BA88D' : '#6B6657')};">${rightLabel}</span>
                                     ${!pose.locked && !pose.completed ? `
-                                        <button onclick="app.startCourseTest('${pose.name}')"
-                                                class="pressable px-5 py-3 rounded-full font-semibold text-[13px] transition ${pose.attemptsRemaining > 0 ? 'bg-terracotta-600 text-cream hover:bg-terracotta-400' : 'bg-sand text-ink-300 cursor-not-allowed'}"
+                                        <button onclick="event.stopPropagation(); app.startCourseTest('${pose.name}')"
+                                                class="pressable px-4 py-2 rounded-full font-semibold text-[12px] transition ${pose.attemptsRemaining > 0 ? 'bg-terracotta-600 text-cream hover:bg-terracotta-400' : 'bg-sand text-ink-300 cursor-not-allowed'}"
                                                 ${pose.attemptsRemaining > 0 ? '' : 'disabled'}>
-                                            ${pose.attemptsRemaining > 0 ? 'Start test' : 'No attempts'}
+                                            ${pose.attemptsRemaining > 0 ? 'Test' : '—'}
                                         </button>
                                     ` : ''}
-                                    ${pose.locked ? `<span class="font-display text-[20px] opacity-40">🔒</span>` : ''}
-                                    ${pose.completed ? `<span class="font-display text-[20px] text-saffron-500">★</span>` : ''}
+                                    ${pose.locked ? `<span class="text-[16px] opacity-40">🔒</span>` : ''}
+                                    ${pose.completed ? `<span class="text-[16px] text-saffron-500">★</span>` : ''}
                                 </div>
                             </div>`;
                         }).join('')}
                     </div>
 
                     ${this.courseProgress.certificateEarned ? `
-                        <div class="rounded-[22px] md:rounded-[28px] bg-terracotta-600 text-cream p-6 md:p-10 text-center space-y-4">
+                        <div class="rounded-[20px] md:rounded-[24px] bg-terracotta-600 text-cream p-6 md:p-8 text-center space-y-3">
                             <p class="kicker text-[10px] text-terracotta-100">CONGRATULATIONS</p>
-                            <h3 class="font-display font-light text-[36px] md:text-[52px] leading-[1.1]">All seven poses, well held.</h3>
-                            <p class="text-[15px] md:text-[16px] text-terracotta-100 max-w-md mx-auto leading-[1.7]">You've earned your Sunday certificate of practice. Download it anytime.</p>
-                            <button onclick="app.downloadCertificate()" class="pressable inline-flex items-center gap-2 px-6 py-3.5 bg-cream text-ink-900 font-semibold rounded-full hover:bg-paper">
-                                Download certificate →
+                            <h3 class="font-display font-light text-[28px] md:text-[40px] leading-[1.1]">All 20 poses, well held.</h3>
+                            <p class="text-[13px] md:text-[15px] text-terracotta-100 max-w-md mx-auto leading-[1.6]">Your Sunday certificate is ready.</p>
+                            <button onclick="app.downloadCertificate()" class="pressable inline-flex items-center gap-2 px-5 py-3 bg-cream text-ink-900 font-semibold rounded-full hover:bg-paper text-[13px]">
+                                Download →
                             </button>
                         </div>
                     ` : ''}
 
-                    <!-- Protocols -->
-                    <div class="rounded-[22px] md:rounded-[28px] bg-paper p-6 md:p-8">
-                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600 mb-3">Test protocols</p>
-                        <h3 class="font-display text-[22px] md:text-[28px] text-ink-900 mb-5">Quiet, strict, fair.</h3>
-                        <ul class="space-y-3 text-[14px] md:text-[15px] text-ink-700 leading-[1.6]">
-                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">01</span><span>Test starts only after a 90% posture match is detected.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">02</span><span>You have sixty seconds total to complete the hold.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">03</span><span>Must hold for ten continuous seconds at 90%+ accuracy. Any drop resets the timer.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">04</span><span>No assistance in test mode. Reference images and voice guide are disabled.</span></li>
-                            <li class="flex items-start gap-3"><span class="kicker text-[11px] text-terracotta-600 shrink-0 w-8">05</span><span>Three attempts per pose. Use them wisely.</span></li>
+                    <!-- Protocols (collapsed on mobile) -->
+                    <details class="rounded-[18px] md:rounded-[22px] bg-paper p-5 md:p-6 group">
+                        <summary class="flex items-center justify-between cursor-pointer list-none">
+                            <div>
+                                <p class="kicker text-[10px] text-terracotta-600">Test protocols</p>
+                                <h3 class="font-display text-[18px] md:text-[22px] text-ink-900 mt-0.5">Quiet, strict, fair</h3>
+                            </div>
+                            <span class="kicker text-[11px] text-ink-500 group-open:rotate-180 transition-transform">▾</span>
+                        </summary>
+                        <ul class="mt-4 space-y-2.5 text-[13px] text-ink-700 leading-[1.55]">
+                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">01</span><span>Test starts only after a 90% match is detected.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">02</span><span>Sixty seconds total to complete the hold.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">03</span><span>Ten continuous seconds at 90%+ accuracy. Drops reset.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">04</span><span>No reference or voice guide in test mode.</span></li>
+                            <li class="flex items-start gap-3"><span class="kicker text-[10px] text-terracotta-600 shrink-0 w-6">05</span><span>Three attempts per pose.</span></li>
                         </ul>
-                    </div>
+                    </details>
                 </div>`;
             },
 

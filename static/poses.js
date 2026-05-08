@@ -168,72 +168,106 @@
     // Renders an SVG silhouette from a pose's reference keypoints.
     // Coordinates are in a 0..1 normalised space (origin top-left).
     // ─────────────────────────────────────────────────────────────
-    // 17 MoveNet keypoints in order. Bones connect adjacent joints.
-    const BONES = [
-        ['left_shoulder', 'right_shoulder'],
-        ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_wrist'],
-        ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_wrist'],
-        ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
-        ['left_hip', 'right_hip'],
-        ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'],
-        ['right_hip', 'right_knee'], ['right_knee', 'right_ankle'],
-    ];
+    // 17 MoveNet keypoints in order.
+    const BONES = [];
 
+    // Filled human silhouette: torso as a polygon, limbs as tapered lines,
+    // head + hands + feet as caps. Looks like a person, not a wire frame.
     function poseSvg(pose, opts) {
         opts = opts || {};
         const w = opts.width || 400;
         const h = opts.height || 500;
         const bg = opts.bg || '#F3EEE5';
         const body = opts.body || '#1E2E1F';
-        const joint = opts.joint || '#D4A04A';
+        const accent = opts.accent || '#D4A04A';
         const kp = pose.referenceKeypoints || {};
-        const toX = v => (v * w * 0.7 + w * 0.15).toFixed(1);
-        const toY = v => (v * h * 0.78 + h * 0.11).toFixed(1);
 
-        // Head circle derived from nose keypoint if available.
-        const nose = kp.nose;
-        let headSvg = '';
-        if (nose) {
-            const cx = toX(nose.x), cy = toY(nose.y);
-            headSvg = `<circle cx="${cx}" cy="${cy}" r="22" fill="${body}"/>`;
+        const padX = w * 0.12, padY = h * 0.08;
+        const innerW = w - padX * 2, innerH = h - padY * 2;
+        const toX = v => padX + v * innerW;
+        const toY = v => padY + v * innerH;
+
+        const unit = Math.min(innerW, innerH);
+        const W_TORSO_CAP = unit * 0.09;
+        const W_UPPER_ARM = unit * 0.062;
+        const W_LOWER_ARM = unit * 0.048;
+        const W_UPPER_LEG = unit * 0.085;
+        const W_LOWER_LEG = unit * 0.062;
+        const HEAD_R = unit * 0.07;
+        const NECK_W = unit * 0.07;
+
+        // Tapered limb: thick at start, thinner at end, drawn as two overlapping rounded lines.
+        function limb(a, b, wStart, wEnd) {
+            if (!a || !b) return '';
+            const ax = toX(a.x), ay = toY(a.y);
+            const bx = toX(b.x), by = toY(b.y);
+            const mx = (ax + bx) / 2, my = (ay + by) / 2;
+            const wMid = (wStart + wEnd) / 2;
+            return `<line x1="${ax}" y1="${ay}" x2="${mx}" y2="${my}" stroke="${body}" stroke-width="${wStart}" stroke-linecap="round"/>`
+                 + `<line x1="${mx}" y1="${my}" x2="${bx}" y2="${by}" stroke="${body}" stroke-width="${wEnd}" stroke-linecap="round"/>`;
         }
 
-        // Bones
-        let boneSvg = '';
-        for (const [a, b] of BONES) {
-            if (kp[a] && kp[b]) {
-                boneSvg += `<line x1="${toX(kp[a].x)}" y1="${toY(kp[a].y)}" x2="${toX(kp[b].x)}" y2="${toY(kp[b].y)}" stroke="${body}" stroke-width="14" stroke-linecap="round"/>`;
-            }
-        }
-        // Neck bone (nose → mid-shoulder)
-        if (nose && kp.left_shoulder && kp.right_shoulder) {
-            const mx = (kp.left_shoulder.x + kp.right_shoulder.x) / 2;
-            const my = (kp.left_shoulder.y + kp.right_shoulder.y) / 2;
-            boneSvg += `<line x1="${toX(nose.x)}" y1="${toY(nose.y)}" x2="${toX(mx)}" y2="${toY(my)}" stroke="${body}" stroke-width="14" stroke-linecap="round"/>`;
+        // Torso: a filled polygon with rounded caps
+        let torso = '';
+        if (kp.left_shoulder && kp.right_shoulder && kp.left_hip && kp.right_hip) {
+            const ls = kp.left_shoulder, rs = kp.right_shoulder;
+            const lh = kp.left_hip, rh = kp.right_hip;
+            torso = `<polygon points="${toX(ls.x)},${toY(ls.y)} ${toX(rs.x)},${toY(rs.y)} ${toX(rh.x)},${toY(rh.y)} ${toX(lh.x)},${toY(lh.y)}" fill="${body}"/>`
+                  + `<circle cx="${toX(ls.x)}" cy="${toY(ls.y)}" r="${W_TORSO_CAP}" fill="${body}"/>`
+                  + `<circle cx="${toX(rs.x)}" cy="${toY(rs.y)}" r="${W_TORSO_CAP}" fill="${body}"/>`
+                  + `<circle cx="${toX(lh.x)}" cy="${toY(lh.y)}" r="${W_TORSO_CAP * 0.85}" fill="${body}"/>`
+                  + `<circle cx="${toX(rh.x)}" cy="${toY(rh.y)}" r="${W_TORSO_CAP * 0.85}" fill="${body}"/>`;
         }
 
-        // Joints
-        let jointSvg = '';
-        for (const name of Object.keys(kp)) {
-            if (name === 'nose') continue;
-            jointSvg += `<circle cx="${toX(kp[name].x)}" cy="${toY(kp[name].y)}" r="5.5" fill="${joint}"/>`;
+        // Limbs
+        let limbs = '';
+        limbs += limb(kp.left_shoulder, kp.left_elbow, W_UPPER_ARM, W_UPPER_ARM * 0.85);
+        limbs += limb(kp.left_elbow, kp.left_wrist, W_LOWER_ARM, W_LOWER_ARM * 0.72);
+        limbs += limb(kp.right_shoulder, kp.right_elbow, W_UPPER_ARM, W_UPPER_ARM * 0.85);
+        limbs += limb(kp.right_elbow, kp.right_wrist, W_LOWER_ARM, W_LOWER_ARM * 0.72);
+        limbs += limb(kp.left_hip, kp.left_knee, W_UPPER_LEG, W_UPPER_LEG * 0.85);
+        limbs += limb(kp.left_knee, kp.left_ankle, W_LOWER_LEG, W_LOWER_LEG * 0.7);
+        limbs += limb(kp.right_hip, kp.right_knee, W_UPPER_LEG, W_UPPER_LEG * 0.85);
+        limbs += limb(kp.right_knee, kp.right_ankle, W_LOWER_LEG, W_LOWER_LEG * 0.7);
+
+        // Neck + head
+        let head = '';
+        if (kp.nose && kp.left_shoulder && kp.right_shoulder) {
+            const midSx = (kp.left_shoulder.x + kp.right_shoulder.x) / 2;
+            const midSy = (kp.left_shoulder.y + kp.right_shoulder.y) / 2;
+            head  = `<line x1="${toX(midSx)}" y1="${toY(midSy)}" x2="${toX(kp.nose.x)}" y2="${toY(kp.nose.y)}" stroke="${body}" stroke-width="${NECK_W}" stroke-linecap="round"/>`;
+            head += `<circle cx="${toX(kp.nose.x)}" cy="${toY(kp.nose.y)}" r="${HEAD_R}" fill="${body}"/>`;
+            head += `<circle cx="${toX(kp.nose.x) - HEAD_R * 0.3}" cy="${toY(kp.nose.y) - HEAD_R * 0.35}" r="${HEAD_R * 0.22}" fill="${accent}" opacity="0.4"/>`;
         }
 
-        // View indicator
-        const viewBadge = pose.view ? `
-            <g opacity="0.85">
-                <rect x="20" y="${h - 50}" rx="14" ry="14" width="88" height="28" fill="${body}"/>
-                <text x="64" y="${h - 31}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="#D4A04A" letter-spacing="1.8">${pose.view.toUpperCase()} VIEW</text>
-            </g>` : '';
+        // Hands & feet caps
+        const hands = ['left_wrist', 'right_wrist']
+            .filter(n => kp[n])
+            .map(n => `<circle cx="${toX(kp[n].x)}" cy="${toY(kp[n].y)}" r="${W_LOWER_ARM * 0.55}" fill="${body}"/>`)
+            .join('');
+        const feet = ['left_ankle', 'right_ankle']
+            .filter(n => kp[n])
+            .map(n => `<ellipse cx="${toX(kp[n].x)}" cy="${toY(kp[n].y) + 2}" rx="${W_LOWER_LEG * 0.95}" ry="${W_LOWER_LEG * 0.42}" fill="${body}"/>`)
+            .join('');
 
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%" role="img" aria-label="${pose.name} reference pose">
+        // Ambient glow + soft ground shadow
+        const glowA = `<circle cx="${w*0.82}" cy="${h*0.2}" r="${unit*0.22}" fill="${accent}" opacity="0.16"/>`;
+        const glowB = `<circle cx="${w*0.15}" cy="${h*0.85}" r="${unit*0.27}" fill="#B8573E" opacity="0.10"/>`;
+
+        const ankleYs = ['left_ankle', 'right_ankle'].filter(n => kp[n]).map(n => toY(kp[n].y));
+        let shadow = '';
+        if (ankleYs.length) {
+            const sy = Math.max(...ankleYs) + 6;
+            shadow = `<ellipse cx="${w/2}" cy="${sy}" rx="${unit*0.22}" ry="${unit*0.035}" fill="${body}" opacity="0.12"/>`;
+        }
+
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%" role="img" aria-label="${pose.name} silhouette">
             <rect width="${w}" height="${h}" fill="${bg}"/>
-            <circle cx="${w*0.82}" cy="${h*0.18}" r="46" fill="#D4A04A" opacity="0.22"/>
-            <circle cx="${w*0.14}" cy="${h*0.86}" r="60" fill="#B8573E" opacity="0.14"/>
-            ${boneSvg}
-            ${headSvg}
-            ${jointSvg}
-            ${viewBadge}
+            ${glowA}${glowB}${shadow}
+            ${limbs}
+            ${torso}
+            ${hands}${feet}
+            ${head}
         </svg>`;
     }
 
