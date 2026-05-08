@@ -2,447 +2,340 @@
 <html lang="en">
 
 <head>
-    <title>SUNDAY - Yoga Wellness Platform</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile — Sunday</title>
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#FAF7F2">
     <link rel="apple-touch-icon" href="/assets/logo.png">
     <link rel="icon" type="image/png" href="/assets/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'primary': '#42A5F5',
-                        'secondary': '#1976D2',
-                        'accent': '#FFEB3B',
-                        'background': '#0c0e12',
-                        'card': '#1a1d23',
-                        'warning': '#FFC107',
-                        'success': '#10B981',
+                        cream: '#FAF7F2', paper: '#F3EEE5', sand: '#E8DFCF', stone: '#D9CFBB',
+                        ink: { 900: '#1A1814', 700: '#3D3A33', 500: '#6B6657', 300: '#A8A294', 100: '#E3DED3' },
+                        forest: { 900: '#1E2E1F', 700: '#2F4A31', 500: '#4A6B4D', 300: '#8BA88D', 100: '#D4E0D5' },
+                        terracotta: { 600: '#B8573E', 400: '#D4866F', 100: '#F2D9CE' },
+                        saffron: { 500: '#D4A04A', 300: '#E6C489' },
                     },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        display: ['Outfit', 'sans-serif'],
-                    }
+                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'], display: ['Fraunces', 'ui-serif', 'Georgia'] }
                 }
             }
         }
     </script>
     <style>
-        body {
-            background-color: #0c0e12;
-            color: #E0E0E0;
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            overflow-x: hidden;
-            background-image:
-                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.08) 0, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(255, 235, 59, 0.04) 0, transparent 50%);
-        }
-
-        .premium-glass {
-            background: rgba(30, 32, 38, 0.4);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.03);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-        }
-
-        .stat-card {
-            transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-8px);
-            background: rgba(66, 165, 245, 0.05);
-            border-color: rgba(66, 165, 245, 0.2);
-            box-shadow: 0 15px 40px rgba(66, 165, 245, 0.15);
-        }
-
-        /* Contribution Graph */
-        .contribution-graph-grid {
-            display: grid;
-            grid-template-columns: 30px repeat(53, 12px);
-            grid-template-rows: repeat(7, 12px);
-            gap: 4px;
-            padding: 10px;
-            overflow-x: auto;
-            scrollbar-width: none;
-        }
-
-        .contribution-graph-grid::-webkit-scrollbar {
-            display: none;
-        }
-
-        .graph-day {
-            width: 12px;
-            height: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 3px;
-            transition: all 0.3s ease;
-        }
-
-        .graph-day.active {
-            background: linear-gradient(135deg, #42A5F5, #1976D2) !important;
-            box-shadow: 0 0 10px rgba(66, 165, 245, 0.4);
-        }
-
-        .graph-day:hover {
-            transform: scale(1.4);
-            z-index: 10;
-        }
-
-        .font-display {
-            font-family: 'Outfit', sans-serif;
-        }
-
-        #cursor-glow {
-            position: fixed;
-            pointer-events: none;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            z-index: -1;
-        }
-
-        @keyframes slideInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .animate-slideUp {
-            animation: slideInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-        }
+        html,body{background:#FAF7F2;color:#1A1814;font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
+        .display{font-family:'Fraunces',serif;font-optical-sizing:auto;letter-spacing:-0.025em}
+        .kicker{letter-spacing:0.22em;text-transform:uppercase;font-weight:500}
+        .fadeup{opacity:0;transform:translateY(12px);animation:fu 0.7s cubic-bezier(0.22,0.8,0.3,1) forwards}
+        .fadeup-2{animation-delay:0.08s}.fadeup-3{animation-delay:0.16s}.fadeup-4{animation-delay:0.24s}
+        @keyframes fu{to{opacity:1;transform:translateY(0)}}
+        .heatcell{width:11px;height:11px;border-radius:3px;background:#E8DFCF;transition:transform 0.15s ease}
+        .heatcell:hover{transform:scale(1.8)}
+        .heat-1{background:rgba(74,107,77,0.4)}.heat-2{background:rgba(74,107,77,0.6)}
+        .heat-3{background:rgba(74,107,77,0.8)}.heat-4{background:#4A6B4D}
     </style>
 </head>
 
-<body class="p-4 md:p-10">
-    <div id="cursor-glow"></div>
+<body class="min-h-screen">
 
-    <div class="max-w-6xl mx-auto space-y-10 animate-slideUp">
-        <!-- Header Section -->
-        <header class="flex flex-col md:flex-row justify-between items-center premium-glass p-8 rounded-[3rem] gap-8">
-            <div
-                class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-8 text-center sm:text-left">
-                <div class="relative group">
-                    <div
-                        class="absolute inset-0 bg-primary/20 rounded-3xl blur-xl group-hover:bg-primary/30 transition-all duration-500">
-                    </div>
-                    <div
-                        class="w-20 h-20 bg-gradient-to-br from-primary to-secondary rounded-3xl flex items-center justify-center overflow-hidden p-3 shadow-2xl relative z-10 border border-white/10 rotate-3">
-                        <img src="/assets/logo.png" alt="SUNDAY Logo" class="w-full h-full object-contain">
+    <!-- Top nav -->
+    <header class="bg-cream sticky top-0 z-20 border-b border-stone">
+        <div class="max-w-[1400px] mx-auto px-5 md:px-12 h-[72px] md:h-[88px] flex items-center justify-between">
+            <a href="/home" class="flex items-center gap-3">
+                <div class="w-7 h-7 rounded-full bg-forest-900 flex items-center justify-center overflow-hidden">
+                    <img src="/assets/logo.png" alt="" class="w-4 h-4 object-contain"/>
+                </div>
+                <span class="display text-[22px] text-ink-900 font-medium">Sunday</span>
+            </a>
+            <nav class="hidden md:flex items-center gap-10 text-[14px]">
+                <a href="/home" class="text-ink-500 hover:text-ink-900 font-medium">Home</a>
+                <a href="/home#asana" class="text-ink-500 hover:text-ink-900 font-medium">Library</a>
+                <a href="/home#ar_correction" class="text-ink-500 hover:text-ink-900 font-medium">Practice</a>
+                <span class="flex flex-col items-center gap-1.5"><span class="text-ink-900 font-medium">Profile</span><span class="w-6 h-0.5 bg-terracotta-600 rounded-full"></span></span>
+            </nav>
+            <a href="/logout" class="hidden md:inline-flex items-center gap-2 text-[13px] text-ink-500 hover:text-terracotta-600 kicker">
+                Sign out
+            </a>
+            <a href="/logout" class="md:hidden text-ink-500 text-[13px]">Sign out</a>
+        </div>
+    </header>
+
+    <main class="max-w-[1400px] mx-auto px-5 md:px-12 py-8 md:py-14 space-y-8">
+
+        <!-- Header row: identity + level -->
+        <section class="grid md:grid-cols-[1fr_auto] gap-6 items-end fadeup">
+            <div class="flex items-end gap-5 md:gap-8">
+                <div class="w-[84px] h-[84px] md:w-[120px] md:h-[120px] rounded-full bg-forest-900 flex items-center justify-center shrink-0">
+                    <span id="profile-initial" class="display text-4xl md:text-5xl text-saffron-500">A</span>
+                </div>
+                <div class="min-w-0">
+                    <p class="kicker text-[11px] text-terracotta-600 mb-1 md:mb-2">Practitioner</p>
+                    <h1 id="profile-name" class="display font-light text-[40px] md:text-[72px] leading-[1] text-ink-900 truncate">Practitioner</h1>
+                    <p id="profile-email" class="text-ink-500 text-[14px] md:text-[15px] mt-2 truncate">—</p>
+                </div>
+            </div>
+            <div class="rounded-[20px] bg-forest-900 p-6 md:w-[340px]">
+                <p class="kicker text-[11px] text-saffron-500 mb-2">Current level</p>
+                <p id="profile-rank" class="display text-[40px] md:text-[46px] text-cream font-light leading-none">Novice</p>
+                <p id="profile-rank-next" class="text-[12px] text-forest-300 mt-2">Keep practicing to advance</p>
+            </div>
+        </section>
+
+        <!-- KPIs -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 fadeup fadeup-2">
+            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
+                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Total sessions</p>
+                <p id="kpi-sessions" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
+            </div>
+            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
+                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Active days</p>
+                <p id="kpi-days" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
+            </div>
+            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
+                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Best streak</p>
+                <p id="kpi-streak" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
+            </div>
+            <div class="rounded-[18px] md:rounded-[20px] bg-paper p-5 md:p-6">
+                <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Poses learned</p>
+                <p id="kpi-poses" class="display text-[48px] md:text-[64px] text-ink-900 font-light leading-none mt-4">0</p>
+            </div>
+        </section>
+
+        <!-- Charts grid -->
+        <section class="grid md:grid-cols-[1.6fr_1fr] gap-5 fadeup fadeup-3">
+            <!-- Bar chart -->
+            <div class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-8">
+                <div class="flex items-start justify-between mb-5">
+                    <div>
+                        <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Minutes of practice</p>
+                        <h3 class="display text-[22px] md:text-[28px] text-ink-900 mt-1">Weekly rhythm</h3>
                     </div>
                 </div>
+                <div class="relative h-[260px] md:h-[300px]">
+                    <canvas id="bar-chart"></canvas>
+                </div>
+            </div>
+            <!-- Pose distribution -->
+            <div class="rounded-[20px] md:rounded-[24px] bg-forest-900 p-5 md:p-8 text-cream">
+                <p class="kicker text-[10px] md:text-[11px] text-saffron-500">Pose distribution</p>
+                <h3 class="display text-[22px] md:text-[28px] mt-1">What you return to</h3>
+                <div id="pose-distribution" class="mt-6 space-y-5">
+                    <p class="text-forest-300 text-[13px]">Complete your first pose to see this.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Heatmap -->
+        <section class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-8 fadeup fadeup-4">
+            <div class="flex items-start justify-between mb-5">
                 <div>
-                    <h1 id="user-name-title" class="text-4xl font-black text-white tracking-tighter font-display">
-                        Loading Profile...</h1>
-                    <p id="user-email-subtitle" class="text-gray-500 font-medium tracking-wide">Connecting to SUNDAY
-                        secure cloud</p>
+                    <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Rhythm</p>
+                    <h3 class="display text-[22px] md:text-[28px] text-ink-900 mt-1">Your year of practice</h3>
                 </div>
-            </div>
-            <div class="flex gap-4 w-full md:w-auto">
-                <a href="/home"
-                    class="flex-1 md:flex-none text-center px-8 py-3.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all font-bold text-sm tracking-widest uppercase border border-white/5">Dashboard</a>
-                <a href="/logout"
-                    class="flex-1 md:flex-none text-center px-8 py-3.5 bg-red-600/20 hover:bg-red-600/30 text-red-500 rounded-2xl transition-all font-bold text-sm tracking-widest uppercase border border-red-500/20">Logout</a>
-            </div>
-        </header>
-
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div class="p-8 rounded-[2rem] premium-glass stat-card border-b-4 border-primary/30">
-                <p class="text-gray-500 text-xs font-black uppercase tracking-[0.2em] mb-2">Consistency</p>
-                <div class="flex items-baseline space-x-2">
-                    <h2 id="stat-streak" class="text-4xl font-black text-white font-display">--</h2>
-                    <span class="text-xs text-primary font-bold">DAYS</span>
-                </div>
-                <div class="mt-4 w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                    <div class="bg-primary h-full w-[60%]"></div>
-                </div>
-            </div>
-            <div class="p-8 rounded-[2rem] premium-glass stat-card border-b-4 border-success/30">
-                <p class="text-gray-500 text-xs font-black uppercase tracking-[0.2em] mb-2">Expertise</p>
-                <div class="flex items-baseline space-x-2">
-                    <h2 id="stat-poses" class="text-4xl font-black text-white font-display">--</h2>
-                    <span class="text-xs text-success font-bold">POSES</span>
-                </div>
-                <div class="mt-4 w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                    <div class="bg-success h-full w-[40%]"></div>
-                </div>
-            </div>
-            <div class="p-8 rounded-[2rem] premium-glass stat-card border-b-4 border-warning/30">
-                <p class="text-gray-500 text-xs font-black uppercase tracking-[0.2em] mb-2">Experience</p>
-                <div class="flex items-baseline space-x-2">
-                    <h2 id="stat-days" class="text-4xl font-black text-white font-display">--</h2>
-                    <span class="text-xs text-warning font-bold">DATE</span>
-                </div>
-                <div class="mt-4 w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                    <div class="bg-warning h-full w-[80%]"></div>
-                </div>
-            </div>
-            <div class="p-8 rounded-[2rem] premium-glass stat-card border-b-4 border-accent/30">
-                <p class="text-gray-500 text-xs font-black uppercase tracking-[0.2em] mb-2">Classification</p>
-                <h2 id="stat-rank" class="text-3xl font-black text-accent font-display truncate">Novice</h2>
-                <p class="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Global Practitioner</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            <!-- Analytics Column -->
-            <div class="lg:col-span-2 space-y-10">
-                <section class="p-8 rounded-[2.5rem] premium-glass relative overflow-hidden">
-                    <div class="absolute top-0 right-0 p-8">
-                        <svg class="w-20 h-20 text-white/5" fill="currentColor" viewBox="0 0 24 24">
-                            <path
-                                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
-                        </svg>
+                <div class="flex items-center gap-2 text-ink-500 text-[11px] kicker">
+                    <span>Less</span>
+                    <div class="flex gap-1">
+                        <span class="heatcell"></span>
+                        <span class="heatcell heat-1"></span>
+                        <span class="heatcell heat-2"></span>
+                        <span class="heatcell heat-3"></span>
+                        <span class="heatcell heat-4"></span>
                     </div>
-                    <div class="relative z-10">
-                        <h3 class="text-2xl font-black text-white mb-8 font-display">Activity Architecture</h3>
-                        <div id="graph-container" class="bg-black/20 rounded-3xl p-4 border border-white/5">
-                            <div id="contributionGraph" class="contribution-graph-grid"></div>
-                        </div>
-                        <div class="flex justify-between items-center mt-6">
-                            <p class="text-xs text-gray-500 font-medium italic">Reflecting 365 days of wellness geometry
-                            </p>
-                            <div class="flex items-center space-x-3">
-                                <span class="text-[10px] text-gray-600 font-black uppercase">Intensity</span>
-                                <div class="flex space-x-1">
-                                    <div class="w-2.5 h-2.5 bg-white/5 rounded-sm"></div>
-                                    <div class="w-2.5 h-2.5 bg-primary/40 rounded-sm"></div>
-                                    <div class="w-2.5 h-2.5 bg-primary rounded-sm"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="p-8 rounded-[2.5rem] premium-glass">
-                    <h3 class="text-2xl font-black text-white mb-10 font-display">Performance Distribution</h3>
-                    <div class="h-80 relative">
-                        <canvas id="asanaChart"></canvas>
-                    </div>
-                </section>
+                    <span>More</span>
+                </div>
             </div>
-
-            <!-- Details Column -->
-            <div class="space-y-10">
-                <section class="p-8 rounded-[2.5rem] premium-glass">
-                    <h3 class="text-2xl font-black text-white mb-8 font-display">Milestones</h3>
-                    <div id="achievements-list" class="space-y-5">
-                        <div
-                            class="p-5 bg-white/5 rounded-2xl flex items-center space-x-5 border border-white/5 hover:border-primary/20 transition-all group">
-                            <div
-                                class="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-                                🌱</div>
-                            <div>
-                                <h4 class="font-black text-white text-sm">Primal Spark</h4>
-                                <p class="text-xs text-gray-500 font-medium mt-0.5">Account verified & active</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="p-8 rounded-[2.5rem] premium-glass relative overflow-hidden">
-                    <h3 class="text-2xl font-black text-white mb-8 font-display">Identity</h3>
-                    <div class="space-y-5">
-                        <div class="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
-                            <span
-                                class="text-[10px] font-black uppercase tracking-widest text-gray-500">Initiated</span>
-                            <span id="detail-joined" class="text-sm font-bold text-gray-300">--</span>
-                        </div>
-                        <div class="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
-                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Geometry</span>
-                            <span id="detail-poses" class="text-sm font-bold text-gray-300">0 Unique</span>
-                        </div>
-                        <div
-                            class="p-6 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl border border-primary/10">
-                            <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-2">Priority
-                                Vector</p>
-                            <p class="text-sm font-bold text-gray-100">Maintain 10-day streak to unlock Master Tier
-                                protocols.</p>
-                        </div>
-                    </div>
-                </section>
+            <div class="overflow-x-auto -mx-2 px-2">
+                <div id="heatmap" class="flex gap-[3px] min-w-max"></div>
             </div>
-        </div>
-    </div>
+        </section>
+
+        <!-- Achievements -->
+        <section class="rounded-[20px] md:rounded-[24px] bg-paper p-5 md:p-8 fadeup fadeup-4">
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <p class="kicker text-[10px] md:text-[11px] text-terracotta-600">Achievements</p>
+                    <h3 class="display text-[22px] md:text-[28px] text-ink-900 mt-1">Small victories</h3>
+                </div>
+                <p id="achievements-meta" class="text-[13px] text-ink-500 kicker">0 of 8 earned</p>
+            </div>
+            <div id="achievements" class="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4"></div>
+        </section>
+
+        <footer class="pt-8 pb-12 text-center text-[11px] text-ink-300 kicker">
+            <span>© Sunday · made with care for everyday practitioners</span>
+        </footer>
+    </main>
 
     <script>
-        let profileData = null;
-        let asanaChart = null;
+        (async function(){
+            const $ = (id) => document.getElementById(id);
 
-        // Mouse glow effect
-        const glow = document.getElementById('cursor-glow');
-        window.addEventListener('mousemove', e => {
-            glow.style.left = e.clientX + 'px';
-            glow.style.top = e.clientY + 'px';
-        });
-
-        window.onload = async function () {
-            // Register Service Worker for PWA
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('SW Registered', reg))
-                    .catch(err => console.log('SW Register Error', err));
-            }
+            let data = null;
             try {
-                const res = await fetch('/api/profile');
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-
-                profileData = data;
-                renderUI();
-            } catch (err) {
-                console.error('Failed to load profile:', err);
-                document.getElementById('user-name-title').textContent = "Connection Error";
+                const res = await fetch('/api/profile', { credentials: 'same-origin' });
+                if (!res.ok) throw new Error();
+                data = await res.json();
+            } catch(e) {
+                data = { name: 'Practitioner', email: '', activity_log: [], completed_asanas: {}, total_active_days: 0, created_at: null };
             }
-        };
 
-        function renderUI() {
-            // Basic UI Info
-            document.getElementById('user-name-title').textContent = profileData.name;
-            document.getElementById('user-email-subtitle').textContent = profileData.email;
+            // Identity
+            const initial = (data.name || 'A').trim().charAt(0).toUpperCase();
+            $('profile-initial').textContent = initial;
+            $('profile-name').textContent = data.name || 'Practitioner';
+            const joined = data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+            $('profile-email').textContent = (data.email || '') + (joined ? '  ·  since ' + joined : '');
 
-            // Stats
-            const joinDate = new Date(profileData.created_at);
-            const today = new Date();
-            const diffTime = Math.abs(today - joinDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            // KPIs
+            const completedAsanas = data.completed_asanas || {};
+            const totalSessions = Object.values(completedAsanas).reduce((a,b)=>a+(Number(b)||0), 0);
+            const activeDays = data.total_active_days || (data.activity_log || []).length;
+            const posesLearned = Object.keys(completedAsanas).length;
 
-            document.getElementById('stat-streak').textContent = profileData.total_active_days + " d";
-            document.getElementById('stat-days').textContent = diffDays + " d";
-            document.getElementById('detail-joined').textContent = joinDate.toLocaleDateString();
+            // Best streak from activity_log
+            const days = [...(data.activity_log || [])].sort();
+            let bestStreak = 0, cur = 0, prevDay = null;
+            for (const d of days) {
+                const t = new Date(d);
+                if (prevDay && ((t - prevDay) / (1000*60*60*24)) === 1) cur++;
+                else cur = 1;
+                if (cur > bestStreak) bestStreak = cur;
+                prevDay = t;
+            }
 
-            const totalPosesCount = Object.values(profileData.completed_asanas || {}).reduce((a, b) => a + b, 0);
-            const uniquePosesCount = Object.keys(profileData.completed_asanas || {}).length;
+            $('kpi-sessions').textContent = totalSessions;
+            $('kpi-days').textContent = activeDays;
+            $('kpi-streak').textContent = bestStreak;
+            $('kpi-poses').textContent = posesLearned;
 
-            document.getElementById('stat-poses').textContent = totalPosesCount;
-            document.getElementById('detail-poses').textContent = uniquePosesCount;
+            // Rank
+            let rank = 'Novice', nextText = 'Practice daily to advance';
+            if (activeDays >= 120) { rank = 'Master'; nextText = 'A lifetime of practice ahead'; }
+            else if (activeDays >= 60) { rank = 'Expert II'; nextText = (120 - activeDays) + ' days to Master'; }
+            else if (activeDays >= 30) { rank = 'Expert I'; nextText = (60 - activeDays) + ' days to Expert II'; }
+            else if (activeDays >= 14) { rank = 'Regular II'; nextText = (30 - activeDays) + ' days to Expert I'; }
+            else if (activeDays >= 7) { rank = 'Regular I'; nextText = (14 - activeDays) + ' days to Regular II'; }
+            else if (activeDays >= 1) { rank = 'Novice II'; nextText = (7 - activeDays) + ' days to Regular I'; }
+            $('profile-rank').textContent = rank;
+            $('profile-rank-next').textContent = nextText;
 
-            // Rank logic
-            let rank = "Novice";
-            if (totalPosesCount > 50) rank = "Master";
-            else if (totalPosesCount > 20) rank = "Expert";
-            else if (totalPosesCount > 5) rank = "Regular";
-            document.getElementById('stat-rank').textContent = rank;
+            // --- Bar chart (last 8 weeks, minutes approximated by sessions × 3) ---
+            const today = new Date(); today.setHours(0,0,0,0);
+            const weekBuckets = new Array(8).fill(0);
+            const daySet = new Set(days);
+            for (let i = 0; i < 8*7; i++) {
+                const d = new Date(today); d.setDate(d.getDate() - i);
+                const ds = d.toISOString().slice(0,10);
+                if (daySet.has(ds)) {
+                    const weekIndex = 7 - Math.floor(i / 7);
+                    if (weekIndex >= 0 && weekIndex < 8) weekBuckets[weekIndex] += 3;
+                }
+            }
+            const labels = [];
+            for (let i = 7; i >= 0; i--) labels.push('W' + (8 - i));
 
-            // Charts
-            renderAsanaChart();
-            renderHeatmap();
-            renderAchievements();
-        }
-
-        function renderAsanaChart() {
-            const ctx = document.getElementById('asanaChart').getContext('2d');
-            const labels = Object.keys(profileData.completed_asanas || []);
-            const counts = Object.values(profileData.completed_asanas || []);
-
-            if (asanaChart) asanaChart.destroy();
-
-            asanaChart = new Chart(ctx, {
+            const ctx = $('bar-chart').getContext('2d');
+            new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels.length ? labels : ['No Poses Yet'],
+                    labels,
                     datasets: [{
-                        label: 'Completions',
-                        data: counts.length ? counts : [0],
-                        backgroundColor: '#42A5F5',
-                        borderRadius: 12,
-                        barThickness: 30,
+                        data: weekBuckets,
+                        backgroundColor: weekBuckets.map((_, i) => i === 7 ? '#B8573E' : '#4A6B4D'),
+                        borderRadius: 6,
+                        barThickness: 28,
                     }]
                 },
                 options: {
-                    responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1A1814', titleColor: '#FAF7F2', bodyColor: '#D4E0D5', cornerRadius: 8 } },
                     scales: {
-                        y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#888' } },
-                        x: { grid: { display: false }, ticks: { color: '#aaa', font: { weight: 'bold' } } }
+                        x: { grid: { display: false }, ticks: { color: '#6B6657', font: { family: 'Inter', size: 11 } } },
+                        y: { grid: { color: 'rgba(26,24,20,0.06)' }, border: { display: false }, ticks: { color: '#A8A294', font: { family: 'Inter', size: 11 }, stepSize: 10 }, beginAtZero: true }
                     }
                 }
             });
-        }
 
-        function renderHeatmap() {
-            const graph = document.getElementById('contributionGraph');
-            graph.innerHTML = '';
-
-            // 7x53 Grid: Days(rows) x Weeks(cols)
-            const today = new Date();
-            const startDate = new Date();
-            startDate.setDate(today.getDate() - 364);
-            while (startDate.getDay() !== 1) { startDate.setDate(startDate.getDate() - 1); }
-
-            const activitySet = new Set(profileData.activity_log || []);
-
-            // 1. Render Day Labels (M/W/F)
-            const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
-            for (let r = 0; r < 7; r++) {
-                const label = document.createElement('div');
-                label.className = 'text-[9px] text-gray-600 flex items-center h-[12px]';
-                label.textContent = dayLabels[r];
-                label.style.gridRow = r + 1;
-                label.style.gridColumn = 1;
-                graph.appendChild(label);
-            }
-
-            // 2. Render 53 Weeks
-            let currentDate = new Date(startDate);
-            for (let week = 0; week < 53; week++) {
-                for (let day = 0; day < 7; day++) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
-                    const cell = document.createElement('div');
-                    cell.className = 'graph-day';
-                    cell.style.gridRow = day + 1;
-                    cell.style.gridColumn = week + 2;
-
-                    if (activitySet.has(dateStr)) {
-                        cell.classList.add('active');
-                    } else if (currentDate > today) {
-                        cell.style.opacity = '0.1';
-                    }
-
-                    cell.title = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    graph.appendChild(cell);
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-            }
-        }
-
-        function renderAchievements() {
-            const list = document.getElementById('achievements-list');
-            const poses = Object.keys(profileData.completed_asanas || {}).length;
-
-            if (poses >= 1) {
-                list.innerHTML += `
-                    <div class="p-4 bg-primary/10 rounded-xl flex items-center space-x-4 border border-primary/30">
-                        <span class="text-2xl">🔥</span>
-                        <div>
-                            <h4 class="font-bold text-sm">First Step</h4>
-                            <p class="text-xs text-gray-400">Mastered your first pose</p>
+            // --- Pose distribution ---
+            const distWrap = $('pose-distribution');
+            if (totalSessions > 0) {
+                const entries = Object.entries(completedAsanas).sort((a,b)=>b[1]-a[1]).slice(0, 5);
+                distWrap.innerHTML = entries.map(([name, count]) => {
+                    const pct = Math.round((count / totalSessions) * 100);
+                    return `
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="display text-[16px] text-cream">${name}</span>
+                            <span class="kicker text-[11px] text-forest-300">${pct}%</span>
                         </div>
-                    </div>
-                `;
+                        <div class="h-[6px] rounded-full bg-forest-700 overflow-hidden">
+                            <div class="h-full bg-saffron-500 rounded-full" style="width:${pct}%"></div>
+                        </div>
+                    </div>`;
+                }).join('');
             }
-            // Add more achievement logic as needed
-        }
+
+            // --- Heatmap (last 365 days as grid of 53 weeks × 7) ---
+            const heat = $('heatmap');
+            const start = new Date(today); start.setDate(start.getDate() - 364);
+            // align to sunday
+            const startDay = start.getDay();
+            start.setDate(start.getDate() - startDay);
+            const weeks = 53;
+            for (let w = 0; w < weeks; w++) {
+                const col = document.createElement('div');
+                col.className = 'flex flex-col gap-[3px]';
+                for (let d = 0; d < 7; d++) {
+                    const day = new Date(start);
+                    day.setDate(day.getDate() + w*7 + d);
+                    const ds = day.toISOString().slice(0,10);
+                    const active = daySet.has(ds);
+                    const cell = document.createElement('span');
+                    cell.className = 'heatcell' + (active ? ' heat-4' : '');
+                    cell.title = ds + (active ? ' · practiced' : '');
+                    col.appendChild(cell);
+                }
+                heat.appendChild(col);
+            }
+
+            // --- Achievements ---
+            const defs = [
+                { key: 'first',     label: 'First steps',  sub: 'First session',      earned: totalSessions >= 1 },
+                { key: 'week',      label: 'Week one',     sub: '7-day streak',       earned: bestStreak >= 7 },
+                { key: 'grounded',  label: 'Grounded',     sub: 'Tadasana 90%',       earned: (completedAsanas['Tadasana'] || 0) >= 3 },
+                { key: 'balance',   label: 'Balance',      sub: 'Vrikshasana mastered', earned: (completedAsanas['Vrikshasana'] || 0) >= 3 },
+                { key: 'month',     label: 'A month in',   sub: '30 active days',     earned: activeDays >= 30 },
+                { key: 'scholar',   label: 'Scholar',      sub: 'All 7 poses',        earned: posesLearned >= 7 },
+                { key: 'master',    label: 'Master',       sub: '120 active days',    earned: activeDays >= 120 },
+                { key: 'teacher',   label: 'Teacher',      sub: '100 sessions',       earned: totalSessions >= 100 },
+            ];
+            const earnedCount = defs.filter(d => d.earned).length;
+            $('achievements-meta').textContent = earnedCount + ' of ' + defs.length + ' earned';
+
+            $('achievements').innerHTML = defs.map(d => {
+                const bg = d.earned ? 'bg-forest-900 text-cream' : 'bg-sand text-ink-500';
+                const star = d.earned ? 'text-saffron-500' : 'text-ink-300';
+                const labelColor = d.earned ? 'text-cream' : 'text-ink-500';
+                const subColor = d.earned ? 'text-forest-300' : 'text-ink-300';
+                return `
+                <div class="rounded-[16px] md:rounded-[20px] p-4 md:p-5 min-h-[140px] md:min-h-[150px] flex flex-col justify-between ${bg}">
+                    <div class="display text-[36px] md:text-[44px] font-light ${star}">${d.earned ? '★' : '☆'}</div>
+                    <div>
+                        <p class="text-[13px] md:text-[14px] font-semibold ${labelColor}">${d.label}</p>
+                        <p class="text-[10px] md:text-[11px] mt-1 kicker ${subColor}">${d.sub}</p>
+                    </div>
+                </div>`;
+            }).join('');
+
+        })();
     </script>
 </body>
-
 </html>

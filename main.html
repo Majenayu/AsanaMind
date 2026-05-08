@@ -13,189 +13,124 @@
     <script
         src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Custom Tailwind Configuration for a dark, calming palette (Now Blue)
+        // Sunday palette (mapped onto legacy token names so existing UI just works)
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        // Colors adjusted for contrast on a dark background
-                        'primary': '#42A5F5', // Bright Blue (Replaces Bright Green)
-                        'secondary': '#1976D2', // Darker Blue (Replaces Darker Green)
-                        'accent': '#FFEB3B', // Bright Gold/Yellow for alerts/streak
-                        'background': '#121212', // Very Dark Background
-                        'card': '#1E1E1E', // Dark Card Background
-                        'warning': '#FFC107', // Amber/Yellow for warnings/needs attention
-                        'success': '#10B981', // Green for success
+                        'primary': '#D4A04A',       // Saffron - accent on dark
+                        'primary-light': '#E6C489', // Saffron light
+                        'secondary': '#2F4A31',     // Forest 700
+                        'accent': '#B8573E',        // Terracotta
+                        'background': '#0E1410',    // Ink-forest mix
+                        'card': '#15201A',          // Deep forest surface
+                        'warning': '#D4A04A',       // Saffron
+                        'success': '#8BA88D',       // Sage
+                        'cream': '#FAF7F2',
+                        'paper': '#F3EEE5',
+                        'stone': '#D9CFBB',
+                        'ink': { 900:'#1A1814', 700:'#3D3A33', 500:'#6B6657', 300:'#A8A294' },
+                        'forest': { 900:'#1E2E1F', 700:'#2F4A31', 500:'#4A6B4D', 300:'#8BA88D' },
+                        'terracotta': { 600:'#B8573E', 400:'#D4866F', 100:'#F2D9CE' },
+                        'saffron': { 500:'#D4A04A', 300:'#E6C489' },
                     },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        display: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Custom styles for aesthetic and loading spinner */
+        /* Sunday — dark practice surface retheme */
         body {
-            background-color: #0c0e12;
+            background-color: #0E1410;
             background-image:
-                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.1) 0, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.1) 0, transparent 50%);
-            color: #E0E0E0;
-            font-family: 'Inter', sans-serif;
+                radial-gradient(at 0% 0%, rgba(47, 74, 49, 0.35) 0, transparent 55%),
+                radial-gradient(at 100% 0%, rgba(184, 87, 62, 0.18) 0, transparent 50%);
+            color: #E3DED3;
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .view-fade-in {
-            animation: viewFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
+        .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; letter-spacing: -0.02em; }
+        .kicker { letter-spacing: 0.22em; text-transform: uppercase; font-weight: 500; }
 
-        @keyframes viewFadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
+        .view-fade-in { animation: viewFadeIn 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) forwards; }
+        @keyframes viewFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .scrollable-content {
-            overflow-y: auto;
-            max-height: calc(100vh - 350px);
-            scrollbar-width: none;
-        }
-
-        .scrollable-content::-webkit-scrollbar {
-            display: none;
-        }
+        .scrollable-content { overflow-y: auto; max-height: calc(100vh - 350px); scrollbar-width: none; }
+        .scrollable-content::-webkit-scrollbar { display: none; }
 
         .loading-animation {
-            border: 4px solid #333;
-            border-top: 4px solid #42A5F5;
+            border: 4px solid rgba(228, 222, 211, 0.12);
+            border-top: 4px solid #D4A04A;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 24px; height: 24px;
             animation: spin 1s linear infinite;
         }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* 3D Card Hover Effect CSS */
+        /* Card hover */
         .card-effect {
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transition: all 0.35s cubic-bezier(0.22, 0.8, 0.3, 1);
+            border: 1px solid rgba(228, 222, 211, 0.06);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.35);
         }
-
         .card-effect:hover {
-            transform: translateY(-8px) scale(1.02);
-            border-color: rgba(66, 165, 245, 0.4);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(66, 165, 245, 0.2);
-            background: rgba(30, 41, 59, 0.6) !important;
+            transform: translateY(-6px);
+            border-color: rgba(212, 160, 74, 0.35);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(212, 160, 74, 0.15);
+            background: rgba(47, 74, 49, 0.5) !important;
         }
 
-        /* Cursor Glow Effect CSS (Blue) */
         #cursor-glow {
             position: fixed;
             pointer-events: none;
-            width: 300px;
-            height: 300px;
+            width: 320px;
+            height: 320px;
             border-radius: 50%;
-            /* Primary Blue color with higher opacity for visibility */
-            background: rgba(66, 165, 245, 0.45);
-            filter: blur(90px);
-            /* Heavy blur */
+            background: rgba(212, 160, 74, 0.18);
+            filter: blur(100px);
             transform: translate(-50%, -50%);
             z-index: -1;
             transition: opacity 0.3s ease;
-            opacity: 1.0;
+            opacity: 0.9;
         }
 
-        /* Pulse Animation for Voice Assistant - applied to the button pill */
         @keyframes pulse-green {
-            0% {
-                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
-            }
-
-            70% {
-                box-shadow: 0 0 0 12px rgba(74, 222, 128, 0);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
-            }
+            0%   { box-shadow: 0 0 0 0 rgba(139, 168, 141, 0.7); }
+            70%  { box-shadow: 0 0 0 12px rgba(139, 168, 141, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(139, 168, 141, 0); }
         }
-
         @keyframes pulse-blue {
-            0% {
-                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7);
-            }
-
-            70% {
-                box-shadow: 0 0 0 12px rgba(96, 165, 250, 0);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
-            }
+            0%   { box-shadow: 0 0 0 0 rgba(212, 160, 74, 0.7); }
+            70%  { box-shadow: 0 0 0 12px rgba(212, 160, 74, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(212, 160, 74, 0); }
         }
+        .voice-listening { animation: pulse-green 1.5s infinite; border: 1px solid #8BA88D !important; }
+        .voice-talking   { animation: pulse-blue 1.5s infinite;  border: 1px solid #D4A04A !important; }
 
-        .voice-listening {
-            animation: pulse-green 1.5s infinite;
-            border: 1px solid #4ADE80 !important;
-        }
-
-        .voice-talking {
-            animation: pulse-blue 1.5s infinite;
-            border: 1px solid #60A5FA !important;
-        }
-
-        /* Styles for the AR/Video Feed */
+        /* AR / Video Feed */
         #video-container {
             position: relative;
             width: 100%;
             padding-top: 75%;
-            /* 4:3 Aspect Ratio */
             background-color: #000;
-            border-radius: 1rem;
+            border-radius: 1.25rem;
             overflow: hidden;
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
         }
-
-        #video-feed {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
-            /* Mirror the video feed for natural user experience */
-        }
-
-        #ar-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            transform: scaleX(-1);
-            /* Mirror the canvas to match the mirrored video */
-        }
+        #video-feed { position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; transform: scaleX(-1); }
+        #ar-canvas  { position: absolute; top:0; left:0; width:100%; height:100%; transform: scaleX(-1); }
 
         /* --- Premium Asana Library Styles --- */
         .asana-card {
@@ -371,50 +306,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 
-<body class="gradient-bg min-h-screen flex flex-col items-center pb-20 md:pb-8 text-gray-200">
+<body class="min-h-screen flex flex-col items-center pb-24 md:pb-8 text-gray-200">
 
     <div id="cursor-glow"></div>
 
-    <div id="app" class="w-full max-w-4xl p-4 md:p-8">
-        <header class="flex flex-col md:flex-row items-center justify-between mb-8 pb-6 border-b border-gray-800 gap-6">
-            <div class="flex items-center space-x-4">
-                <div
-                    class="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center overflow-hidden p-1.5 shadow-lg shadow-primary/10 border border-primary/20">
-                    <img src="/assets/logo.png" alt="SUNDAY Logo" class="w-full h-full object-contain">
+    <div id="app" class="w-full max-w-5xl px-4 md:px-8 pt-6 md:pt-10">
+        <header class="flex flex-col md:flex-row items-center justify-between mb-8 pb-6 border-b border-white/5 gap-5">
+            <a href="/home" class="flex items-center gap-4 group">
+                <div class="w-11 h-11 rounded-full bg-forest-700 flex items-center justify-center overflow-hidden p-1.5 border border-white/5 shadow-lg shadow-black/30">
+                    <img src="/assets/logo.png" alt="Sunday" class="w-full h-full object-contain">
                 </div>
                 <div class="text-left">
-                    <h1 class="text-4xl md:text-5xl font-black text-primary tracking-tighter uppercase italic">SUNDAY
-                    </h1>
-                    <p class="text-gray-500 font-medium text-[10px] md:text-xs uppercase tracking-[0.2em]">Holistic Yoga
-                        & Wellness</p>
+                    <h1 class="font-display text-[26px] md:text-[30px] font-medium text-cream leading-none tracking-tight">Sunday</h1>
+                    <p class="kicker text-[10px] text-saffron-500 mt-1">AsanaMind · Yoga coach</p>
                 </div>
-            </div>
+            </a>
 
-            <div class="flex items-center space-x-3 w-full md:w-auto justify-center">
+            <div class="flex items-center gap-2 w-full md:w-auto justify-center">
                 <a href="/profile"
-                    class="flex-1 md:flex-none text-center bg-primary/10 text-primary px-5 py-2.5 rounded-2xl hover:bg-primary/20 transition-all font-bold border border-primary/20 shadow-lg shadow-primary/5 text-sm uppercase">
+                    class="flex-1 md:flex-none text-center bg-white/5 text-cream px-5 py-2.5 rounded-full hover:bg-white/10 transition-all font-semibold border border-white/5 text-[13px] kicker">
                     Profile
                 </a>
                 <button id="voice-toggle" onclick="app.toggleVoiceControl()"
-                    class="flex-1 md:flex-none flex items-center justify-center space-x-2 text-sm px-4 py-2.5 rounded-2xl transition-all shadow-lg bg-gray-900/50 hover:bg-gray-800 text-gray-400 border border-gray-800 active:scale-95">
-                    <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                        class="w-4 h-4 transition-colors duration-300">
+                    class="flex-1 md:flex-none flex items-center justify-center gap-2 text-[13px] px-4 py-2.5 rounded-full transition-all bg-white/5 hover:bg-white/10 text-ink-300 border border-white/5 active:scale-95">
+                    <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 transition-colors duration-300">
                         <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v1.5H15a3 3 0 0 1-3 3h-1.5a3 3 0 0 1-3-3V4.5Z" />
-                        <path fill-rule="evenodd"
-                            d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z"
-                            clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M5.25 9A.75.75 0 0 1 6 8.25h.75a.75.75 0 0 1 0 1.5H6A.75.75 0 0 1 5.25 9ZM12 18.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1 0-1.5H12ZM18 10.5h.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H18a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
                         <path d="M12 21a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
                     </svg>
-                    <span id="mic-status-text" class="uppercase font-bold tracking-tighter">Standby</span>
+                    <span id="mic-status-text" class="uppercase font-semibold tracking-[0.15em] text-[11px]">Standby</span>
                 </button>
+                <a href="/logout" class="hidden md:inline-flex items-center text-ink-300 hover:text-terracotta-600 text-[12px] kicker ml-2">Sign out</a>
             </div>
         </header>
 
-        <main id="content" class="bg-card shadow-2xl rounded-3xl p-6 md:p-8 min-h-[60vh] shadow-gray-900">
+        <main id="content" class="bg-card/70 backdrop-blur-md border border-white/5 rounded-[28px] p-5 md:p-8 min-h-[60vh] shadow-2xl shadow-black/40">
         </main>
 
-        <nav
-            class="fixed bottom-0 left-0 right-0 bg-card border-t border-gray-700 z-10 shadow-2xl md:relative md:mt-6 md:shadow-none md:border-none">
+        <nav class="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg border-t border-white/5 z-10 shadow-2xl md:relative md:mt-6 md:shadow-none md:border-none md:bg-transparent md:backdrop-blur-0">
             <div id="nav-tabs" class="flex justify-around items-center max-w-4xl mx-auto py-3 md:py-0">
             </div>
         </nav>
