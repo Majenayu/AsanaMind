@@ -307,6 +307,12 @@
             <nav id="top-nav" class="hidden md:flex items-center" style="gap:4px"></nav>
 
             <div class="flex items-center" style="gap:12px">
+                <button id="commands-btn" onclick="app.openCommandLibrary()" title="Command library" aria-label="Show voice commands"
+                    class="flex items-center justify-center pressable" style="width:40px; height:40px; border-radius:9999px; background:#EEE9DE; border:1px solid #D4CCB8; color:#4A453B">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                        <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-.75 11.25a.75.75 0 0 0 1.5 0v-.25c0-.32.116-.55.302-.713a3.375 3.375 0 1 0-4.86-4.638.75.75 0 0 0 1.265.811 1.875 1.875 0 1 1 2.7 2.58c-.478.42-.907.988-.907 1.71v.5ZM12 17.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
                 <button id="voice-toggle" onclick="app.toggleVoiceControl()" title="Voice assistant" aria-label="Toggle voice assistant"
                     class="flex items-center pressable" style="gap:8px; height:40px; padding:0 14px; border-radius:9999px; background:#EEE9DE; border:1px solid #D4CCB8; color:#4A453B; font-size:12px; font-weight:500">
                     <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
@@ -770,6 +776,13 @@
                     if (/\\b(breathing|breathe with me|calm me|anxious|anxiety|relax)\\b/.test(transcript)) {
                         this.guidedBreath && this.guidedBreath();
                         updateMicStatus(true, 'Breathing');
+                        return;
+                    }
+                    // COMMANDS / HELP — open the command library modal
+                    if (/\\b(commands|command library|list commands|what can you do|what can i say|help me)\\b/.test(transcript)) {
+                        this.openCommandLibrary && this.openCommandLibrary();
+                        this.speakCorrection('Opening the command library.', true);
+                        updateMicStatus(true, 'Commands');
                         return;
                     }
 
@@ -1396,6 +1409,111 @@
                     this._breathTimer = setTimeout(step, 4200);
                 };
                 step();
+            },
+
+            /**
+             * Opens the Command Library modal. Fetches /api/commands on
+             * first open, caches after, renders a searchable grouped list
+             * of every thing Sunday can do.
+             */
+            async openCommandLibrary() {
+                // Remove any existing modal
+                const existing = document.getElementById('command-library');
+                if (existing) { existing.remove(); return; }
+
+                if (!this._commandsCache) {
+                    try {
+                        const r = await fetch('/api/commands', { credentials: 'same-origin' });
+                        const d = await r.json();
+                        this._commandsCache = d.commands || [];
+                    } catch (e) {
+                        this._commandsCache = [];
+                    }
+                }
+                const commands = this._commandsCache;
+
+                // Group by category
+                const groups = {};
+                for (const c of commands) {
+                    (groups[c.category] = groups[c.category] || []).push(c);
+                }
+                const order = ['Practice', 'Voice', 'Screen', 'Navigation', 'Data', 'Wellness', 'Ask Sunday'];
+
+                const modal = document.createElement('div');
+                modal.id = 'command-library';
+                modal.style.cssText = [
+                    'position:fixed', 'inset:0', 'z-index:140',
+                    'background:rgba(15,19,12,0.85)', 'backdrop-filter:blur(10px)', '-webkit-backdrop-filter:blur(10px)',
+                    'display:flex', 'align-items:flex-start', 'justify-content:center',
+                    'padding:40px 20px', 'overflow-y:auto',
+                    'opacity:0', 'transition:opacity 0.25s ease',
+                ].join(';');
+
+                const card = document.createElement('div');
+                card.style.cssText = [
+                    'background:#F5F2EB', 'border-radius:28px', 'max-width:820px', 'width:100%',
+                    'padding:28px', 'box-shadow:0 30px 80px rgba(0,0,0,0.5)', 'position:relative',
+                ].join(';');
+
+                const header = `
+                    <button type="button" aria-label="Close" onclick="document.getElementById('command-library').remove()"
+                        style="position:absolute;top:18px;right:18px;width:40px;height:40px;border-radius:999px;background:#EEE9DE;color:#14120E;border:0;font-size:20px;cursor:pointer">\u00d7</button>
+                    <span class="kicker" style="color:#C2552F">Command library</span>
+                    <h2 class="font-display" style="font-size:34px;font-weight:300;letter-spacing:-0.02em;color:#14120E;margin:6px 0 4px">What you can say to Sunday.</h2>
+                    <p style="color:#4A453B;font-size:14px;margin:0 0 18px;max-width:620px;line-height:1.6">Tap any phrase or say it aloud. Questions and anything else routes to the AI with full app knowledge.</p>
+                    <input id="command-search" type="search" placeholder="Search commands..." autocomplete="off"
+                        style="width:100%;height:44px;padding:0 16px;border-radius:12px;border:1px solid #D4CCB8;background:#FFF;font-family:inherit;font-size:14px;color:#14120E;outline:none;margin-bottom:18px"/>
+                    <div id="command-groups"></div>
+                `;
+                card.innerHTML = header;
+                modal.appendChild(card);
+
+                const renderGroups = (filter) => {
+                    const container = card.querySelector('#command-groups');
+                    container.innerHTML = '';
+                    const f = (filter || '').toLowerCase();
+                    for (const cat of order) {
+                        const items = (groups[cat] || []).filter(c => {
+                            if (!f) return true;
+                            const haystack = (c.description + ' ' + c.phrases.join(' ') + ' ' + (c.example || '')).toLowerCase();
+                            return haystack.includes(f);
+                        });
+                        if (!items.length) continue;
+                        const sec = document.createElement('section');
+                        sec.style.cssText = 'margin-bottom:22px';
+                        sec.innerHTML = `
+                            <span class="kicker" style="color:#0F3D2E">${cat}</span>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:8px">
+                                ${items.map(c => `
+                                    <div class="command-tile" data-example="${(c.example || c.phrases[0] || '').replace(/"/g, '&quot;')}" style="background:#EEE9DE;border:1px solid #D4CCB8;border-radius:16px;padding:14px;cursor:pointer;transition:background 0.15s">
+                                        <div style="font-family:Fraunces,serif;font-size:18px;font-weight:400;color:#14120E;letter-spacing:-0.01em">${c.phrases[0]}</div>
+                                        <div style="color:#4A453B;font-size:13px;line-height:1.5;margin-top:4px">${c.description}</div>
+                                        ${c.phrases.length > 1 ? `<div class="kicker" style="color:#7A7364;font-size:10px;margin-top:8px">Also: ${c.phrases.slice(1, 4).join(' \u00b7 ')}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>`;
+                        container.appendChild(sec);
+                    }
+                    // Wire tile clicks — speak the example
+                    container.querySelectorAll('.command-tile').forEach(tile => {
+                        tile.addEventListener('click', () => {
+                            const ex = tile.getAttribute('data-example');
+                            if (!ex) return;
+                            this.speakCorrection('Try saying: ' + ex, true);
+                            tile.style.background = '#C7DBCE';
+                            setTimeout(() => tile.style.background = '#EEE9DE', 800);
+                        });
+                    });
+                };
+
+                document.body.appendChild(modal);
+                requestAnimationFrame(() => modal.style.opacity = '1');
+                renderGroups('');
+                const search = card.querySelector('#command-search');
+                if (search) search.addEventListener('input', (e) => renderGroups(e.target.value));
+                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+                // Focus search after the fade-in settles
+                setTimeout(() => { if (search) search.focus(); }, 260);
             },
 
             /**
