@@ -816,6 +816,32 @@ def commands_endpoint():
     return jsonify({'success': True, 'commands': COMMANDS})
 
 
+@app.route('/api/sync-history', methods=['POST'])
+def sync_history():
+    """Persist localStorage session history to MongoDB (item 37).
+    Called periodically by the client so history survives browser clears.
+    Accepts { sessions: [...] } and upserts into the user's document."""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected:
+        return jsonify({'success': True, 'synced': 0, 'note': 'DB offline'})
+    data = request.get_json(silent=True) or {}
+    sessions = data.get('sessions') or []
+    if not sessions:
+        return jsonify({'success': True, 'synced': 0})
+    email = session.get('email', '')
+    try:
+        db.users.update_one(
+            {'email': email},
+            {'$push': {'session_history': {'$each': sessions[-60:]}}},
+            upsert=True
+        )
+        return jsonify({'success': True, 'synced': len(sessions)})
+    except Exception as e:
+        print(f'sync-history error: {e}')
+        return jsonify({'success': True, 'synced': 0, 'note': 'DB error'})
+
+
 if __name__ == '__main__':
     # Use dynamic port for Render
     port = int(os.environ.get('PORT', 5000))

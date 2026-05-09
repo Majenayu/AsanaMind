@@ -717,4 +717,93 @@
     window.VoiceKB.rag = rag;
     window.VoiceKB.ragAnswer = ragAnswer;
     window.VoiceKB.SYMPTOM_KB = SYMPTOM_KB;
+
+    // ─────────────────────────────────────────────────────────────
+    // EXPANDED SYMPTOM KB (item 28) — additional conditions
+    // ─────────────────────────────────────────────────────────────
+    SYMPTOM_KB.push(
+        { tag: 'tennis elbow wrist pain', poses: ['Anjali Mudra', 'Sukhasana'],
+          text: 'For wrist or elbow strain, avoid weight-bearing on the hands. Rest in Anjali Mudra and Easy Seat. Consult a physio if it persists.' },
+        { tag: 'plantar fasciitis foot pain', poses: ['Dandasana', 'Sukhasana'],
+          text: 'With foot pain, avoid standing poses that load the arch. Staff Pose and Easy Seat keep you practising without aggravating the foot.' },
+        { tag: 'sciatica nerve pain', poses: ['Balasana', 'Sukhasana'],
+          text: 'Sciatica flares with deep forward folds and Warrior III. Stay with Child\u2019s Pose and gentle seated work until it settles.' },
+        { tag: 'vertigo dizziness', poses: ['Sukhasana', 'Dandasana'],
+          text: 'With vertigo, skip standing balance poses and inversions. Seated poses like Easy Seat and Staff Pose are safe.' },
+        { tag: 'wrist pain carpal tunnel', poses: ['Sukhasana', 'Setu Bandhasana'],
+          text: 'Avoid Down Dog and plank with wrist pain. Bridge and seated poses keep you moving without loading the wrists.' },
+        { tag: 'hip replacement surgery', poses: ['Sukhasana', 'Dandasana', 'Setu Bandhasana'],
+          text: 'After hip surgery, always follow your surgeon\u2019s guidance. Gentle seated work and supported Bridge are common starting points.' },
+        { tag: 'rounded shoulders posture', poses: ['Urdhva Hastasana', 'Setu Bandhasana', 'Virabhadrasana I'],
+          text: 'For rounded shoulders, open the chest with Upward Salute, Bridge, and Warrior I. Think of drawing the shoulder blades together.' },
+        { tag: 'tight calves', poses: ['Adho Mukha Svanasana', 'Uttanasana'],
+          text: 'Tight calves release in Down Dog (pedal the heels) and Standing Forward Fold with bent knees.' },
+        { tag: 'weak core', poses: ['Utkatasana', 'Virabhadrasana III', 'Adho Mukha Svanasana'],
+          text: 'Build core strength with Chair Pose holds, Warrior III, and Down Dog. Keep the low belly firm in every pose.' },
+        { tag: 'post-run recovery', poses: ['Uttanasana', 'Adho Mukha Svanasana', 'Paschimottanasana', 'Baddha Konasana'],
+          text: 'After running: Forward Fold for hamstrings, Down Dog for calves, Seated Forward Fold for the back, Bound Angle for hips.' }
+    );
+
+    // ─────────────────────────────────────────────────────────────
+    // YOGA PHILOSOPHY KB (item 29)
+    // ─────────────────────────────────────────────────────────────
+    SYMPTOM_KB.push(
+        { tag: 'eight limbs patanjali yoga philosophy', poses: [],
+          text: 'Patanjali\u2019s eight limbs: yama (ethics), niyama (self-discipline), asana (posture), pranayama (breath), pratyahara (withdrawal), dharana (focus), dhyana (meditation), samadhi (absorption). Asana is just one of eight.' },
+        { tag: 'yama niyama ethics', poses: [],
+          text: 'The yamas are non-violence, truthfulness, non-stealing, moderation, and non-possessiveness. The niyamas are cleanliness, contentment, discipline, self-study, and surrender.' },
+        { tag: 'chakra energy', poses: [],
+          text: 'The seven chakras run from the base of the spine to the crown. Each relates to a quality: root (security), sacral (creativity), solar plexus (will), heart (love), throat (expression), third eye (intuition), crown (connection).' },
+        { tag: 'pranayama breath control', poses: ['Sukhasana', 'Tadasana'],
+          text: 'Pranayama means breath control. Ujjayi (ocean breath) for practice, Nadi Shodhana (alternate nostril) for calm, Kapalabhati (skull-shining) for energy. Always practise seated or standing.' },
+        { tag: 'namaste meaning', poses: [],
+          text: 'Namaste means \u201cthe light in me honours the light in you.\u201d It\u2019s a gesture of respect, not worship. Palms together at the heart, a slight bow.' },
+        { tag: 'om aum meaning', poses: [],
+          text: 'Om (AUM) represents the sound of the universe. A = creation, U = preservation, M = dissolution. Chanting it at the start and end of practice centres the mind.' }
+    );
+
+    // ─────────────────────────────────────────────────────────────
+    // CONVERSATIONAL MEMORY (item 2) — last 5 turns in sessionStorage
+    // so pronouns resolve: "tell me about tree" then "show me" knows.
+    // ─────────────────────────────────────────────────────────────
+    const MEMORY_KEY = 'sunday_conv_memory';
+    const MAX_TURNS = 5;
+
+    function _readMemory() {
+        try { return JSON.parse(sessionStorage.getItem(MEMORY_KEY) || '[]'); } catch(_) { return []; }
+    }
+    function _writeMemory(arr) {
+        try { sessionStorage.setItem(MEMORY_KEY, JSON.stringify(arr.slice(-MAX_TURNS))); } catch(_){}
+    }
+
+    const ConvMemory = {
+        /** Record a turn: { role: 'user'|'assistant', text, poseMentioned? } */
+        push(turn) {
+            const arr = _readMemory();
+            arr.push(turn);
+            _writeMemory(arr);
+        },
+        /** Get the last mentioned pose from recent turns. */
+        lastPose() {
+            const arr = _readMemory();
+            for (let i = arr.length - 1; i >= 0; i--) {
+                if (arr[i].poseMentioned) return arr[i].poseMentioned;
+            }
+            return null;
+        },
+        /** Resolve pronouns: "show me" / "tell me more" / "its benefits" → last pose. */
+        resolvePronouns(query) {
+            const q = (query || '').toLowerCase();
+            const pronouns = /\b(it|its|this|that|this one|the pose|show me|tell me more|more about it)\b/;
+            if (!pronouns.test(q)) return null;
+            return this.lastPose();
+        },
+        recent() { return _readMemory(); },
+        clear() { try { sessionStorage.removeItem(MEMORY_KEY); } catch(_){} },
+    };
+
+    window.VoiceKB.ConvMemory = ConvMemory;
+
+    // Rebuild the RAG index since we added new SYMPTOM_KB entries.
+    _index = null;
 })();

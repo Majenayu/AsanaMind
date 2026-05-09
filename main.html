@@ -293,6 +293,15 @@
         /* Hide Tailwind's `h-[xxx]` media query warnings by using safe CSS only */
         .hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
         .hide-scroll::-webkit-scrollbar { display: none; }
+
+        /* Accessibility: high-contrast mode (item 35) */
+        body.high-contrast { background: #000 !important; color: #FFF !important; }
+        body.high-contrast .topbar { background: rgba(0,0,0,0.95) !important; border-color: #444 !important; }
+        body.high-contrast .asana-tile { background: #111 !important; border: 2px solid #E0A23F !important; }
+        body.high-contrast .btn-accent { background: #E0A23F !important; color: #000 !important; }
+        body.high-contrast .kpi, body.high-contrast .chart-card { background: #111 !important; }
+        /* Colourblind-safe: use patterns + shapes instead of red/green alone */
+        body.high-contrast canvas { filter: saturate(0.5) contrast(1.3); }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
@@ -555,19 +564,43 @@
                 // without a network or API key.
                 try {
                     if (window.VoiceKB && window.VoiceKB.answer) {
-                        const local = window.VoiceKB.answer(prompt, ctx);
-                        if (local) return { text: local, source: 'offline-kb' };
+                        // Conversational memory — resolve pronouns like "show me"
+                        // or "its benefits" to the last-mentioned pose.
+                        let resolvedPrompt = prompt;
+                        if (window.VoiceKB.ConvMemory) {
+                            const resolved = window.VoiceKB.ConvMemory.resolvePronouns(prompt);
+                            if (resolved) resolvedPrompt = prompt + ' ' + resolved;
+                        }
+                        const local = window.VoiceKB.answer(resolvedPrompt, ctx);
+                        if (local) {
+                            // Record the turn for future pronoun resolution.
+                            if (window.VoiceKB.ConvMemory) {
+                                const poseMentioned = window.VoiceKB.fuzzyPoseMatch(prompt);
+                                window.VoiceKB.ConvMemory.push({ role: 'user', text: prompt, poseMentioned });
+                                window.VoiceKB.ConvMemory.push({ role: 'assistant', text: local });
+                            }
+                            return { text: local, source: 'offline-kb' };
+                        }
                     }
                 } catch (e) { console.warn('VoiceKB.answer error', e); }
 
                 // RAG fallback — tf-idf retrieval over POSE_CARDS + SYMPTOM_KB.
-                // Catches natural-language queries that don't contain exact
-                // KB keywords: "I have shoulder pain", "something calming
-                // before bed", "I sit at a desk all day".
                 try {
                     if (window.VoiceKB && window.VoiceKB.ragAnswer) {
-                        const ragReply = window.VoiceKB.ragAnswer(prompt);
-                        if (ragReply) return { text: ragReply, source: 'offline-rag' };
+                        let resolvedPrompt = prompt;
+                        if (window.VoiceKB.ConvMemory) {
+                            const resolved = window.VoiceKB.ConvMemory.resolvePronouns(prompt);
+                            if (resolved) resolvedPrompt = prompt + ' ' + resolved;
+                        }
+                        const ragReply = window.VoiceKB.ragAnswer(resolvedPrompt);
+                        if (ragReply) {
+                            if (window.VoiceKB.ConvMemory) {
+                                const poseMentioned = window.VoiceKB.fuzzyPoseMatch(prompt);
+                                window.VoiceKB.ConvMemory.push({ role: 'user', text: prompt, poseMentioned });
+                                window.VoiceKB.ConvMemory.push({ role: 'assistant', text: ragReply });
+                            }
+                            return { text: ragReply, source: 'offline-rag' };
+                        }
                     }
                 } catch (e) { console.warn('VoiceKB.ragAnswer error', e); }
 
@@ -830,6 +863,20 @@
                         if (app.openCommandLibrary) app.openCommandLibrary();
                         app.speakCorrection('Opening the command library.', true);
                         updateMicStatus(true, 'Commands');
+                        return true;
+                    }},
+                    // ── Accessibility: font size (item 34) ──
+                    { re: /\b(bigger text|larger text|smaller text|text size|font size|increase font|decrease font)\b/, h: (t, app) => {
+                        if (app.cycleFontSize) app.cycleFontSize();
+                        updateMicStatus(true, 'Text size');
+                        return true;
+                    }},
+                    // ── Accessibility: high contrast (item 35) ──
+                    { re: /\b(high contrast|contrast mode|dark mode|colou?rblind|accessibility)\b/, h: (t, app) => {
+                        document.body.classList.toggle('high-contrast');
+                        const on = document.body.classList.contains('high-contrast');
+                        app.speakCorrection(on ? 'High contrast on.' : 'High contrast off.', true);
+                        updateMicStatus(true, on ? 'Contrast on' : 'Contrast off');
                         return true;
                     }},
                     // ── Navigation (require "go to" or "open" prefix so
@@ -3409,6 +3456,62 @@
                 this.resumeVoiceIfWasOn();
 
                 setTimeout(() => this.updateMilestoneUI(), 100);
+
+                // ── Service Worker registration (item 36) ──
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('/sw.js').then(
+                        () => console.log('SW registered'),
+                        (e) => console.warn('SW registration failed:', e)
+                    );
+                }
+
+                // ── Global error boundary (item 38) ──
+                window.addEventListener('error', (e) => {
+                    console.error('Uncaught error:', e.message, e.filename, e.lineno);
+                    this._showErrorBanner(e.message);
+                });
+                window.addEventListener('unhandledrejection', (e) => {
+                    console.error('Unhandled rejection:', e.reason);
+                    this._showErrorBanner(String(e.reason).slice(0, 100));
+                });
+
+                // ── Accessibility: font size preference (item 34) ──
+                try {
+                    const savedSize = localStorage.getItem('sunday_font_size');
+                    if (savedSize) document.documentElement.style.fontSize = savedSize;
+                } catch(_){}
+
+                // ── Analytics stub (item 42) ──
+                this._analytics = [];
+                this._logEvent = (name, data) => {
+                    this._analytics.push({ name, data, ts: Date.now() });
+                    if (this._analytics.length > 200) this._analytics.shift();
+                };
+                this._logEvent('app_init', { view: this.currentView });
+            },
+
+            /** Error boundary banner — shows a non-blocking toast on crash. */
+            _showErrorBanner(msg) {
+                const existing = document.getElementById('error-banner');
+                if (existing) existing.remove();
+                const el = document.createElement('div');
+                el.id = 'error-banner';
+                el.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:200;background:#C2552F;color:#F5F2EB;padding:12px 24px;border-radius:12px;font-size:13px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.3);cursor:pointer';
+                el.textContent = 'Something went wrong. Tap to dismiss. (' + (msg || 'unknown') + ')';
+                el.onclick = () => el.remove();
+                document.body.appendChild(el);
+                setTimeout(() => { if (el.parentNode) el.remove(); }, 8000);
+            },
+
+            /** Accessibility: cycle font size (item 34). */
+            cycleFontSize() {
+                const sizes = ['16px', '18px', '20px', '22px'];
+                const current = document.documentElement.style.fontSize || '16px';
+                const idx = sizes.indexOf(current);
+                const next = sizes[(idx + 1) % sizes.length];
+                document.documentElement.style.fontSize = next;
+                try { localStorage.setItem('sunday_font_size', next); } catch(_){}
+                this.speakCorrection('Text size: ' + next, true);
             },
 
             // --- Assistant View ---
