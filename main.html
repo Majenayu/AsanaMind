@@ -1765,16 +1765,35 @@
             /**
              * Start a timed hold with spoken countdown (item 16).
              * Default 30 seconds. Speaks at 20, 10, 5, 3, 2, 1, done.
+             *
+             * Edge cases handled:
+             * - If a timer is already running, stop it first (no stacking).
+             * - If no pose is active, warn and bail.
+             * - If the user switches poses mid-timer, the timer auto-cancels
+             *   (checked via _timedHoldPose mismatch in the tick callback).
              */
             startTimedHold(secs) {
                 secs = secs || 30;
                 if (!window.PracticeFlow || !window.PracticeFlow.TimedHold) {
                     this.speakCorrection('Timer not available.', true); return;
                 }
+                if (!this.currentPose) {
+                    this.speakCorrection('Pick a pose first, then start the timer.', true); return;
+                }
+                // Stop any existing timer before starting a new one.
+                if (window.PracticeFlow.TimedHold.isRunning()) {
+                    window.PracticeFlow.TimedHold.stop();
+                }
+                this._timedHoldPose = this.currentPose;
                 this.speakCorrection({ message: 'Hold for ' + secs + ' seconds. Starting now.', shortMessage: 'Hold ' + secs + 's', priority: 2 }, true);
                 const spokenAt = new Set();
                 const milestones = [20, 10, 5, 3, 2, 1];
                 window.PracticeFlow.TimedHold.start(secs, (remaining) => {
+                    // Auto-cancel if the user switched poses mid-timer.
+                    if (this.currentPose !== this._timedHoldPose) {
+                        window.PracticeFlow.TimedHold.stop();
+                        return;
+                    }
                     if (milestones.includes(remaining) && !spokenAt.has(remaining)) {
                         spokenAt.add(remaining);
                         if (remaining > 5) this.speakCorrection({ message: remaining + ' seconds.', shortMessage: remaining + '', priority: 3 });
@@ -1783,12 +1802,18 @@
                 }, () => {
                     this.speakCorrection({ message: 'Time. Release the pose.', shortMessage: 'Release', priority: 2 }, true);
                     if (navigator.vibrate) try { navigator.vibrate([200, 100, 200]); } catch(_){}
+                    this._timedHoldPose = null;
                 });
             },
 
             /**
              * Toggle the breath pacing overlay (item 17).
              * Animated circle: inhale 4 s, exhale 4 s.
+             *
+             * Edge cases handled:
+             * - Toggling off while running stops cleanly.
+             * - If the AR session stops while breath pacing is on, it
+             *   auto-stops (handled in stopARAssessment below).
              */
             toggleBreathPacing() {
                 if (!window.PracticeFlow || !window.PracticeFlow.BreathPacing) {
@@ -2610,6 +2635,18 @@
                     if (this.currentPose && window.PoseCues && this.ttsEnabled) {
                         const exitLine = window.PoseCues.exit(this.currentPose);
                         if (exitLine) this.speakCorrection({ message: exitLine, shortMessage: exitLine, priority: 3 }, true);
+                    }
+                } catch (_) {}
+
+                // ── Edge-case cleanup: stop any running timer or breath overlay ──
+                try {
+                    if (window.PracticeFlow) {
+                        if (window.PracticeFlow.TimedHold && window.PracticeFlow.TimedHold.isRunning()) {
+                            window.PracticeFlow.TimedHold.stop();
+                        }
+                        if (window.PracticeFlow.BreathPacing && window.PracticeFlow.BreathPacing._running) {
+                            window.PracticeFlow.BreathPacing.stop();
+                        }
                     }
                 } catch (_) {}
 
