@@ -71,15 +71,19 @@
                 el = document.createElement('div');
                 el.id = 'breath-circle';
                 el.style.cssText = [
-                    'position:fixed', 'left:50%', 'top:50%', 'transform:translate(-50%,-50%)',
+                    'position:absolute', 'right:16px', 'bottom:16px',
                     'z-index:115', 'border:3px solid rgba(224,162,63,0.8)',
                     'border-radius:999px', 'pointer-events:none',
-                    'background:rgba(15,61,46,0.1)', 'backdrop-filter:blur(4px)',
+                    'background:rgba(15,61,46,0.15)', 'backdrop-filter:blur(4px)',
                     'display:flex', 'align-items:center', 'justify-content:center',
-                    'font-family:Fraunces,serif', 'color:#F5F2EB', 'font-size:18px',
+                    'font-family:Fraunces,serif', 'color:#F5F2EB', 'font-size:16px',
                     'transition:width 0.05s linear,height 0.05s linear',
+                    'text-shadow:0 1px 4px rgba(0,0,0,0.5)',
                 ].join(';');
-                document.body.appendChild(el);
+                // Attach to the video container so it stays within the AR feed.
+                const vc = document.getElementById('video-container');
+                if (vc) vc.appendChild(el);
+                else document.body.appendChild(el);
             }
 
             const render = () => {
@@ -88,7 +92,7 @@
                 let phase, pct;
                 if (t < inhale) { phase = 'Inhale'; pct = t / inhale; }
                 else { phase = 'Exhale'; pct = 1 - ((t - inhale) / exhale); }
-                const minSize = 120, maxSize = 260;
+                const minSize = 80, maxSize = 160;
                 const size = Math.round(minSize + (maxSize - minSize) * pct);
                 el.style.width = size + 'px';
                 el.style.height = size + 'px';

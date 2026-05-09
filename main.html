@@ -3140,7 +3140,7 @@
                     </div>
 
                     <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
-                        <div class="grid lg:grid-cols-[1.4fr_1fr]" style="gap:20px">
+                        <div class="grid lg:grid-cols-[2.5fr_1fr]" style="gap:16px">
                             <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'}">
                                 <video id="video-feed" autoplay playsinline style="border-radius:28px"></video>
                                 <canvas id="ar-canvas"></canvas>
@@ -3151,10 +3151,10 @@
                                 </div>
                             </div>
 
-                            <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:20px">
+                            <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:20px; padding:14px; max-height:80vh; overflow-y:auto">
                                 <span class="kicker" style="color:#C2552F">Reference</span>
-                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; min-height:220px; margin-top:12px; position:relative">
-                                    <img id="reference-image" class="hidden pose-photo" alt="reference">
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:12px; max-height:280px; margin-top:10px; position:relative">
+                                    <img id="reference-image" class="hidden pose-photo" alt="reference" style="max-height:260px; width:100%; object-fit:contain">
                                     <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
                                         <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
                                         <p id="reference-pose-name" class="kicker" style="color:#E0A23F; margin-top:8px">Pose</p>
@@ -3188,7 +3188,7 @@
                                 <div id="correction-log" class="scrollable-content" style="border-top:1px solid #1F5A44; padding-top:14px; max-height:160px">
                                     <span class="kicker" style="color:#6FA089">Correction log</span>
                                 </div>
-                                <div class="flex flex-wrap items-center" style="gap:10px">
+                                <div class="flex flex-wrap items-center" style="gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:4px">
                                     ${!isCourseMode ? `
                                         <button id="tts-toggle-btn" onclick="app.toggleTTS()" class="pressable flex items-center" style="gap:8px; background:#1F5A44; color:#F5F2EB; border:0; border-radius:9999px; padding:10px 18px; font-size:13px; font-weight:500; cursor:pointer">
                                             <svg id="tts-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:16px; height:16px; color:#6FA089">

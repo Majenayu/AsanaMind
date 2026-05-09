@@ -762,6 +762,10 @@ COMMANDS = [
      'description': 'Toggle the per-rule pass/fail panel for developers and the curious.', 'example': 'diagnostics'},
     {'id': 'recommend', 'category': 'Practice', 'phrases': ['recommend', 'suggest', 'what should i do', 'pick for me', 'random pose'],
      'description': 'Pick an appropriate pose for the time of day and start it.', 'example': 'what should I do'},
+    {'id': 'timed_hold', 'category': 'Practice', 'phrases': ['hold for 30 seconds', 'timer', 'timed hold', 'start timer', 'count down', 'time me'],
+     'description': 'Start a spoken countdown timer. Default 30 seconds. Say "hold for 60 seconds" for custom duration.', 'example': 'hold for 30 seconds'},
+    {'id': 'breath_pacing', 'category': 'Practice', 'phrases': ['breath pacing', 'pace my breath', 'breath circle', 'breathing circle'],
+     'description': 'Toggle an animated inhale/exhale circle overlay (4 seconds in, 4 seconds out).', 'example': 'breath pacing'},
 
     # ── Voice + TTS ──────────────────────────────────────────
     {'id': 'voice_guide_on', 'category': 'Voice', 'phrases': ['voice guide on', 'talk to me', 'start voice', 'enable voice', 'speak to me'],
@@ -806,6 +810,11 @@ COMMANDS = [
     # ── Ask anything ─────────────────────────────────────────
     {'id': 'ask_ai', 'category': 'Ask Sunday', 'phrases': ['what is this', 'why does', 'how do i', 'tell me about', 'explain', 'which pose for', 'how to fix'],
      'description': 'Any question starting with what / why / how / explain / tell me routes to the AI with full app context and pose-library knowledge.', 'example': 'what is this course?'},
+    # ── Accessibility ────────────────────────────────────────
+    {'id': 'font_size', 'category': 'Accessibility', 'phrases': ['bigger text', 'larger text', 'smaller text', 'text size', 'font size'],
+     'description': 'Cycle through text sizes (16px → 18px → 20px → 22px). Persists across sessions.', 'example': 'bigger text'},
+    {'id': 'high_contrast', 'category': 'Accessibility', 'phrases': ['high contrast', 'contrast mode', 'dark mode', 'colourblind', 'accessibility'],
+     'description': 'Toggle high-contrast dark mode for low-vision users or bright sunlight.', 'example': 'high contrast'},
 ]
 
 
