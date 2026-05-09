@@ -177,12 +177,13 @@
         .voice-listening { animation: pulse-green 1.5s infinite; border-color: var(--primary-3) !important; }
         .voice-talking   { animation: pulse-accent 1.5s infinite; border-color: var(--accent) !important; }
 
-        /* AR camera feed — aspect ratio matches the webcam so the skeleton lines
-           land on the body. No forced padding, no cover-cropping. */
+        /* AR camera feed — stretches to match the reference panel height
+           so both sides are equal. The video uses object-fit:cover to fill
+           the taller container without letterboxing. */
         #video-container {
             position: relative;
             width: 100%;
-            aspect-ratio: 16 / 9;
+            min-height: 400px;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
@@ -194,7 +195,7 @@
             top: 0; left: 0;
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            object-fit: cover;
             background: #000;
             transform: scaleX(-1);
         }
@@ -2088,17 +2089,8 @@
 
                             // The canvas internal resolution must match the VIDEO pixel
                             // dimensions (what MoveNet sees), not the CSS display size.
-                            // Because CSS uses object-fit: contain, the canvas and video
-                            // letterbox identically, so keypoints land on the body.
                             canvas.width = video.videoWidth;
                             canvas.height = video.videoHeight;
-
-                            // Also set the container's aspect ratio to match the actual
-                            // camera output so the video fills perfectly without cropping.
-                            const vc = document.getElementById('video-container');
-                            if (vc && video.videoWidth && video.videoHeight) {
-                                vc.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight;
-                            }
 
                             // Show video container
                             const videoContainer = document.getElementById('video-container');
@@ -3140,7 +3132,7 @@
                     </div>
 
                     <div id="ar-session" style="display: ${isCourseMode ? 'block' : 'none'};">
-                        <div class="grid lg:grid-cols-[1fr_1fr]" style="gap:20px">
+                        <div class="grid lg:grid-cols-[1fr_1fr]" style="gap:20px; align-items:stretch">
                             <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'}">
                                 <video id="video-feed" autoplay playsinline style="border-radius:28px"></video>
                                 <canvas id="ar-canvas"></canvas>
