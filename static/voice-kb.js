@@ -507,4 +507,214 @@
 
     window.VoiceKB = { POSE_CARDS, ALIASES, fuzzyPoseMatch, fuzzyCommandMatch, answer };
     window.VoiceHistory = VoiceHistory;
+
+    // ─────────────────────────────────────────────────────────────
+    // RAG FALLBACK — tf-idf retrieval over a semantic corpus.
+    //
+    // Called AFTER the direct-hit keyword answers in VoiceKB.answer but
+    // BEFORE the server AI proxy. Closes the gap for natural-language
+    // queries that don't contain exact KB keywords, like:
+    //   "I have shoulder pain"        → Downward Dog caution + neck release
+    //   "something calming before bed" → Child's Pose, Paschimottanasana
+    //   "I sit at a desk all day"      → Chest openers + hip flexor openers
+    //
+    // Deliberately small: the corpus is ~60 chunks, tf-idf vectors stay
+    // in memory, every query is one dot-product loop. No embeddings model,
+    // no WASM download, no server. ~4 KB added to voice-kb.js.
+    // ─────────────────────────────────────────────────────────────
+
+    // Hand-authored symptom / condition / goal mini-KB. This is the layer
+    // that makes "my back hurts" actually work.
+    const SYMPTOM_KB = [
+        { tag: 'back pain', poses: ['Setu Bandhasana', 'Balasana', 'Paschimottanasana'],
+          text: 'For back pain, try Bridge Pose to strengthen the posterior chain, Child\u2019s Pose to decompress the spine, and a slow Seated Forward Fold. Move with the breath, never force.' },
+        { tag: 'lower back stiffness', poses: ['Balasana', 'Setu Bandhasana'],
+          text: 'Low-back stiffness eases with Child\u2019s Pose and Bridge Pose. Hold each for five long breaths. Keep knees wide and belly soft.' },
+        { tag: 'tight hips', poses: ['Baddha Konasana', 'Sukhasana', 'Utthita Parsvakonasana'],
+          text: 'For tight hips, work with Bound Angle Pose and Extended Side Angle. Sit on a cushion if the knees lift. Let the pelvis open gradually, never yank.' },
+        { tag: 'tight hamstrings', poses: ['Paschimottanasana', 'Uttanasana', 'Adho Mukha Svanasana'],
+          text: 'Tight hamstrings respond to Seated Forward Fold, Standing Forward Fold, and Down Dog. Bend the knees generously \u2014 length over depth.' },
+        { tag: 'shoulder tension', poses: ['Urdhva Hastasana', 'Balasana', 'Setu Bandhasana'],
+          text: 'Shoulder tension releases with Upward Salute to open the chest, Child\u2019s Pose with arms long, and Bridge clasping hands beneath the back.' },
+        { tag: 'neck pain', poses: ['Balasana', 'Sukhasana'],
+          text: 'For neck relief, start with Child\u2019s Pose and gentle seated neck rolls in Sukhasana. Skip deep inversions while the neck is sensitive.' },
+        { tag: 'tight chest desk posture', poses: ['Urdhva Hastasana', 'Setu Bandhasana', 'Natarajasana'],
+          text: 'After hours at a desk, open the chest with Upward Salute, Bridge, and eventually Dancer. They counter the rounded-shoulder posture.' },
+        { tag: 'anxiety stress calm', poses: ['Balasana', 'Paschimottanasana', 'Sukhasana'],
+          text: 'For anxiety, Child\u2019s Pose and Seated Forward Fold turn the practice inward. Pair with long exhales and box breath for quick calm.' },
+        { tag: 'trouble sleeping insomnia', poses: ['Balasana', 'Paschimottanasana', 'Setu Bandhasana'],
+          text: 'Before sleep: Child\u2019s Pose, Seated Forward Fold, and supported Bridge. Slow the exhale until it is twice the inhale.' },
+        { tag: 'tired fatigue low energy', poses: ['Adho Mukha Svanasana', 'Urdhva Hastasana', 'Virabhadrasana II'],
+          text: 'Feeling tired or low energy or fatigued, wake the body with Down Dog, Upward Salute, and two rounds of Warrior II. Movement first, then breath.' },
+        { tag: 'morning routine wake up', poses: ['Tadasana', 'Urdhva Hastasana', 'Uttanasana', 'Adho Mukha Svanasana'],
+          text: 'A simple morning sequence: Mountain, Upward Salute, Forward Fold, Down Dog. Five breaths each. Repeat twice.' },
+        { tag: 'evening wind down', poses: ['Sukhasana', 'Paschimottanasana', 'Balasana'],
+          text: 'Evening practice: Easy Seat for breath, Seated Forward Fold, Child\u2019s Pose. Dim the lights, slow everything down.' },
+        { tag: 'build strength', poses: ['Virabhadrasana I', 'Virabhadrasana II', 'Utkatasana', 'Adho Mukha Svanasana'],
+          text: 'To build strength: Warrior I, Warrior II, Chair Pose, and Down Dog. Hold each for thirty seconds. Breath stays even.' },
+        { tag: 'balance', poses: ['Vrikshasana', 'Natarajasana', 'Virabhadrasana III', 'Ardha Chandrasana'],
+          text: 'Balance work: Tree, Dancer, Warrior III, Half Moon. Fix the gaze on one still point. Near a wall if new.' },
+        { tag: 'flexibility', poses: ['Paschimottanasana', 'Baddha Konasana', 'Uttanasana', 'Utthita Trikonasana'],
+          text: 'Flexibility builds slowly with Seated Forward Fold, Bound Angle, Standing Forward Fold, and Triangle. Consistency beats depth.' },
+        { tag: 'core abs strength', poses: ['Utkatasana', 'Virabhadrasana III', 'Adho Mukha Svanasana'],
+          text: 'Core work in poses: Chair Pose holds the trunk, Warrior III demands the deep line, Down Dog stabilises through the shoulders.' },
+        { tag: 'knees knee pain', poses: ['Sukhasana', 'Dandasana', 'Setu Bandhasana'],
+          text: 'If knees are sensitive, lean on Easy Seat, Staff Pose, and Bridge. Avoid deep lunges and Chair Pose until the knees settle.' },
+        { tag: 'pregnancy prenatal', poses: ['Baddha Konasana', 'Sukhasana', 'Balasana'],
+          text: 'Always consult your doctor in pregnancy. Gentle Bound Angle, Easy Seat, and a wide-kneed Child\u2019s Pose are commonly recommended.' },
+        { tag: 'high blood pressure hypertension', poses: ['Balasana', 'Sukhasana', 'Paschimottanasana'],
+          text: 'With high blood pressure, avoid strong inversions and long holds in Down Dog. Child\u2019s Pose, seated forward folds, and long slow exhales are safer.' },
+        { tag: 'headache migraine', poses: ['Balasana', 'Paschimottanasana'],
+          text: 'Headaches often ease with Child\u2019s Pose and a supported Seated Forward Fold. Keep the head below the heart briefly, and breathe slowly.' },
+        { tag: 'digestion bloating', poses: ['Baddha Konasana', 'Setu Bandhasana', 'Paschimottanasana'],
+          text: 'For digestion: Bound Angle and gentle forward folds massage the belly. Bridge also lengthens the front body.' },
+        { tag: 'focus concentration', poses: ['Vrikshasana', 'Tadasana', 'Virabhadrasana III'],
+          text: 'To sharpen focus: Tree, Mountain, and Warrior III. A fixed gaze point trains the mind the way it trains the body.' },
+        { tag: 'breathing breath pranayama', poses: ['Sukhasana', 'Tadasana'],
+          text: 'For breath work: sit in Easy Seat or stand in Mountain. Ujjayi breath during practice, box-breath four-four-four-four for calm.' },
+    ];
+
+    // Build the retrieval corpus from POSE_CARDS, SYMPTOM_KB, and app KB.
+    // Each chunk: { id, text, doc, tags[] } — text is what gets tokenised.
+    function _buildCorpus() {
+        const corpus = [];
+        // Pose cards — one chunk per pose, plus sub-chunks per field so
+        // "mistake in warrior two" can retrieve the mistake line directly.
+        for (const key of Object.keys(POSE_CARDS)) {
+            const c = POSE_CARDS[key];
+            const base = `${c.sanskrit} ${c.english} ${c.level}`;
+            corpus.push({ id: `${key}:overview`, doc: c.english, text: `${base} ${c.benefit} ${c.cue}`, reply: `${c.sanskrit}, ${c.english}. ${c.benefit} Cue: ${c.cue}` });
+            corpus.push({ id: `${key}:benefit`, doc: c.english, text: `benefit ${base} ${c.benefit} ${c.focus}`, reply: `${c.sanskrit} — ${c.benefit}` });
+            corpus.push({ id: `${key}:mistake`, doc: c.english, text: `mistake wrong error ${base} ${c.mistake}`, reply: `Common mistake in ${c.sanskrit}: ${c.mistake}` });
+            corpus.push({ id: `${key}:caution`, doc: c.english, text: `caution safety injury pain ${base} ${c.caution}`, reply: `${c.sanskrit} caution: ${c.caution}` });
+            corpus.push({ id: `${key}:meaning`, doc: c.english, text: `meaning name sanskrit ${base} ${c.meaning}`, reply: `${c.sanskrit} — ${c.meaning} ${c.english}, ${c.level}.` });
+            corpus.push({ id: `${key}:progression`, doc: c.english, text: `progression deeper advance ${base} ${c.progression}`, reply: `${c.sanskrit} progression: ${c.progression}` });
+        }
+        // Symptom / goal entries
+        for (let i = 0; i < SYMPTOM_KB.length; i++) {
+            const s = SYMPTOM_KB[i];
+            corpus.push({ id: `symptom:${i}`, doc: s.tag, text: `${s.tag} ${s.poses.join(' ')} ${s.text}`, reply: s.text });
+        }
+        return corpus;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // tf-idf indexer. Standard BoW + cosine. ~50 lines, zero deps.
+    // ─────────────────────────────────────────────────────────────
+    const STOP = new Set([
+        'the', 'a', 'an', 'and', 'or', 'of', 'for', 'to', 'in', 'on', 'at',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+        'had', 'do', 'does', 'did', 'how', 'what', 'why', 'when', 'where',
+        'which', 'who', 'can', 'should', 'would', 'could', 'will', 'me',
+        'my', 'i', 'you', 'your', 'it', 'this', 'that', 'about', 'with',
+        'tell', 'show', 'explain', 'please',
+    ]);
+
+    function _tokenize(s) {
+        return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+            .filter(w => w && w.length >= 3 && !STOP.has(w));
+    }
+
+    let _index = null; // { corpus, docVectors, idf, terms }
+
+    function _buildIndex() {
+        const corpus = _buildCorpus();
+        const df = {};
+        const docTokens = corpus.map(c => {
+            const toks = _tokenize(c.text);
+            const seen = new Set();
+            for (const t of toks) {
+                if (!seen.has(t)) { df[t] = (df[t] || 0) + 1; seen.add(t); }
+            }
+            return toks;
+        });
+        const N = corpus.length;
+        const idf = {};
+        for (const t of Object.keys(df)) idf[t] = Math.log((N + 1) / (df[t] + 1)) + 1;
+
+        const docVectors = docTokens.map(toks => {
+            const tf = {};
+            for (const t of toks) tf[t] = (tf[t] || 0) + 1;
+            const vec = {};
+            let norm = 0;
+            for (const t of Object.keys(tf)) {
+                const w = (tf[t] / toks.length) * (idf[t] || 0);
+                vec[t] = w;
+                norm += w * w;
+            }
+            norm = Math.sqrt(norm) || 1;
+            for (const t of Object.keys(vec)) vec[t] /= norm;
+            return vec;
+        });
+
+        _index = { corpus, docVectors, idf };
+    }
+
+    function _queryVector(query) {
+        const toks = _tokenize(query);
+        if (!toks.length) return null;
+        const tf = {};
+        for (const t of toks) tf[t] = (tf[t] || 0) + 1;
+        const vec = {};
+        let norm = 0;
+        for (const t of Object.keys(tf)) {
+            const idf = _index.idf[t];
+            if (!idf) continue; // out-of-vocab term, skip
+            const w = (tf[t] / toks.length) * idf;
+            vec[t] = w;
+            norm += w * w;
+        }
+        norm = Math.sqrt(norm);
+        if (norm === 0) return null;
+        for (const t of Object.keys(vec)) vec[t] /= norm;
+        return vec;
+    }
+
+    function _cosine(q, d) {
+        let sum = 0;
+        for (const t of Object.keys(q)) if (d[t]) sum += q[t] * d[t];
+        return sum;
+    }
+
+    /**
+     * Run a tf-idf search. Returns an array of { chunk, score } sorted
+     * descending by similarity, top `k` results (default 3). Returns []
+     * if no tokens overlap the vocabulary or no result crosses `minScore`.
+     */
+    function rag(query, opts) {
+        opts = opts || {};
+        const k = opts.k || 3;
+        const minScore = opts.minScore != null ? opts.minScore : 0.15;
+        if (!_index) _buildIndex();
+        const q = _queryVector(query);
+        if (!q) return [];
+        const scored = _index.docVectors.map((d, i) => ({ chunk: _index.corpus[i], score: _cosine(q, d) }));
+        scored.sort((a, b) => b.score - a.score);
+        return scored.filter(r => r.score >= minScore).slice(0, k);
+    }
+
+    /**
+     * High-level convenience — returns a spoken-ready reply for a query,
+     * or null if no chunk scores above threshold. Called by the main
+     * app as the layer between VoiceKB.answer (direct hits) and the
+     * server AI proxy (network-dependent).
+     */
+    function ragAnswer(query) {
+        const hits = rag(query, { k: 2, minScore: 0.12 });
+        if (!hits.length) return null;
+        // If the top-1 is clearly strongest, return it alone.
+        if (hits.length === 1 || hits[0].score > hits[1].score * 1.4) {
+            return hits[0].chunk.reply;
+        }
+        // Otherwise stitch the two most relevant replies together when
+        // they're from different docs (gives "back pain" a longer answer).
+        if (hits[0].chunk.doc !== hits[1].chunk.doc) {
+            return hits[0].chunk.reply + ' ' + hits[1].chunk.reply;
+        }
+        return hits[0].chunk.reply;
+    }
+
+    window.VoiceKB.rag = rag;
+    window.VoiceKB.ragAnswer = ragAnswer;
+    window.VoiceKB.SYMPTOM_KB = SYMPTOM_KB;
 })();

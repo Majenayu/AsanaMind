@@ -456,6 +456,14 @@
                 }
             } catch (_) {}
 
+            // RAG fallback — catches symptom/goal queries offline.
+            try {
+                if (window.VoiceKB && window.VoiceKB.ragAnswer) {
+                    const ragReply = window.VoiceKB.ragAnswer(prompt);
+                    if (ragReply) { speak(ragReply); setStatus(true, 'Answered'); return; }
+                }
+            } catch (_) {}
+
             try {
                 const r = await fetch('/api/assistant', {
                     method: 'POST',

@@ -542,6 +542,17 @@
                     }
                 } catch (e) { console.warn('VoiceKB.answer error', e); }
 
+                // RAG fallback — tf-idf retrieval over POSE_CARDS + SYMPTOM_KB.
+                // Catches natural-language queries that don't contain exact
+                // KB keywords: "I have shoulder pain", "something calming
+                // before bed", "I sit at a desk all day".
+                try {
+                    if (window.VoiceKB && window.VoiceKB.ragAnswer) {
+                        const ragReply = window.VoiceKB.ragAnswer(prompt);
+                        if (ragReply) return { text: ragReply, source: 'offline-rag' };
+                    }
+                } catch (e) { console.warn('VoiceKB.ragAnswer error', e); }
+
                 try {
                     const res = await fetch('/api/assistant', {
                         method: 'POST',
