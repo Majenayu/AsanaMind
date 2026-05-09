@@ -177,13 +177,12 @@
         .voice-listening { animation: pulse-green 1.5s infinite; border-color: var(--primary-3) !important; }
         .voice-talking   { animation: pulse-accent 1.5s infinite; border-color: var(--accent) !important; }
 
-        /* AR camera feed — stretches to match the reference panel height
-           so both sides are equal. The video uses object-fit:cover to fill
-           the taller container without letterboxing. */
+        /* AR camera feed — capped height so score + controls stay visible below */
         #video-container {
             position: relative;
             width: 100%;
-            min-height: 400px;
+            height: 55vh;
+            max-height: 420px;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
@@ -3145,7 +3144,7 @@
 
                             <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:20px">
                                 <span class="kicker" style="color:#C2552F">Reference</span>
-                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; min-height:220px; margin-top:12px; position:relative">
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; height:55vh; max-height:420px; margin-top:12px; position:relative">
                                     <img id="reference-image" class="hidden pose-photo" alt="reference" style="width:100%; height:100%; object-fit:contain">
                                     <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
                                         <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
