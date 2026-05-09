@@ -4,7 +4,7 @@
  * Caches all static assets so the app works fully offline after first load.
  * Strategy: cache-first for static assets, network-first for API calls.
  */
-const CACHE_NAME = 'sunday-v2';
+const CACHE_NAME = 'sunday-v3';
 const STATIC_ASSETS = [
     '/',
     '/home',
@@ -64,12 +64,26 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Static assets: cache-first, fallback to network.
+    // HTML pages (/, /home, /profile): network-first so deploys land
+    // immediately without waiting for SW update.
+    if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+        event.respondWith(
+            fetch(event.request).then(response => {
+                if (response.ok) {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                }
+                return response;
+            }).catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // Static assets (JS, CSS, images): cache-first, fallback to network.
     event.respondWith(
         caches.match(event.request).then(cached => {
             if (cached) return cached;
             return fetch(event.request).then(response => {
-                // Cache successful GET responses for future offline use.
                 if (response.ok && event.request.method === 'GET') {
                     const clone = response.clone();
                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
