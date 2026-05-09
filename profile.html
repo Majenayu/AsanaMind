@@ -136,6 +136,7 @@
     footer{max-width:1200px;margin:40px auto 0;padding:24px;border-top:1px solid rgba(26,24,20,0.06);display:flex;align-items:center;justify-content:space-between;color:var(--text-4);font-size:12px;flex-wrap:wrap;gap:12px}
     footer .foot-links{display:flex;gap:24px}
     </style>
+    <script src="/static/voice-kb.js"></script>
 </head>
 <body>
     <header class="topbar">
@@ -446,6 +447,15 @@
                 kpiPoses: document.getElementById('kpi-poses')?.textContent,
                 level: document.getElementById('level-name')?.textContent,
             };
+
+            // Offline KB first — pose questions, history questions.
+            try {
+                if (window.VoiceKB && window.VoiceKB.answer) {
+                    const local = window.VoiceKB.answer(prompt, ctx);
+                    if (local) { speak(local); setStatus(true, 'Answered'); return; }
+                }
+            } catch (_) {}
+
             try {
                 const r = await fetch('/api/assistant', {
                     method: 'POST',

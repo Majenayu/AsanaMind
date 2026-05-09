@@ -14,6 +14,7 @@
         src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="/static/poses.js"></script>
+    <script src="/static/voice-kb.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -529,6 +530,18 @@
                 // answer "what is this?" with awareness of the current
                 // screen / pose / score / level.
                 const ctx = this.buildAssistantContext ? this.buildAssistantContext() : {};
+
+                // Try the local offline knowledge base first. If it has a
+                // direct hit (pose question or history question) we short-
+                // circuit — faster than the round trip and guaranteed to work
+                // without a network or API key.
+                try {
+                    if (window.VoiceKB && window.VoiceKB.answer) {
+                        const local = window.VoiceKB.answer(prompt, ctx);
+                        if (local) return { text: local, source: 'offline-kb' };
+                    }
+                } catch (e) { console.warn('VoiceKB.answer error', e); }
+
                 try {
                     const res = await fetch('/api/assistant', {
                         method: 'POST',
@@ -818,11 +831,24 @@
                     for (const alias of Object.keys(POSE_ALIASES)) {
                         if (t.includes(alias)) return lib.find(a => a.name === POSE_ALIASES[alias]);
                     }
-                    return lib.find(a => {
+                    const exact = lib.find(a => {
                         const ln = a.name.toLowerCase();
                         const ls = (a.sanskrit || '').toLowerCase();
                         return t.includes(ln) || (ls && t.includes(ls));
                     });
+                    if (exact) return exact;
+
+                    // Last-chance fuzzy match via VoiceKB (handles "tar dusana"
+                    // → Tadasana, "re shassana" → Vrikshasana, etc.).
+                    if (window.VoiceKB && window.VoiceKB.fuzzyPoseMatch) {
+                        const key = window.VoiceKB.fuzzyPoseMatch(t);
+                        if (key) {
+                            // Map POSE_CARDS key back to ASANA_LIBRARY entry by
+                            // comparing lowercased names.
+                            return lib.find(a => a.name.toLowerCase() === key);
+                        }
+                    }
+                    return null;
                 };
 
                 this.recognitionInstance.onresult = async (event) => {
@@ -1218,6 +1244,9 @@
              */
             selectAsanaAndStart(poseName) {
                 this.currentPose = poseName;
+                // Track session start for history logging on stop.
+                this._sessionStartTs = Date.now();
+                this._sessionPeakScore = 0;
                 const poseSelection = document.getElementById('pose-selection');
                 const arSession = document.getElementById('ar-session');
 
@@ -1410,17 +1439,40 @@
              * when available, falls back to a gentle prompt.
              */
             async speakMyStats() {
+                // Start with local history — gives an immediate answer even
+                // offline. Then augment with server stats if available.
+                const parts = [];
+                try {
+                    if (window.VoiceHistory) {
+                        const s = window.VoiceHistory.summary();
+                        if (s.thisWeek.count) {
+                            parts.push(`This week: ${s.thisWeek.count} sessions at ${Math.round(s.thisWeek.avg)} percent alignment.`);
+                            if (s.lastWeek.count) {
+                                const diff = Math.round(s.thisWeek.avg - s.lastWeek.avg);
+                                if (Math.abs(diff) >= 3) parts.push(`That's ${Math.abs(diff)} points ${diff > 0 ? 'up' : 'down'} vs last week.`);
+                            }
+                        }
+                        const weak = window.VoiceHistory.weakest();
+                        if (weak) parts.push(`Your focus area is ${weak.poseSanskrit || weak.pose} at ${Math.round(weak.avg)} percent.`);
+                    }
+                } catch (_) {}
+
                 try {
                     const r = await fetch('/api/profile', { credentials: 'same-origin' });
-                    if (!r.ok) throw new Error('not ok');
-                    const d = await r.json();
-                    const completed = d.completed_asanas || {};
-                    const total = Object.values(completed).reduce((a, b) => a + (Number(b) || 0), 0);
-                    const days = d.total_active_days || (d.activity_log || []).length;
-                    const learned = Object.keys(completed).length;
-                    this.speakCorrection('You have completed ' + total + ' sessions across ' + days + ' active days, and learned ' + learned + ' poses. Keep the practice steady.', true);
-                } catch (e) {
-                    this.speakCorrection('I could not pull your stats. Check your profile page for the full picture.', true);
+                    if (r.ok) {
+                        const d = await r.json();
+                        const completed = d.completed_asanas || {};
+                        const total = Object.values(completed).reduce((a, b) => a + (Number(b) || 0), 0);
+                        const days = d.total_active_days || (d.activity_log || []).length;
+                        const learned = Object.keys(completed).length;
+                        parts.push(`Overall: ${total} sessions, ${days} active days, ${learned} poses learned.`);
+                    }
+                } catch (_) {}
+
+                if (!parts.length) {
+                    this.speakCorrection('No sessions yet. Start a pose and I\u2019ll start tracking.', true);
+                } else {
+                    this.speakCorrection(parts.join(' '), true);
                 }
             },
 
@@ -1432,6 +1484,25 @@
             recommendPose() {
                 const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
                 if (!lib.length) { this.speakCorrection('The library is still loading.', true); return; }
+
+                // Prefer the user's weakest pose if history exists — that's
+                // where practice actually pays off.
+                try {
+                    if (window.VoiceHistory) {
+                        const weak = window.VoiceHistory.weakest();
+                        if (weak) {
+                            const pose = lib.find(a => a.name === weak.pose);
+                            if (pose) {
+                                this.speakCorrection(`Try ${pose.sanskrit} — your rolling average there is ${Math.round(weak.avg)} percent. Practice pays off where it's hardest.`, true);
+                                this.navigate('ar_correction');
+                                setTimeout(() => this.selectAsanaAndStart(pose.name), 600);
+                                return;
+                            }
+                        }
+                    }
+                } catch (_) {}
+
+                // Otherwise pick by time of day.
                 const hour = new Date().getHours();
                 let candidates;
                 if (hour < 10) candidates = lib.filter(a => a.level === 'Beginner');
@@ -1633,6 +1704,10 @@
                 if (typeof PoseEngine === 'undefined') return [];
                 const result = PoseEngine.evaluate(keypoints, poseName);
                 this._lastPoseScore = result.score;
+                // Track session peak for history logging.
+                if (typeof result.score === 'number' && result.score > (this._sessionPeakScore || 0)) {
+                    this._sessionPeakScore = result.score;
+                }
                 this._lastDiagnostics = result.diagnostics || [];
                 this._lastStance = result.stance || null;
                 return result.corrections || [];
@@ -2135,6 +2210,27 @@
              * Stops the AR session and frees resources.
              */
             stopARAssessment() {
+                // Log session history BEFORE clearing state so the
+                // offline assistant can answer "how was my last session".
+                try {
+                    if (window.VoiceHistory && this.currentPose && this._sessionStartTs) {
+                        const durationS = (Date.now() - this._sessionStartTs) / 1000;
+                        const peak = Math.max(0, Math.min(100, this._sessionPeakScore || this._lastPoseScore || 0));
+                        if (durationS >= 5) { // ignore accidental taps
+                            const a = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(x => x.name === this.currentPose) : null;
+                            window.VoiceHistory.logSession({
+                                pose: this.currentPose,
+                                poseSanskrit: a ? a.sanskrit : null,
+                                peakScore: peak,
+                                durationS,
+                                ts: Date.now(),
+                            });
+                        }
+                    }
+                } catch (e) { console.warn('history log failed', e); }
+                this._sessionStartTs = null;
+                this._sessionPeakScore = 0;
+
                 if (this.animationFrameId) {
                     cancelAnimationFrame(this.animationFrameId);
                     this.animationFrameId = null;
