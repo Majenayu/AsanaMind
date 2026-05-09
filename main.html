@@ -925,14 +925,44 @@
                     this.isListening = false;
                     this.recognitionInstance.stop();
                     micStatusText.textContent = "Voice Off";
+                    try { sessionStorage.setItem('sunday_mic', '0'); } catch(_){}
                 } else {
                     this.isListening = true;
                     try {
                         this.recognitionInstance.start();
                         micStatusText.textContent = "Listening...";
+                        try { sessionStorage.setItem('sunday_mic', '1'); } catch(_){}
                     } catch (e) {
                         console.error("Speech Recognition Start Error:", e);
                         micStatusText.textContent = "Error";
+                    }
+                }
+            },
+
+            /**
+             * Auto-resume the mic if it was on before the user navigated
+             * between pages. Called once after setupVoiceCommands completes.
+             * Respects sessionStorage so cross-page navigation feels
+             * continuous — the mic icon stays on, the user keeps talking.
+             */
+            resumeVoiceIfWasOn() {
+                if (!this.recognitionInstance) return;
+                let wanted = '0';
+                try { wanted = sessionStorage.getItem('sunday_mic') || '0'; } catch(_){}
+                if (wanted === '1' && !this.isListening) {
+                    // Auto-restore: start the recogniser. Browsers require a
+                    // user gesture for the FIRST start of the session, but
+                    // once permission is granted, subsequent starts on the
+                    // same origin succeed without a gesture.
+                    this.isListening = true;
+                    try {
+                        this.recognitionInstance.start();
+                        const st = document.getElementById('mic-status-text');
+                        if (st) st.textContent = 'Listening';
+                    } catch (e) {
+                        // If the browser blocks auto-start, fall back silently.
+                        this.isListening = false;
+                        try { sessionStorage.setItem('sunday_mic', '0'); } catch(_){}
                     }
                 }
             },
@@ -2917,6 +2947,8 @@
                 this.renderNav();
                 this.renderContent();
                 this.setupVoiceCommands();
+                // Restore mic state if it was on before the last navigation
+                this.resumeVoiceIfWasOn();
 
                 setTimeout(() => this.updateMilestoneUI(), 100);
             },

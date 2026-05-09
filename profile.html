@@ -554,16 +554,29 @@
                 listening = false;
                 rec.stop();
                 setStatus(false, 'Off');
+                try { sessionStorage.setItem('sunday_mic', '0'); } catch(_){}
             } else {
                 listening = true;
                 try {
                     rec.start();
                     setStatus(true, 'Listening');
+                    try { sessionStorage.setItem('sunday_mic', '1'); } catch(_){}
                 } catch (e) {
                     setStatus(false, 'Error');
                 }
             }
         };
+
+        // Auto-resume on page load if the mic was on before navigation.
+        try {
+            if (sessionStorage.getItem('sunday_mic') === '1') {
+                setTimeout(() => {
+                    listening = true;
+                    try { rec.start(); setStatus(true, 'Listening'); }
+                    catch (e) { listening = false; sessionStorage.setItem('sunday_mic', '0'); }
+                }, 300);
+            }
+        } catch(_){}
     })();
 
     // ─── Command Library modal (self-contained for profile page) ───
