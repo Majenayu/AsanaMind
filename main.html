@@ -181,8 +181,8 @@
         #video-container {
             position: relative;
             width: 100%;
-            height: 55vh;
-            max-height: 420px;
+            height: calc(55vh - 60px);
+            max-height: 360px;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
@@ -3142,20 +3142,20 @@
                                 </div>
                             </div>
 
-                            <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:20px">
+                            <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:14px">
                                 <span class="kicker" style="color:#C2552F">Reference</span>
-                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; height:55vh; max-height:420px; margin-top:12px; position:relative">
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; height:calc(55vh - 60px); max-height:360px; margin-top:8px; position:relative">
                                     <img id="reference-image" class="hidden pose-photo" alt="reference" style="width:100%; height:100%; object-fit:contain">
                                     <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
                                         <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
                                         <p id="reference-pose-name" class="kicker" style="color:#E0A23F; margin-top:8px">Pose</p>
                                     </div>
                                 </div>
-                                <div style="margin-top:14px; font-size:13px; color:#4A453B; line-height:1.55">
-                                    <p style="margin:0 0 6px"><span class="kicker" style="color:#A8A294">Target · </span><span id="reference-targeted">—</span></p>
-                                    <p style="margin:0 0 6px"><span class="kicker" style="color:#A8A294">Benefits · </span><span id="reference-benefits">—</span></p>
-                                    <p style="margin:0"><span class="kicker" style="color:#A8A294">Precaution · </span><span id="reference-precaution">—</span></p>
+                                <div style="margin-top:8px; font-size:12px; color:#4A453B; line-height:1.4">
+                                    <span class="kicker" style="color:#A8A294;font-size:9px">Target · </span><span id="reference-targeted" style="font-size:12px">—</span>
                                 </div>
+                                <span id="reference-benefits" class="hidden">—</span>
+                                <span id="reference-precaution" class="hidden">—</span>
                             </div>
                         </div>
 
