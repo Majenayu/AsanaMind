@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="/static/poses.js"></script>
     <script src="/static/voice-kb.js"></script>
+    <script src="/static/pose-cues.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1342,6 +1343,9 @@
                 // Track session start for history logging on stop.
                 this._sessionStartTs = Date.now();
                 this._sessionPeakScore = 0;
+                // Track when a holding cue was last spoken so we can rotate
+                // pose-specific "holding well" lines without chatter.
+                this._lastHoldingCueAt = 0;
                 const poseSelection = document.getElementById('pose-selection');
                 const arSession = document.getElementById('ar-session');
 
@@ -1390,6 +1394,21 @@
                 }
 
                 this.startARAssessment();
+
+                // Speak the pose-specific opening line once the session
+                // starts. Gives each asana its own voice from the first
+                // moment. Deliberate 900 ms delay so the camera has time
+                // to warm up and the audio isn't clipped.
+                if (window.PoseCues && this.ttsEnabled) {
+                    const opening = window.PoseCues.opening(poseName);
+                    if (opening) {
+                        setTimeout(() => this.speakCorrection({
+                            message: opening,
+                            shortMessage: opening,
+                            priority: 2,
+                        }, true), 900);
+                    }
+                }
             },
 
             /**
@@ -2032,12 +2051,31 @@
                             if (this.ttsEnabled && corrections.length > 0) {
                                 // Pick the highest-priority non-meta cue.
                                 // Corrections are already sorted by priority in poses.js.
-                                const spoken = corrections.find(c => c.priority !== 0) || corrections[0];
+                                const raw = corrections.find(c => c.priority !== 0) || corrections[0];
+                                // Personalise the cue for THIS asana — each of
+                                // the 20 poses has its own signature language.
+                                const spoken = (window.PoseCues && window.PoseCues.personalise)
+                                    ? window.PoseCues.personalise(raw, this.currentPose)
+                                    : raw;
                                 // Pass the full object so speakCorrection can
                                 // apply severity-tiered latency and interrupts.
                                 this.speakCorrection(spoken);
                                 // Visual pulse — zero latency "something is off here"
                                 this._pulseAffectedJoints(spoken.affected, spoken.priority);
+                            } else if (this.ttsEnabled && this.currentPose && window.PoseCues) {
+                                // No corrections → pose is held well. Occasionally
+                                // speak a pose-specific "holding" cue to keep the
+                                // practice engaged without spamming.
+                                const HOLD_GAP_MS = 12000;
+                                const now = Date.now();
+                                if ((now - (this._lastHoldingCueAt || 0)) > HOLD_GAP_MS) {
+                                    const hold = window.PoseCues.holding(this.currentPose);
+                                    if (hold) {
+                                        this.speakCorrection({ message: hold, shortMessage: hold, priority: 3 });
+                                        this._lastHoldingCueAt = now;
+                                    }
+                                }
+                                this._clearPulse();
                             } else {
                                 this._clearPulse();
                             }
@@ -2353,6 +2391,14 @@
              * Stops the AR session and frees resources.
              */
             stopARAssessment() {
+                // Speak a pose-specific farewell line — each asana has its own.
+                try {
+                    if (this.currentPose && window.PoseCues && this.ttsEnabled) {
+                        const exitLine = window.PoseCues.exit(this.currentPose);
+                        if (exitLine) this.speakCorrection({ message: exitLine, shortMessage: exitLine, priority: 3 }, true);
+                    }
+                } catch (_) {}
+
                 // Log session history BEFORE clearing state so the
                 // offline assistant can answer "how was my last session".
                 try {
