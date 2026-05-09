@@ -483,6 +483,7 @@
                         if (extraPriorityOneCount <= 1) {
                             ruleCorrections.push({
                                 message: rewriteForMirror(rule.message),
+                                shortMessage: rewriteForMirror(rule.shortMessage || shortenCue(rule.message)),
                                 color: 'red',
                                 priority: 1,
                             });
@@ -507,6 +508,7 @@
                     if (REPORTED[id]) {
                         reportedCorrections.push({
                             message: c.message,
+                            shortMessage: c.shortMessage || shortenCue(c.message),
                             color: c.severity === 'red' ? 'red' : c.severity === 'yellow' ? 'yellow' : 'blue',
                             priority: c.priority,
                             affected: [c.joint],
@@ -573,7 +575,10 @@
                 } else {
                     FAIL_STREAK[id] = (FAIL_STREAK[id] || 0) + 1;
                     PASS_STREAK[id] = 0;
-                    if (FAIL_STREAK[id] >= CONFIG.ruleFailFrames) {
+                    // Priority 1 (safety) rules report after 4 frames (~130 ms)
+                    // instead of the default 7 (~230 ms) — faster is safer.
+                    const failThreshold = (rule.priority === 1) ? 4 : CONFIG.ruleFailFrames;
+                    if (FAIL_STREAK[id] >= failThreshold) {
                         REPORTED[id] = true;
                     }
                 }
@@ -589,9 +594,14 @@
                 });
 
                 if (REPORTED[id]) {
+                    // Derive a short-form message (2-4 words) for priority 1
+                    // interrupts. If the rule author supplied one, use it; else
+                    // synthesise from the long form.
+                    const shortMessage = rule.shortMessage || shortenCue(rule.message);
                     corrections.push({
                         id,
                         message: rewriteForMirror(rule.message),
+                        shortMessage: rewriteForMirror(shortMessage),
                         affected: rule.affected || rule.joints || [],
                         color: rule.severity || (rule.priority === 1 ? 'red' : 'yellow'),
                         priority: rule.priority || 3,
@@ -614,6 +624,38 @@
             return { corrections: top, score, diagnostics, stance };
         },
     };
+
+    /**
+     * Shorten a verbose cue to 2-5 words for priority-1 TTS interrupts.
+     * Uses a compact keyword map; falls back to the first 4 words of the cue.
+     * Keeping this deterministic avoids any LLM dependency.
+     */
+    function shortenCue(msg) {
+        if (!msg) return msg;
+        const lower = msg.toLowerCase();
+        const DICT = [
+            [/front knee.*ankle|knee over.*ankle|knee tracking/, 'Knee over ankle'],
+            [/front knee.*toes|knee past.*toes/, 'Knee back, not past toes'],
+            [/straighten.*(standing|back) leg|standing leg strong/, 'Straighten the leg'],
+            [/hips level|keep the hips level|do not open.*hip/, 'Level the hips'],
+            [/square.*hips|hips square|turn.*hip forward/, 'Square the hips'],
+            [/lift.*chest|lift the chest|chest up/, 'Lift the chest'],
+            [/open.*chest/, 'Open the chest'],
+            [/lengthen.*spine|tall spine|spine long/, 'Lengthen the spine'],
+            [/relax.*shoulders?|shoulders? down|drop.*shoulders?/, 'Drop the shoulders'],
+            [/arms? (parallel|level|straight|overhead)/, 'Extend the arms'],
+            [/engage.*core|core on|active core/, 'Engage the core'],
+            [/press.*feet|root.*foot|ground the feet|weight even/, 'Root the feet'],
+            [/flex.*foot|flex the foot/, 'Flex the foot'],
+            [/gaze (forward|over|at)/, 'Soften the gaze'],
+            [/breathe|breath/, 'Breathe'],
+            [/hold|steady/, 'Hold steady'],
+        ];
+        for (const [re, out] of DICT) if (re.test(lower)) return out;
+        // Fallback — first four meaningful words.
+        const words = msg.replace(/[^a-zA-Z ,]/g, '').split(/\s+/).filter(w => w.length > 2);
+        return words.slice(0, 4).join(' ') || msg;
+    }
 
     function rewriteForMirror(msg) {
         // If the video is CSS-mirrored, "your right" (as seen by MoveNet)

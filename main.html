@@ -1212,40 +1212,124 @@
                 }
             },
 
-            speakCorrection(message, force = false) {
+            /**
+             * Speak a real-time pose correction with severity-aware latency.
+             *
+             * Priority-tiered gaps (vs the old flat 6 s):
+             *   Priority 1 (safety): 1500 ms — can interrupt a lower-priority cue mid-sentence
+             *   Priority 2 (form):   3500 ms — waits for the current utterance to end
+             *   Priority 3 (fine):   6000 ms — only speaks when nothing else is happening
+             *
+             * Shape of `arg`:
+             *   - string                                   → legacy path, treated as priority 3
+             *   - { message, shortMessage?, priority?, severity? } → new path
+             *
+             * `force=true` (from voice assistant commands) always speaks now.
+             */
+            speakCorrection(arg, force = false) {
                 if (!('speechSynthesis' in window)) {
                     console.warn('Text-to-Speech not supported in this browser');
                     return;
                 }
 
-                // --- Smart throttling: do not repeat the same cue within 6s.
-                //     A force=true call (from voice assistant) bypasses the
-                //     throttle, but still deduplicates identical messages.
-                const now = Date.now();
-                const MIN_GAP_MS = 6000;
-                if (!force) {
-                    if (!this.ttsEnabled) return;
-                    if (this.isSpeaking || window.speechSynthesis.speaking) return;
-                    if (this._lastSpokenMessage === message && now - (this._lastSpokenAt || 0) < MIN_GAP_MS) return;
+                // Normalise the argument so both legacy and new callers work.
+                let message, shortMessage, priority, severity;
+                if (typeof arg === 'string') {
+                    message = arg; shortMessage = arg; priority = 3; severity = 'yellow';
+                } else if (arg && typeof arg === 'object') {
+                    message = arg.message || '';
+                    shortMessage = arg.shortMessage || arg.message || '';
+                    priority = arg.priority || 3;
+                    severity = arg.severity || (priority === 1 ? 'red' : priority === 2 ? 'yellow' : 'blue');
                 } else {
-                    window.speechSynthesis.cancel();
+                    return;
+                }
+                if (!message) return;
+
+                const now = Date.now();
+
+                // Forced speech (voice command replies, urgent notifications)
+                // bypasses the tier gap but still cancels anything in flight.
+                if (force) {
+                    try { window.speechSynthesis.cancel(); } catch(_){}
+                    this._speakNow(message, priority);
+                    this._lastSpokenMessage = message;
+                    this._lastSpokenAt = now;
+                    this._lastSpokenPriority = priority;
+                    return;
                 }
 
-                const utterance = new SpeechSynthesisUtterance(message);
-                utterance.rate = 0.95;
-                utterance.pitch = 1.02;
-                utterance.volume = 1.0;
-                utterance.lang = 'en-US';
-                utterance.onstart = () => { this.isSpeaking = true; };
-                utterance.onend = () => { this.isSpeaking = false; };
-                utterance.onerror = (event) => {
-                    console.warn('TTS Error:', event && event.error);
-                    this.isSpeaking = false;
-                };
+                if (!this.ttsEnabled) return;
 
+                // Severity-tiered minimum gap between distinct cues.
+                const TIER_GAP = { 1: 1500, 2: 3500, 3: 6000 };
+                const gap = TIER_GAP[priority] || 6000;
+                const lastAt = this._lastSpokenAt || 0;
+                const lastPri = this._lastSpokenPriority || 3;
+
+                // Same message within its own tier gap → drop.
+                if (this._lastSpokenMessage === message && (now - lastAt) < gap) return;
+
+                // Something is currently speaking.
+                if (this.isSpeaking || window.speechSynthesis.speaking) {
+                    // Pre-empt: priority 1 cuts off anything lower-priority.
+                    if (priority === 1 && lastPri >= 2) {
+                        try { window.speechSynthesis.cancel(); } catch(_){}
+                        // Tiny tick earcon so the user perceives the interrupt.
+                        this._tickEarcon();
+                        this._speakNow(shortMessage || message, priority);
+                        this._lastSpokenMessage = message;
+                        this._lastSpokenAt = now;
+                        this._lastSpokenPriority = priority;
+                        return;
+                    }
+                    // Otherwise let the current utterance finish.
+                    return;
+                }
+
+                // Nothing speaking — respect the tier gap from the last cue.
+                if ((now - lastAt) < gap) return;
+
+                // Use the short form for rapid-fire priority-1 cues, full form otherwise.
+                const toSay = priority === 1 ? (shortMessage || message) : message;
+                this._speakNow(toSay, priority);
                 this._lastSpokenMessage = message;
                 this._lastSpokenAt = now;
-                window.speechSynthesis.speak(utterance);
+                this._lastSpokenPriority = priority;
+            },
+
+            /** Internal: actually queue the utterance. */
+            _speakNow(text, priority) {
+                const u = new SpeechSynthesisUtterance(text);
+                // Priority 1 speaks a touch faster and higher — urgency cue.
+                u.rate = priority === 1 ? 1.05 : 0.95;
+                u.pitch = priority === 1 ? 1.08 : 1.02;
+                u.volume = 1.0;
+                u.lang = 'en-US';
+                u.onstart = () => { this.isSpeaking = true; };
+                u.onend = () => { this.isSpeaking = false; };
+                u.onerror = (e) => {
+                    console.warn('TTS Error:', e && e.error);
+                    this.isSpeaking = false;
+                };
+                window.speechSynthesis.speak(u);
+            },
+
+            /** Short WebAudio click — used when interrupting a lower-priority cue. */
+            _tickEarcon() {
+                try {
+                    if (!this._audioCtx) this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const ctx = this._audioCtx;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.start(); osc.stop(ctx.currentTime + 0.15);
+                } catch(_){}
             },
 
             // --- AR Correction Utilities (Now methods of app object) ---
@@ -1946,9 +2030,16 @@
                                 this.logCorrections(corrections);
                             }
                             if (this.ttsEnabled && corrections.length > 0) {
-                                // Pick the first non-meta cue (skip "Close. One small refinement.")
+                                // Pick the highest-priority non-meta cue.
+                                // Corrections are already sorted by priority in poses.js.
                                 const spoken = corrections.find(c => c.priority !== 0) || corrections[0];
-                                this.speakCorrection(spoken.message);
+                                // Pass the full object so speakCorrection can
+                                // apply severity-tiered latency and interrupts.
+                                this.speakCorrection(spoken);
+                                // Visual pulse — zero latency "something is off here"
+                                this._pulseAffectedJoints(spoken.affected, spoken.priority);
+                            } else {
+                                this._clearPulse();
                             }
 
                         } else {
@@ -2070,6 +2161,26 @@
             /**
              * Draws circles on the keypoints detected by MoveNet with enhanced color coding for Tadasana.
              */
+            /**
+             * Mark a set of keypoint names as "pulsing" for the next ~1.2 s
+             * so the skeleton renderer draws a bright animated ring around
+             * them. Gives zero-latency visual feedback the instant a
+             * correction fires — even before TTS gets to it.
+             */
+            _pulseAffectedJoints(affected, priority) {
+                if (!affected || !affected.length) return;
+                const durationMs = priority === 1 ? 1600 : 1200;
+                const until = Date.now() + durationMs;
+                this._pulseState = this._pulseState || {};
+                for (const name of affected) {
+                    this._pulseState[name] = { until, priority: priority || 3 };
+                }
+            },
+            _clearPulse() {
+                // Let the TTL on each entry expire naturally so the ring
+                // fades on its own — no hard clear needed.
+            },
+
             drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections) {
                 if (!keypoints || !ctx) return;
                 affectedKeypoints = affectedKeypoints || new Set();
@@ -2150,6 +2261,27 @@
                             ctx.fillStyle = '#FFFFFF';
                             ctx.textAlign = 'center';
                             ctx.fillText(keypointName.split('_')[1] || keypointName, x, y - radius - 5);
+                        }
+
+                        // ── Real-time pulse ring — zero-latency visual cue ──
+                        // If this joint is currently flagged by a correction,
+                        // draw an expanding ring. Priority 1 = red ring, 2 = amber.
+                        const pulse = this._pulseState && this._pulseState[keypointName];
+                        if (pulse && pulse.until > Date.now()) {
+                            const remaining = pulse.until - Date.now();
+                            const total = pulse.priority === 1 ? 1600 : 1200;
+                            const t = 1 - (remaining / total); // 0 → 1 over the pulse lifetime
+                            const ringRadius = radius + 10 + (t * 30);
+                            const alpha = 1 - t;
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.arc(x, y, ringRadius, 0, 2 * Math.PI);
+                            ctx.strokeStyle = pulse.priority === 1
+                                ? `rgba(194, 85, 47, ${alpha})`       // terracotta for safety
+                                : `rgba(224, 162, 63, ${alpha})`;      // saffron for form
+                            ctx.lineWidth = pulse.priority === 1 ? 4 : 3;
+                            ctx.stroke();
+                            ctx.restore();
                         }
                     }
                 });
