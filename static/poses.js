@@ -153,6 +153,17 @@
         const j = resolveJoints(rule.joints, stance);
         if (!j) return { pass: true, skipped: true, reason: 'stance-not-detected' };
 
+        // Confidence suppression — if any resolved keypoint drops below the
+        // confidence floor, skip the rule rather than emit a false cue.
+        // Arms out of frame or occluded legs used to trigger spurious
+        // corrections; this prevents that.
+        for (const jointName of j) {
+            const kpoint = kp[jointName];
+            if (kpoint && kpoint.score !== undefined && kpoint.score < CONFIG.minConfidence) {
+                return { pass: true, skipped: true, reason: 'low-confidence:' + jointName };
+            }
+        }
+
         switch (rule.type) {
             case 'angle': {
                 const [a, b, c] = j;
@@ -398,6 +409,50 @@
     const FAIL_STREAK = {};   // rule.id → frames failing
     const PASS_STREAK = {};   // rule.id → frames passing (after a fail)
     const REPORTED = {};      // rule.id → currently visible to user?
+    const MEASURED_HIST = {}; // rule.id → array of recent measured values (for drift detection)
+    const DRIFT_REPORTED = {}; // rule.id → timestamp of last drift warning
+
+    /** Track last N measured values per rule for anticipatory coaching. */
+    function recordMeasure(id, value) {
+        if (typeof value !== 'number' || !isFinite(value)) return;
+        const arr = MEASURED_HIST[id] = MEASURED_HIST[id] || [];
+        arr.push(value);
+        if (arr.length > 8) arr.shift();
+    }
+
+    /**
+     * Detect whether a passing rule is drifting toward its failure edge.
+     * Returns a short anticipatory message or null. Only fires for angle
+     * rules because distance/alignment drift is harder to linearise.
+     */
+    function detectDrift(rule, id, measured) {
+        if (!rule || rule.type !== 'angle' || typeof measured !== 'number') return null;
+        const hist = MEASURED_HIST[id];
+        if (!hist || hist.length < 5) return null;
+        // Only warn once per second to avoid chatter.
+        const lastWarn = DRIFT_REPORTED[id] || 0;
+        if (Date.now() - lastWarn < 1000) return null;
+        const [min, max] = rule.range || [0, 180];
+        const recent = hist.slice(-4);
+        const earlier = hist.slice(-8, -4);
+        if (earlier.length < 2) return null;
+        const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const earlierAvg = earlier.reduce((a, b) => a + b, 0) / earlier.length;
+        const trend = recentAvg - earlierAvg; // positive = increasing
+
+        // Drifting toward upper bound?
+        const upperMargin = max - recentAvg;
+        const lowerMargin = recentAvg - min;
+        if (trend > 2 && upperMargin > 0 && upperMargin < 15) {
+            DRIFT_REPORTED[id] = Date.now();
+            return 'drift-up';
+        }
+        if (trend < -2 && lowerMargin > 0 && lowerMargin < 15) {
+            DRIFT_REPORTED[id] = Date.now();
+            return 'drift-down';
+        }
+        return null;
+    }
 
     function ruleId(poseName, idx) { return poseName + '::' + idx; }
 
@@ -408,6 +463,8 @@
             for (const k of Object.keys(FAIL_STREAK)) delete FAIL_STREAK[k];
             for (const k of Object.keys(PASS_STREAK)) delete PASS_STREAK[k];
             for (const k of Object.keys(REPORTED)) delete REPORTED[k];
+            for (const k of Object.keys(MEASURED_HIST)) delete MEASURED_HIST[k];
+            for (const k of Object.keys(DRIFT_REPORTED)) delete DRIFT_REPORTED[k];
         },
         getStance(rawKeypoints) {
             const kp = smoothKeypoints(rawKeypoints);
@@ -572,6 +629,25 @@
                     if (REPORTED[id] && PASS_STREAK[id] >= CONFIG.rulePassFrames) {
                         REPORTED[id] = false;
                     }
+                    // Record measured value for drift detection and emit a
+                    // soft anticipatory warning if the rule is drifting
+                    // toward its failure edge.
+                    recordMeasure(id, result.measured);
+                    const drift = detectDrift(rule, id, result.measured);
+                    if (drift && !REPORTED[id]) {
+                        const driftMsg = drift === 'drift-up'
+                            ? 'Stay with the alignment — easing back the other way'
+                            : 'Stay with the alignment — holding the shape';
+                        corrections.push({
+                            id: id + ':drift',
+                            message: rule.message,          // use the rule's own cue
+                            shortMessage: 'Stay with it',
+                            affected: rule.affected || rule.joints || [],
+                            color: 'yellow',
+                            priority: 2,
+                            drift: true,
+                        });
+                    }
                 } else {
                     FAIL_STREAK[id] = (FAIL_STREAK[id] || 0) + 1;
                     PASS_STREAK[id] = 0;
@@ -581,6 +657,7 @@
                     if (FAIL_STREAK[id] >= failThreshold) {
                         REPORTED[id] = true;
                     }
+                    recordMeasure(id, result.measured);
                 }
 
                 diagnostics.push({

@@ -16,6 +16,7 @@
     <script src="/static/poses.js"></script>
     <script src="/static/voice-kb.js"></script>
     <script src="/static/pose-cues.js"></script>
+    <script src="/static/practice-flow.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -464,6 +465,22 @@
             [12, 14], [14, 16] // Right leg
         ];
 
+        /**
+         * Converts a hex colour string to rgba() with the given alpha.
+         * Used by drawSkeleton's confidence-weighted gradient bones so
+         * low-confidence keypoints fade out rather than render at full
+         * opacity (which looks like a flicker).
+         */
+        function hexWithAlpha(hex, alpha) {
+            const h = (hex || '#1E88E5').replace('#', '');
+            const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+            const r = parseInt(full.slice(0, 2), 16);
+            const g = parseInt(full.slice(2, 4), 16);
+            const b = parseInt(full.slice(4, 6), 16);
+            const a = Math.max(0.15, Math.min(1, alpha));
+            return `rgba(${r},${g},${b},${a})`;
+        }
+
         // --- API Configuration and Helper (Moved outside app object) ---
         const OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
         const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. Always format your advice clearly. Keep responses brief (2-3 sentences max).";
@@ -690,7 +707,16 @@
                         const idx = lib.findIndex(a => a.name === app.currentPose);
                         const nxt = lib[(idx + 1) % lib.length];
                         if (nxt) {
-                            app.speakCorrection('Next, ' + nxt.sanskrit + '.', true);
+                            // Transition hint — item 11. Natural language
+                            // guidance from this pose to the next.
+                            let opener = 'Next, ' + nxt.sanskrit + '.';
+                            try {
+                                if (window.PracticeFlow && window.PracticeFlow.TransitionHint) {
+                                    const hint = window.PracticeFlow.TransitionHint.hintFor(nxt.name);
+                                    if (hint) opener += ' ' + hint;
+                                }
+                            } catch(_){}
+                            app.speakCorrection(opener, true);
                             setTimeout(() => app.selectAsanaAndStart(nxt.name), 500);
                             updateMicStatus(true, 'Next');
                         }
@@ -780,6 +806,23 @@
                     { re: /\b(breathe with me|breathing exercise|breath exercise|calm me|calm down|i('m| am) anxious|anxiety|help me relax|box breath)\b/, h: (t, app) => {
                         if (app.guidedBreath) app.guidedBreath();
                         updateMicStatus(true, 'Breathing');
+                        return true;
+                    }},
+                    // ── Timed hold (item 16) ──
+                    { re: /\b(hold for |count down|timer |time me|timed hold|start timer)\b|^timer$|^hold$/, h: (t, app) => {
+                        // Parse duration if user says "hold for 30 seconds".
+                        const m = t.match(/(\d+)\s*(second|sec|minute|min)/);
+                        let secs = 30;
+                        if (m) { secs = parseInt(m[1], 10) * ((/min/).test(m[2]) ? 60 : 1); }
+                        secs = Math.max(5, Math.min(120, secs));
+                        if (app.startTimedHold) app.startTimedHold(secs);
+                        updateMicStatus(true, 'Hold ' + secs + 's');
+                        return true;
+                    }},
+                    // ── Breath pacing overlay (item 17) ──
+                    { re: /\b(breath pacing|pace (my |the )?breath|breath circle|breathing circle)\b/, h: (t, app) => {
+                        if (app.toggleBreathPacing) app.toggleBreathPacing();
+                        updateMicStatus(true, 'Breath pacing');
                         return true;
                     }},
                     // ── Command library ──
@@ -1308,7 +1351,20 @@
                 u.volume = 1.0;
                 u.lang = 'en-US';
                 u.onstart = () => { this.isSpeaking = true; };
-                u.onend = () => { this.isSpeaking = false; };
+                u.onend = () => {
+                    this.isSpeaking = false;
+                    // After this utterance ends, speak a queued second cue
+                    // (from multi-rule correction) once there's a small pause.
+                    if (this._queuedCorrection) {
+                        const next = this._queuedCorrection;
+                        this._queuedCorrection = null;
+                        setTimeout(() => {
+                            if (this.ttsEnabled && !this.isSpeaking && !window.speechSynthesis.speaking) {
+                                this.speakCorrection(next);
+                            }
+                        }, 400);
+                    }
+                };
                 u.onerror = (e) => {
                     console.warn('TTS Error:', e && e.error);
                     this.isSpeaking = false;
@@ -1660,6 +1716,47 @@
             },
 
             /**
+             * Start a timed hold with spoken countdown (item 16).
+             * Default 30 seconds. Speaks at 20, 10, 5, 3, 2, 1, done.
+             */
+            startTimedHold(secs) {
+                secs = secs || 30;
+                if (!window.PracticeFlow || !window.PracticeFlow.TimedHold) {
+                    this.speakCorrection('Timer not available.', true); return;
+                }
+                this.speakCorrection({ message: 'Hold for ' + secs + ' seconds. Starting now.', shortMessage: 'Hold ' + secs + 's', priority: 2 }, true);
+                const spokenAt = new Set();
+                const milestones = [20, 10, 5, 3, 2, 1];
+                window.PracticeFlow.TimedHold.start(secs, (remaining) => {
+                    if (milestones.includes(remaining) && !spokenAt.has(remaining)) {
+                        spokenAt.add(remaining);
+                        if (remaining > 5) this.speakCorrection({ message: remaining + ' seconds.', shortMessage: remaining + '', priority: 3 });
+                        else this.speakCorrection({ message: remaining + '.', shortMessage: remaining + '', priority: 2 });
+                    }
+                }, () => {
+                    this.speakCorrection({ message: 'Time. Release the pose.', shortMessage: 'Release', priority: 2 }, true);
+                    if (navigator.vibrate) try { navigator.vibrate([200, 100, 200]); } catch(_){}
+                });
+            },
+
+            /**
+             * Toggle the breath pacing overlay (item 17).
+             * Animated circle: inhale 4 s, exhale 4 s.
+             */
+            toggleBreathPacing() {
+                if (!window.PracticeFlow || !window.PracticeFlow.BreathPacing) {
+                    this.speakCorrection('Breath pacing not available.', true); return;
+                }
+                if (window.PracticeFlow.BreathPacing._running) {
+                    window.PracticeFlow.BreathPacing.stop();
+                    this.speakCorrection('Breath pacing off.', true);
+                } else {
+                    window.PracticeFlow.BreathPacing.start({ inhale: 4, exhale: 4 });
+                    this.speakCorrection('Breath pacing on. Follow the circle.', true);
+                }
+            },
+
+            /**
              * Opens the Command Library modal. Fetches /api/commands on
              * first open, caches after, renders a searchable grouped list
              * of every thing Sunday can do.
@@ -1831,6 +1928,22 @@
              * Initializes the camera and TensorFlow MoveNet model.
              */
             async startARAssessment() {
+                // Camera positioning hint — shown as a brief overlay the
+                // first time a user starts AR per session. Uses the pose's
+                // view field (front/side) to tell them how to orient the
+                // camera. Vanishes after 3 seconds or on tap.
+                try {
+                    if (!this._cameraHintShown && this.currentPose && typeof ASANA_LIBRARY !== 'undefined') {
+                        const asana = ASANA_LIBRARY.find(a => a.name === this.currentPose);
+                        const view = (asana && asana.view) || 'front';
+                        const hintMsg = view === 'side'
+                            ? 'Place the camera to your side, roughly 2 metres away at chest height.'
+                            : 'Place the camera in front of you, roughly 2 metres away at chest height.';
+                        this._showCameraHint(hintMsg);
+                        this._cameraHintShown = true;
+                    }
+                } catch(_) {}
+
                 const video = document.getElementById('video-feed');
                 const canvas = document.getElementById('ar-canvas');
                 const ctx = canvas.getContext('2d');
@@ -2049,19 +2162,41 @@
                                 this.logCorrections(corrections);
                             }
                             if (this.ttsEnabled && corrections.length > 0) {
-                                // Pick the highest-priority non-meta cue.
-                                // Corrections are already sorted by priority in poses.js.
-                                const raw = corrections.find(c => c.priority !== 0) || corrections[0];
-                                // Personalise the cue for THIS asana — each of
-                                // the 20 poses has its own signature language.
-                                const spoken = (window.PoseCues && window.PoseCues.personalise)
-                                    ? window.PoseCues.personalise(raw, this.currentPose)
-                                    : raw;
-                                // Pass the full object so speakCorrection can
-                                // apply severity-tiered latency and interrupts.
-                                this.speakCorrection(spoken);
+                                // Pick the top 1-2 cues by priority so we
+                                // coach multiple issues in sequence without
+                                // chatter. Skip priority 0 (meta) cues.
+                                const nonMeta = corrections.filter(c => c.priority !== 0);
+                                const queue = nonMeta.slice(0, 2);
+                                if (!queue.length && corrections[0]) queue.push(corrections[0]);
+
+                                // Personalise each cue for THIS asana.
+                                const spoken = queue.map(c => (window.PoseCues && window.PoseCues.personalise)
+                                    ? window.PoseCues.personalise(c, this.currentPose)
+                                    : c);
+
+                                // Speak the top cue now; if a second distinct
+                                // cue exists, queue it for after the first ends.
+                                if (spoken[0]) this.speakCorrection(spoken[0]);
+                                if (spoken[1] && spoken[0] && spoken[1].message !== spoken[0].message) {
+                                    this._queuedCorrection = spoken[1];
+                                } else {
+                                    this._queuedCorrection = null;
+                                }
+
+                                // Haptic feedback on priority 1 (mobile only).
+                                if (spoken[0] && spoken[0].priority === 1 && navigator.vibrate) {
+                                    try { navigator.vibrate([80, 40, 80]); } catch(_){}
+                                }
+
+                                // Track chronic rule failures for per-user calibration.
+                                try {
+                                    if (window.PracticeFlow && window.PracticeFlow.RuleFocus) {
+                                        for (const s of spoken) if (s.id) window.PracticeFlow.RuleFocus.bump(s.id);
+                                    }
+                                } catch(_){}
+
                                 // Visual pulse — zero latency "something is off here"
-                                this._pulseAffectedJoints(spoken.affected, spoken.priority);
+                                for (const s of spoken) this._pulseAffectedJoints(s.affected, s.priority);
                             } else if (this.ttsEnabled && this.currentPose && window.PoseCues) {
                                 // No corrections → pose is held well. Occasionally
                                 // speak a pose-specific "holding" cue to keep the
@@ -2219,6 +2354,31 @@
                 // fades on its own — no hard clear needed.
             },
 
+            /**
+             * Brief camera-positioning hint, shown when AR starts.
+             * Auto-dismisses after 3 seconds or on tap. Uses the same
+             * overlay style as showReferenceOverlay but smaller.
+             */
+            _showCameraHint(message) {
+                const existing = document.getElementById('camera-hint');
+                if (existing) existing.remove();
+                const hint = document.createElement('div');
+                hint.id = 'camera-hint';
+                hint.style.cssText = [
+                    'position:fixed', 'left:50%', 'bottom:100px', 'transform:translateX(-50%)',
+                    'z-index:125', 'background:rgba(15,61,46,0.92)', 'color:#F5F2EB',
+                    'padding:14px 22px', 'border-radius:999px', 'font-size:14px',
+                    'font-family:Inter,system-ui,sans-serif', 'box-shadow:0 10px 40px rgba(0,0,0,0.3)',
+                    'opacity:0', 'transition:opacity 0.25s ease', 'cursor:pointer',
+                    'max-width:85vw', 'text-align:center',
+                ].join(';');
+                hint.textContent = message;
+                hint.onclick = () => hint.remove();
+                document.body.appendChild(hint);
+                requestAnimationFrame(() => hint.style.opacity = '1');
+                setTimeout(() => { if (hint.parentNode) { hint.style.opacity = '0'; setTimeout(() => hint.remove(), 260); } }, 3000);
+            },
+
             drawKeypoints(video, keypoints, ctx, affectedKeypoints, corrections) {
                 if (!keypoints || !ctx) return;
                 affectedKeypoints = affectedKeypoints || new Set();
@@ -2371,15 +2531,22 @@
                             lineColor = '#10B981'; // Green
                         }
 
-                        ctx.strokeStyle = lineColor;
-                        ctx.beginPath();
-
                         // Use coordinates directly since canvas is mirrored via CSS
                         const p1x = kp1.x;
                         const p1y = kp1.y;
                         const p2x = kp2.x;
                         const p2y = kp2.y;
 
+                        // Gradient bone: confidence-weighted at each end so
+                        // partially-visible limbs fade out rather than strobe.
+                        // Colour falls back to solid lineColor when not in a correction.
+                        const grad = ctx.createLinearGradient(p1x, p1y, p2x, p2y);
+                        const c1 = Math.min(1, kp1.score);
+                        const c2 = Math.min(1, kp2.score);
+                        grad.addColorStop(0, hexWithAlpha(lineColor, c1));
+                        grad.addColorStop(1, hexWithAlpha(lineColor, c2));
+                        ctx.strokeStyle = grad;
+                        ctx.beginPath();
                         ctx.moveTo(p1x, p1y);
                         ctx.lineTo(p2x, p2y);
                         ctx.stroke();
@@ -2407,13 +2574,19 @@
                         const peak = Math.max(0, Math.min(100, this._sessionPeakScore || this._lastPoseScore || 0));
                         if (durationS >= 5) { // ignore accidental taps
                             const a = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(x => x.name === this.currentPose) : null;
-                            window.VoiceHistory.logSession({
+                            const record = {
                                 pose: this.currentPose,
                                 poseSanskrit: a ? a.sanskrit : null,
                                 peakScore: peak,
                                 durationS,
                                 ts: Date.now(),
-                            });
+                            };
+                            window.VoiceHistory.logSession(record);
+
+                            // Post-session recap card — item 25.
+                            if (window.PracticeFlow && window.PracticeFlow.SessionRecap) {
+                                window.PracticeFlow.SessionRecap.show(record);
+                            }
                         }
                     }
                 } catch (e) { console.warn('history log failed', e); }
