@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Nameplate — AsanaMind</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+
+        .nameplate {
+            width: 900px;
+            background: #FFFFFF;
+            border: 3px solid #0F3D2E;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+        }
+
+        .header {
+            background: #0F3D2E;
+            color: #F5F2EB;
+            padding: 20px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .college-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .college-logo {
+            width: 60px;
+            height: 60px;
+            background: #F5F2EB;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Fraunces', serif;
+            font-size: 24px;
+            font-weight: 600;
+            color: #0F3D2E;
+        }
+
+        .college-text h2 {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .college-text p {
+            font-size: 12px;
+            font-weight: 400;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .dept-badge {
+            background: #E0A23F;
+            color: #0F3D2E;
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .body-section {
+            padding: 28px 32px;
+        }
+
+        .project-title {
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #EEE9DE;
+        }
+
+        .project-title .kicker {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #C2552F;
+        }
+
+        .project-title h1 {
+            font-family: 'Fraunces', serif;
+            font-size: 32px;
+            font-weight: 600;
+            color: #14120E;
+            margin-top: 6px;
+            letter-spacing: -0.02em;
+        }
+
+        .project-title .subtitle {
+            font-size: 14px;
+            color: #4A453B;
+            margin-top: 8px;
+            line-height: 1.5;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .detail-section h3 {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #0F3D2E;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #EEE9DE;
+        }
+
+        .team-list {
+            list-style: none;
+        }
+
+        .team-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 13px;
+            color: #14120E;
+            border-bottom: 1px solid #F5F2EB;
+        }
+
+        .team-list li:last-child {
+            border-bottom: none;
+        }
+
+        .team-list .usn {
+            font-size: 11px;
+            color: #7A7364;
+            font-weight: 500;
+            font-family: monospace;
+        }
+
+        .guide-section {
+            margin-top: 8px;
+        }
+
+        .guide-card {
+            background: #EEE9DE;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-top: 8px;
+        }
+
+        .guide-card .name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #14120E;
+        }
+
+        .guide-card .designation {
+            font-size: 12px;
+            color: #4A453B;
+            margin-top: 2px;
+        }
+
+        .footer {
+            background: #EEE9DE;
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #7A7364;
+        }
+
+        .footer .tech-stack {
+            display: flex;
+            gap: 8px;
+        }
+
+        .footer .tech-stack span {
+            background: #0F3D2E;
+            color: #F5F2EB;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .nameplate { box-shadow: none; border-radius: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="nameplate">
+        <!-- Header -->
+        <div class="header">
+            <div class="college-info">
+                <div class="college-logo">V</div>
+                <div class="college-text">
+                    <h2>Vidyavardhaka College of Engineering</h2>
+                    <p>Autonomous Institution affiliated to VTU, Belagavi | NAAC 'A+' Grade</p>
+                </div>
+            </div>
+            <div class="dept-badge">CSE (AI & ML)</div>
+        </div>
+
+        <!-- Body -->
+        <div class="body-section">
+            <div class="project-title">
+                <span class="kicker">Final Year Project 2025–26</span>
+                <h1>AsanaMind</h1>
+                <p class="subtitle">AI-Powered Real-Time Yoga Posture Correction using MoveNet Pose Estimation with Voice-Guided Coaching and Offline Intelligence</p>
+            </div>
+
+            <div class="details-grid">
+                <!-- Team -->
+                <div class="detail-section">
+                    <h3>Team Members</h3>
+                    <ul class="team-list">
+                        <li>
+                            <span>Ayush M</span>
+                            <span class="usn">1VV23AI001</span>
+                        </li>
+                        <li>
+                            <span>Team Member 2</span>
+                            <span class="usn">1VV23AI002</span>
+                        </li>
+                        <li>
+                            <span>Team Member 3</span>
+                            <span class="usn">1VV23AI003</span>
+                        </li>
+                        <li>
+                            <span>Team Member 4</span>
+                            <span class="usn">1VV23AI004</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Guide -->
+                <div class="detail-section">
+                    <h3>Project Guide</h3>
+                    <div class="guide-card">
+                        <div class="name">Prof. [Guide Name]</div>
+                        <div class="designation">Assistant Professor, Dept. of CSE (AI & ML)</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3 style="margin-top:20px">Project Details</h3>
+                        <div class="guide-card">
+                            <div class="name" style="font-size:13px">Academic Year: 2025–26</div>
+                            <div class="designation">Semester: VIII | Subject: Project Work</div>
+                            <div class="designation" style="margin-top:4px">Domain: Computer Vision + NLP</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <span>asanaminds.onrender.com | github.com/Majenayu/AsanaMind</span>
+            <div class="tech-stack">
+                <span>MoveNet</span>
+                <span>TensorFlow.js</span>
+                <span>Flask</span>
+                <span>MongoDB</span>
+                <span>RAG</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
