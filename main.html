@@ -4417,7 +4417,8 @@
             // ─────────────────────────────────────────────────
             _startLiveFeed() {
                 if (this._liveFeedTimer) return;
-                this._liveFeedTimer = setInterval(() => {
+                let consecutiveErrors = 0;
+                this._liveFeedTimer = setInterval(async () => {
                     try {
                         const canvas = document.getElementById('ar-canvas');
                         const video = document.getElementById('video-feed');
@@ -4436,7 +4437,7 @@
                         if (canvas && canvas.width) ctx.drawImage(canvas, 0, 0, w, h);
                         ctx.restore();
                         const dataUrl = tmp.toDataURL('image/jpeg', 0.55);
-                        fetch('/api/live/upload', {
+                        const r = await fetch('/api/live/upload', {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
@@ -4445,9 +4446,19 @@
                                 pose: this.currentPose,
                                 score: Math.round(this._lastPoseScore || 0),
                             }),
-                            keepalive: true,
-                        }).catch(() => {});
-                    } catch (_) {}
+                        });
+                        if (!r.ok) {
+                            consecutiveErrors++;
+                            if (consecutiveErrors === 1 || consecutiveErrors % 10 === 0) {
+                                console.warn('[live] upload failed', r.status);
+                            }
+                        } else {
+                            consecutiveErrors = 0;
+                        }
+                    } catch (e) {
+                        consecutiveErrors++;
+                        if (consecutiveErrors === 1) console.warn('[live] upload error', e.message);
+                    }
                 }, 1500);
             },
 

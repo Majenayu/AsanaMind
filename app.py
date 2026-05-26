@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string, request, redirect, url_for, jsonify, session, send_from_directory
 import pymongo
+from bson.binary import Binary as _BsonBinary
 from datetime import datetime, timedelta
 from collections import defaultdict
 import os
@@ -51,14 +52,8 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'majen')
 # the browser. Validated with constant-time comparison.
 LIVE_VIEW_PASSWORD = os.environ.get('LIVE_VIEW_PASSWORD', 'm@1')
 
-# In-memory store for the latest live snapshot per student. Each entry is
-# {'frame': bytes (JPEG), 'ts': float, 'pose': str, 'score': int}. Entries
-# older than LIVE_FRAME_TTL seconds are considered dead. Size is bounded by
-# the number of currently-practising students × 1 frame each.
-import threading
-LIVE_FRAMES = {}
-LIVE_FRAMES_LOCK = threading.Lock()
-LIVE_FRAME_TTL = 8.0  # seconds — if no fresh frame, the student is "offline"
+# Live-frame TTL — Mongo auto-deletes stale frames via TTL index above.
+LIVE_FRAME_TTL = 8.0  # seconds — frames older than this count as "offline"
 
 app = Flask(__name__)
 # Use environment variable for secret key, fallback ONLY for local dev
@@ -123,6 +118,12 @@ try:
     adb = client.get_database('admin_data')
     feedback_col = adb.feedback
     admin_audit_col = adb.audit
+    live_frames_col = adb.live_frames
+    # TTL index — auto-deletes frames older than 30s. Idempotent.
+    try:
+        live_frames_col.create_index('expiresAt', expireAfterSeconds=0)
+    except Exception:
+        pass
 
     client.admin.command('ping')
     print(f"✓ MongoDB connected — legacy='{LEGACY_DB_NAME}', google='{GOOGLE_DB_NAME}', admin='admin_data'")
@@ -135,6 +136,7 @@ except Exception as e:
     g_users = g_certificates_col = g_course_progress_col = None
     g_preferences_col = g_push_subs_col = g_streak_freeze_col = None
     feedback_col = admin_audit_col = None
+    live_frames_col = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2699,14 +2701,16 @@ def _live_pass_ok():
 def live_upload_frame():
     """Student-side: pushes the latest camera frame.
 
-    Body: { email, frame: 'data:image/jpeg;base64,...', pose, score }.
+    Body: { frame: 'data:image/jpeg;base64,...', pose, score }.
     No admin auth required — the student is uploading their own frame.
     Email is taken from the session, not the body, to prevent spoofing.
+    Frames are stored in MongoDB so they survive worker boundaries on
+    Render (gunicorn with >1 worker would lose in-memory state).
     """
     if not session.get('logged_in'):
         return jsonify({'success': False}), 401
     email = (session.get('user_email') or '').lower()
-    if not email:
+    if not email or live_frames_col is None:
         return jsonify({'success': False}), 401
     data = request.get_json(silent=True) or {}
     frame_str = data.get('frame') or ''
@@ -2721,27 +2725,41 @@ def live_upload_frame():
         raw = _b64stream.b64decode(frame_str.split(',', 1)[1])
     except Exception:
         return jsonify({'success': False, 'error': 'bad base64'}), 400
-    # Reject frames over 200 KB to bound memory.
+    # Reject frames over 200 KB to bound storage.
     if len(raw) > 200 * 1024:
         return jsonify({'success': False, 'error': 'frame too large'}), 413
-    with LIVE_FRAMES_LOCK:
-        LIVE_FRAMES[email] = {'frame': raw, 'ts': _time.time(), 'pose': pose, 'score': score}
-        # Opportunistically prune dead entries.
-        cutoff = _time.time() - LIVE_FRAME_TTL
-        for k in list(LIVE_FRAMES.keys()):
-            if LIVE_FRAMES[k]['ts'] < cutoff:
-                LIVE_FRAMES.pop(k, None)
+
+    now = datetime.utcnow()
+    expires = now + timedelta(seconds=30)  # TTL index reaps after this
+    try:
+        live_frames_col.update_one(
+            {'email': email},
+            {'$set': {
+                'email': email,
+                'frame': _BsonBinary(raw),
+                'pose': pose,
+                'score': score,
+                'updatedAt': now,
+                'expiresAt': expires,
+            }},
+            upsert=True,
+        )
+    except Exception as e:
+        print(f'live frame upload error: {e}')
+        return jsonify({'success': False, 'error': 'store error'}), 500
     return jsonify({'success': True})
 
 
 @app.route('/api/live/stop', methods=['POST'])
 def live_stop():
     """Student-side: explicit signal that the AR session has ended."""
-    if not session.get('logged_in'):
+    if not session.get('logged_in') or live_frames_col is None:
         return jsonify({'success': False}), 401
     email = (session.get('user_email') or '').lower()
-    with LIVE_FRAMES_LOCK:
-        LIVE_FRAMES.pop(email, None)
+    try:
+        live_frames_col.delete_one({'email': email})
+    except Exception:
+        pass
     return jsonify({'success': True})
 
 
@@ -2749,17 +2767,60 @@ def live_stop():
 @admin_api_required
 def admin_live_status():
     """Returns which students currently have a live frame available."""
-    cutoff = _time.time() - LIVE_FRAME_TTL
     out = {}
-    with LIVE_FRAMES_LOCK:
-        for em, entry in LIVE_FRAMES.items():
-            if entry['ts'] >= cutoff:
-                out[em] = {
-                    'pose': entry.get('pose', ''),
-                    'score': entry.get('score', 0),
-                    'age': round(_time.time() - entry['ts'], 1),
-                }
+    if live_frames_col is None:
+        return jsonify({'live': out, 'note': 'live_frames_col is None'})
+    cutoff = datetime.utcnow() - timedelta(seconds=LIVE_FRAME_TTL)
+    try:
+        for doc in live_frames_col.find(
+            {'updatedAt': {'$gte': cutoff}},
+            {'email': 1, 'pose': 1, 'score': 1, 'updatedAt': 1, '_id': 0},
+        ):
+            em = doc.get('email')
+            if not em:
+                continue
+            age = (datetime.utcnow() - doc['updatedAt']).total_seconds()
+            out[em] = {
+                'pose': doc.get('pose', ''),
+                'score': doc.get('score', 0),
+                'age': round(age, 1),
+            }
+    except Exception as e:
+        print(f'live status error: {e}')
+        return jsonify({'live': out, 'error': str(e)[:200]})
     return jsonify({'live': out})
+
+
+@app.route('/api/admin/live/diag')
+@admin_api_required
+def admin_live_diag():
+    """Diagnostics endpoint — tells admin everything about the live pipeline."""
+    info = {
+        'live_frames_col_ready': live_frames_col is not None,
+        'live_view_password_set': bool(LIVE_VIEW_PASSWORD),
+        'admin_pass_cookie_present': bool(request.cookies.get('live_pass')),
+        'admin_pass_valid': _live_pass_ok(),
+        'frame_ttl_seconds': LIVE_FRAME_TTL,
+    }
+    if live_frames_col is not None:
+        try:
+            cutoff = datetime.utcnow() - timedelta(seconds=LIVE_FRAME_TTL)
+            total = live_frames_col.count_documents({})
+            fresh = live_frames_col.count_documents({'updatedAt': {'$gte': cutoff}})
+            info['total_frames_in_db'] = total
+            info['fresh_frames'] = fresh
+            sample = list(live_frames_col.find({}, {'email': 1, 'pose': 1, 'updatedAt': 1, '_id': 0}).sort('updatedAt', -1).limit(5))
+            info['recent'] = [
+                {
+                    'email': s.get('email'),
+                    'pose': s.get('pose'),
+                    'age_seconds': round((datetime.utcnow() - s['updatedAt']).total_seconds(), 1),
+                }
+                for s in sample
+            ]
+        except Exception as e:
+            info['error'] = str(e)[:200]
+    return jsonify(info)
 
 
 @app.route('/api/admin/live/check', methods=['POST'])
@@ -2775,8 +2836,6 @@ def admin_live_check():
         _audit('live_password_fail', '', {'len': len(pw)})
         return jsonify({'success': False, 'error': 'Wrong password'}), 401
     response = jsonify({'success': True})
-    # Cookie scoped to /api/admin/live/ paths, expires in 30 min, http-only
-    # so JS can't read it back, secure in production.
     response.set_cookie(
         'live_pass',
         pw,
@@ -2799,18 +2858,21 @@ def admin_live_frame(email):
     """
     if not _live_pass_ok():
         return jsonify({'error': 'Live-view password required'}), 401
+    if live_frames_col is None:
+        return jsonify({'error': 'DB offline'}), 503
     email = (email or '').lower().strip()
-    cutoff = _time.time() - LIVE_FRAME_TTL
-    with LIVE_FRAMES_LOCK:
-        entry = LIVE_FRAMES.get(email)
-        fresh = entry and entry['ts'] >= cutoff
-    if not fresh:
+    cutoff = datetime.utcnow() - timedelta(seconds=LIVE_FRAME_TTL)
+    doc = live_frames_col.find_one({'email': email, 'updatedAt': {'$gte': cutoff}})
+    if not doc:
         return jsonify({'error': 'No active session'}), 404
-    # Audit only the first frame of a viewing session (avoid spam).
     if not session.get('live_audit_for_' + email):
-        session['live_audit_for_' + email] = _time.time()
-        _audit('live_view_start', email, {'pose': entry.get('pose', '')})
-    response = app.make_response(entry['frame'])
+        session['live_audit_for_' + email] = True
+        _audit('live_view_start', email, {'pose': doc.get('pose', '')})
+    raw = doc.get('frame') or b''
+    # PyMongo returns bytes wrapped — pull the actual binary.
+    if hasattr(raw, 'tobytes'):
+        raw = raw.tobytes()
+    response = app.make_response(bytes(raw))
     response.headers['Content-Type'] = 'image/jpeg'
     response.headers['Cache-Control'] = 'no-store'
     return response
