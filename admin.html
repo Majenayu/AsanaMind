@@ -158,7 +158,7 @@ a{color:var(--primary);text-decoration:none}
         <nav class="nav" id="top-nav"></nav>
         <div class="nav-right">
             <a href="/home" class="btn btn-sm" title="Back to app">← App</a>
-            <a href="/logout" class="btn btn-sm">Sign out</a>
+            <a href="/admin/logout" class="btn btn-sm">Sign out</a>
             <span class="avatar" id="admin-av"></span>
         </div>
     </div>
@@ -204,16 +204,12 @@ async function fetchJSON(url) {
 
 async function bootProfile() {
     try {
-        const p = await fetchJSON('/api/profile');
-        adminProfile = p;
+        const me = await fetchJSON('/api/admin/me');
+        adminProfile = { email: me.email, name: me.email.split('@')[0] };
         const av = $('#admin-av');
-        if (p.picture) {
-            av.style.backgroundImage = `url(${p.picture})`;
-            av.textContent = '';
-        } else {
-            av.textContent = initials(p.name);
-        }
-    } catch (e) { console.warn('profile fetch failed', e); }
+        av.textContent = initials(adminProfile.name);
+        av.title = me.email;
+    } catch (e) { console.warn('admin /me fetch failed', e); }
 }
 
 function showModal(html) {

@@ -164,44 +164,32 @@ from functools import wraps
 
 
 def is_admin_user():
-    """Returns True if the current session belongs to an admin (Google login + email in allowlist + admin gate passed)."""
-    if not session.get('logged_in'):
-        return False
-    if session.get('auth_provider') != 'google':
-        return False
-    email = (session.get('user_email') or '').lower()
-    if email not in ADMIN_EMAILS:
-        return False
-    if ADMIN_PASSWORD and not session.get('admin_unlocked'):
-        return False
-    return True
+    """Returns True for any session that has unlocked the admin gate.
+
+    Two paths in:
+      1. Google sign-in as an allowlisted email + password unlock
+      2. Direct admin login via /admin/login (email+password, no Google needed)
+    Both set session['admin_unlocked'] = True; that's the single source of truth.
+    """
+    return bool(session.get('admin_unlocked') and (session.get('admin_email') or '').lower() in ADMIN_EMAILS)
 
 
 def admin_required(f):
-    """Decorator: 404 to non-admins (don't reveal the panel exists)."""
+    """Decorator: redirect to admin login if not authenticated as admin."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not is_admin_user():
-            # If the user is an allowlisted admin who hasn't passed the
-            # password gate yet, redirect them to the unlock page.
-            email = (session.get('user_email') or '').lower()
-            if (session.get('logged_in') and
-                session.get('auth_provider') == 'google' and
-                email in ADMIN_EMAILS and
-                ADMIN_PASSWORD):
-                return redirect(url_for('admin_unlock_page'))
-            from flask import abort
-            abort(404)
+            return redirect(url_for('admin_login_page'))
         return f(*args, **kwargs)
     return wrapper
 
 
 def admin_api_required(f):
-    """Same as admin_required but returns JSON 404 for API endpoints."""
+    """Same as admin_required but returns JSON 401 for API endpoints."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not is_admin_user():
-            return jsonify({'error': 'Not found'}), 404
+            return jsonify({'error': 'Admin authentication required'}), 401
         return f(*args, **kwargs)
     return wrapper
 
@@ -212,7 +200,7 @@ def _audit(action, target_email='', meta=None):
         return
     try:
         admin_audit_col.insert_one({
-            'admin_email': session.get('user_email'),
+            'admin_email': session.get('admin_email') or session.get('user_email'),
             'action': action,
             'target_email': target_email,
             'meta': meta or {},
@@ -2053,75 +2041,95 @@ def privacy_page():
 # ADMIN PANEL — routes + APIs
 # ═════════════════════════════════════════════════════════════
 
-ADMIN_UNLOCK_HTML = """<!DOCTYPE html>
+ADMIN_LOGIN_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Admin · AsanMinds</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="/assets/logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-body{margin:0;background:#F5F2EB;color:#14120E;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
-.card{background:#fff;border:1px solid #D4CCB8;border-radius:22px;padding:36px;max-width:380px;width:100%;text-align:center}
-h1{font-family:Fraunces,serif;font-size:32px;font-weight:300;margin:8px 0 4px;letter-spacing:-0.02em}
+body{margin:0;background:#F5F2EB;color:#14120E;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;-webkit-font-smoothing:antialiased}
+.card{background:#fff;border:1px solid #D4CCB8;border-radius:22px;padding:40px 36px;max-width:420px;width:100%;box-shadow:0 24px 60px rgba(20,18,14,0.06)}
+.brand-row{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.brand-dot{width:30px;height:30px;border-radius:8px;background:#0F3D2E;color:#F5F2EB;display:flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:15px}
+.brand-word{font-family:Fraunces,serif;font-size:18px;font-weight:500;letter-spacing:-0.01em;color:#14120E}
+.brand-tag{background:#C2552F;color:#F5F2EB;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase}
+h1{font-family:Fraunces,serif;font-size:30px;font-weight:300;margin:6px 0 4px;letter-spacing:-0.02em}
 .kicker{color:#C2552F;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500}
-input{width:100%;height:44px;padding:0 16px;border-radius:9999px;background:#EEE9DE;border:1px solid #D4CCB8;font-size:14px;font-family:inherit;outline:none;margin:14px 0;text-align:center}
-input:focus{border-color:#0F3D2E}
-button{width:100%;height:44px;border-radius:9999px;border:0;background:#0F3D2E;color:#F5F2EB;font-weight:500;cursor:pointer;font-size:14px}
+.sub{color:#7A7364;font-size:13px;margin:0 0 22px}
+label{display:block;font-size:11px;color:#7A7364;letter-spacing:0.18em;text-transform:uppercase;font-weight:500;margin:14px 0 6px}
+input{width:100%;height:46px;padding:0 16px;border-radius:9999px;background:#EEE9DE;border:1px solid #D4CCB8;font-size:14px;font-family:inherit;outline:none;color:#14120E}
+input:focus{border-color:#0F3D2E;background:#FFFFFF}
+button{width:100%;height:46px;border-radius:9999px;border:0;background:#0F3D2E;color:#F5F2EB;font-weight:500;cursor:pointer;font-size:14px;margin-top:22px}
 button:hover{background:#1F5A44}
-.err{color:#C2552F;font-size:13px;margin-top:10px;min-height:18px}
-.av{width:64px;height:64px;border-radius:9999px;background:#0F3D2E;color:#E0A23F;display:inline-flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:28px;background-size:cover;background-position:center;margin-bottom:8px}
+.err{color:#C2552F;font-size:13px;margin-top:14px;background:rgba(194,85,47,0.08);padding:10px 14px;border-radius:10px;{{ 'display:none' if not error else '' }}}
+.foot{margin-top:24px;color:#A8A294;font-size:12px;text-align:center}
+.foot a{color:#7A7364;text-decoration:none}
+.foot a:hover{color:#0F3D2E}
 </style></head>
-<body><form class="card" method="POST" action="/admin/unlock">
-<div class="av" id="av">A</div>
-<span class="kicker">Admin gate</span>
-<h1 id="hello">Welcome.</h1>
-<p style="color:#7A7364;font-size:13px;margin:4px 0 0" id="who"></p>
-<input name="password" type="password" placeholder="Admin password" autofocus required>
-<button type="submit">Unlock</button>
-<p class="err">{{ error }}</p>
-<p style="color:#A8A294;font-size:11px;margin:18px 0 0">Signed in as <a href="/logout" style="color:#7A7364">{{ email }}</a></p>
+<body><form class="card" method="POST" action="/admin/login">
+<div class="brand-row">
+  <span class="brand-dot">s</span>
+  <span class="brand-word">sunday</span>
+  <span class="brand-tag">Admin</span>
+</div>
+<span class="kicker">Restricted area</span>
+<h1>Admin sign-in</h1>
+<p class="sub">Enter your admin credentials. This is independent of the student login.</p>
+<label>Email</label>
+<input name="email" type="email" placeholder="admin@example.com" autofocus required value="{{ email }}">
+<label>Password</label>
+<input name="password" type="password" placeholder="••••••••" required>
+<button type="submit">Sign in</button>
+{{ '<p class=err>' + error + '</p>' if error else '' }}
+<div class="foot">
+  <a href="/">← Back to student app</a>
+</div>
 </form>
-<script>
-(async function(){
-  try {
-    const r = await fetch('/api/profile', { credentials:'same-origin' });
-    if (r.ok) {
-      const p = await r.json();
-      if (p.name) document.getElementById('hello').textContent = 'Welcome, ' + p.name.split(' ')[0] + '.';
-      if (p.email) document.getElementById('who').textContent = p.email;
-      const av = document.getElementById('av');
-      if (p.picture) { av.style.backgroundImage = 'url(' + p.picture + ')'; av.textContent = ''; }
-      else if (p.name) av.textContent = p.name.charAt(0).toUpperCase();
-    }
-  } catch(_){}
-})();
-</script>
 </body></html>"""
 
 
-@app.route('/admin/unlock', methods=['GET', 'POST'])
-def admin_unlock_page():
-    """Admin password gate — second factor on top of Google sign-in."""
-    if not session.get('logged_in'):
-        return redirect(url_for('index'))
-    if session.get('auth_provider') != 'google':
-        from flask import abort
-        abort(404)
-    email = (session.get('user_email') or '').lower()
-    if email not in ADMIN_EMAILS:
-        from flask import abort
-        abort(404)
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login_page():
+    """Standalone admin login — independent of Google or the student email flow.
 
+    Validates against ADMIN_EMAILS allowlist + ADMIN_PASSWORD. On success,
+    sets session['admin_unlocked'] = True and session['admin_email'] = the
+    email entered. Does NOT touch the student session keys, so an admin
+    can be signed in as themselves AND as a student in separate tabs.
+    """
     error = ''
+    submitted_email = ''
     if request.method == 'POST':
+        submitted_email = (request.form.get('email') or '').strip().lower()
         pw = (request.form.get('password') or '').strip()
-        if pw == ADMIN_PASSWORD:
+        if submitted_email and submitted_email in ADMIN_EMAILS and pw and pw == ADMIN_PASSWORD:
+            session.permanent = True
             session['admin_unlocked'] = True
+            session['admin_email'] = submitted_email
+            _audit('admin_login', submitted_email)
             return redirect('/admin')
-        error = 'Wrong password.'
+        error = 'Wrong email or password.' if (submitted_email or pw) else 'Enter both email and password.'
 
-    response = app.make_response(render_template_string(ADMIN_UNLOCK_HTML, error=error, email=email))
+    response = app.make_response(render_template_string(ADMIN_LOGIN_HTML, error=error, email=submitted_email))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Sign out from the admin panel only — leaves student session intact."""
+    em = session.get('admin_email')
+    session.pop('admin_unlocked', None)
+    session.pop('admin_email', None)
+    if em:
+        _audit('admin_logout', em)
+    return redirect(url_for('admin_login_page'))
+
+
+# Legacy alias — old /admin/unlock URL still works.
+@app.route('/admin/unlock', methods=['GET', 'POST'])
+def admin_unlock_page():
+    return redirect(url_for('admin_login_page'))
 
 
 @app.route('/admin')
@@ -2135,6 +2143,16 @@ def admin_page():
     response = app.make_response(content)
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
+
+
+@app.route('/api/admin/me')
+@admin_api_required
+def admin_me():
+    """Identity endpoint for the admin panel header (no student session required)."""
+    return jsonify({
+        'email': session.get('admin_email', ''),
+        'unlocked': True,
+    })
 
 
 # ─────────────────────────────────────────────────
