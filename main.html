@@ -17,6 +17,7 @@
     <script src="/static/voice-kb.js"></script>
     <script src="/static/pose-cues.js"></script>
     <script src="/static/practice-flow.js"></script>
+    <script src="/static/pose-notes.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -383,38 +384,111 @@
 
             <!-- Body -->
             <div style="padding:32px 24px; display:grid; grid-template-columns:1fr; gap:24px">
-                <div style="display:flex; flex-direction:column; gap:22px">
-                    <section>
-                        <span class="kicker" style="color:#C2552F">Overview</span>
-                        <p id="modal-asana-benefits" style="font-size:15px; color:#4A453B; line-height:1.65; margin:8px 0 0"></p>
-                    </section>
-                    <section>
-                        <span class="kicker" style="color:#C2552F">Precautions</span>
-                        <div style="background:#F6DACB; border-radius:14px; padding:14px; margin-top:8px">
-                            <p id="modal-asana-precaution" style="font-size:14px; color:#14120E; line-height:1.55; margin:0"></p>
-                        </div>
-                    </section>
-                    <section>
-                        <span class="kicker" style="color:#C2552F">Practice steps</span>
-                        <ol id="modal-asana-steps" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px"></ol>
-                    </section>
+                <!-- Quick stats strip -->
+                <div id="modal-stats-strip" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px">
+                    <div style="background:#EEE9DE; border-radius:14px; padding:12px 14px">
+                        <span class="kicker" style="color:#7A7364; font-size:9px">Difficulty</span>
+                        <div style="margin-top:6px"><span id="modal-asana-category" class="kicker" style="background:#0F3D2E; color:#F5F2EB; padding:3px 10px; border-radius:9999px; font-size:10px">Beginner</span></div>
+                    </div>
+                    <div style="background:#EEE9DE; border-radius:14px; padding:12px 14px">
+                        <span class="kicker" style="color:#7A7364; font-size:9px">Hold for</span>
+                        <p id="modal-asana-stayfor" style="font-weight:500; color:#14120E; font-size:13px; margin:6px 0 0; line-height:1.3">—</p>
+                    </div>
+                    <div style="background:#EEE9DE; border-radius:14px; padding:12px 14px">
+                        <span class="kicker" style="color:#7A7364; font-size:9px">Breath</span>
+                        <p id="modal-asana-breath" style="font-weight:500; color:#14120E; font-size:13px; margin:6px 0 0; line-height:1.3">—</p>
+                    </div>
+                    <div style="background:#EEE9DE; border-radius:14px; padding:12px 14px">
+                        <span class="kicker" style="color:#7A7364; font-size:9px">Element</span>
+                        <p id="modal-asana-element" style="font-weight:500; color:#14120E; font-size:13px; margin:6px 0 0; line-height:1.3">—</p>
+                    </div>
                 </div>
 
-                <div style="display:flex; flex-direction:column; gap:16px">
-                    <div style="background:#EEE9DE; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:14px">
-                        <div>
-                            <span class="kicker" style="color:#7A7364">Difficulty</span>
-                            <div style="margin-top:8px"><span id="modal-asana-category" class="kicker" style="background:#0F3D2E; color:#F5F2EB; padding:4px 12px; border-radius:9999px; font-size:11px">Beginner</span></div>
-                        </div>
-                        <div>
-                            <span class="kicker" style="color:#7A7364">Target areas</span>
-                            <p id="modal-asana-targeted" style="font-weight:500; color:#14120E; font-size:15px; margin:6px 0 0"></p>
-                        </div>
+                <!-- Sanskrit meaning ribbon -->
+                <div id="modal-meaning-block" style="background:#0F3D2E; border-radius:18px; padding:18px 22px; color:#F5F2EB; display:flex; flex-direction:column; gap:6px">
+                    <span class="kicker" style="color:#E0A23F">Sanskrit meaning</span>
+                    <p id="modal-asana-meaning" style="font-family:'Fraunces',serif; font-size:18px; font-weight:300; line-height:1.45; margin:0; color:#F5F2EB">—</p>
+                </div>
+
+                <!-- Two-column note grid -->
+                <div class="grid lg:grid-cols-[1.3fr_1fr]" style="gap:24px">
+                    <!-- LEFT COLUMN -->
+                    <div style="display:flex; flex-direction:column; gap:22px">
+                        <section>
+                            <span class="kicker" style="color:#C2552F">Overview</span>
+                            <p id="modal-asana-benefits" style="font-size:15px; color:#4A453B; line-height:1.65; margin:8px 0 0"></p>
+                        </section>
+
+                        <section>
+                            <span class="kicker" style="color:#C2552F">Practice steps</span>
+                            <ol id="modal-asana-steps" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px"></ol>
+                        </section>
+
+                        <section id="modal-instructions-section">
+                            <span class="kicker" style="color:#C2552F">Detailed instructions</span>
+                            <ol id="modal-asana-instructions" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px"></ol>
+                        </section>
+
+                        <section id="modal-mistakes-section">
+                            <span class="kicker" style="color:#C2552F">Common mistakes</span>
+                            <ul id="modal-asana-mistakes" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px"></ul>
+                        </section>
+
+                        <section id="modal-modifications-section">
+                            <span class="kicker" style="color:#C2552F">Modifications & props</span>
+                            <ul id="modal-asana-modifications" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px"></ul>
+                        </section>
                     </div>
-                    <button id="modal-start-btn" class="btn btn-accent pressable" style="width:100%">
-                        <span>Practice with AR coach</span>
-                        <span aria-hidden="true">→</span>
-                    </button>
+
+                    <!-- RIGHT COLUMN -->
+                    <div style="display:flex; flex-direction:column; gap:16px">
+                        <section style="background:#EEE9DE; border-radius:18px; padding:18px">
+                            <span class="kicker" style="color:#C2552F">Five benefits</span>
+                            <ul id="modal-asana-benefits-list" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px"></ul>
+                        </section>
+
+                        <section id="modal-targeted-block" style="background:#EEE9DE; border-radius:18px; padding:18px">
+                            <span class="kicker" style="color:#7A7364">Target areas</span>
+                            <div id="modal-asana-targeted-list" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px"></div>
+                            <div style="margin-top:14px">
+                                <span class="kicker" style="color:#7A7364">Energy focus</span>
+                                <p id="modal-asana-chakra" style="font-weight:500; color:#14120E; font-size:13px; margin:6px 0 0; line-height:1.4">—</p>
+                            </div>
+                        </section>
+
+                        <section id="modal-precaution-block" style="background:#F6DACB; border:1px solid #C2552F; border-radius:18px; padding:18px">
+                            <span class="kicker" style="color:#C2552F">Precautions</span>
+                            <p id="modal-asana-precaution" style="font-size:14px; color:#14120E; line-height:1.55; margin:8px 0 0"></p>
+                            <ul id="modal-asana-contraindications" style="margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px"></ul>
+                        </section>
+
+                        <section id="modal-tips-section" style="background:#0F3D2E; border-radius:18px; padding:18px; color:#F5F2EB">
+                            <span class="kicker" style="color:#E0A23F">Beginner tip</span>
+                            <p id="modal-asana-beginner-tip" style="font-family:'Fraunces',serif; font-size:15px; font-weight:300; line-height:1.5; margin:8px 0 0; color:#F5F2EB">—</p>
+                            <hr style="border:0; border-top:1px solid rgba(245,242,235,0.18); margin:14px 0">
+                            <span class="kicker" style="color:#E0A23F">Take it deeper</span>
+                            <p id="modal-asana-advanced" style="font-size:13px; line-height:1.5; margin:8px 0 0; color:#C7DBCE">—</p>
+                        </section>
+
+                        <section id="modal-pairs-section" style="background:#EEE9DE; border-radius:18px; padding:18px">
+                            <span class="kicker" style="color:#7A7364">Pairs naturally with</span>
+                            <div id="modal-asana-pairs" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px"></div>
+                        </section>
+
+                        <section id="modal-science-section" style="background:#EEE9DE; border-radius:18px; padding:18px">
+                            <span class="kicker" style="color:#7A7364">Why it works</span>
+                            <p id="modal-asana-science" style="font-size:13px; color:#4A453B; line-height:1.55; margin:8px 0 0">—</p>
+                        </section>
+
+                        <section id="modal-philosophy-section" style="border-left:3px solid #E0A23F; padding:6px 0 6px 14px">
+                            <p id="modal-asana-philosophy" style="font-family:'Fraunces',serif; font-style:italic; font-size:14px; color:#4A453B; line-height:1.5; margin:0">—</p>
+                        </section>
+
+                        <button id="modal-start-btn" class="btn btn-accent pressable" style="width:100%">
+                            <span>Practice with AR coach</span>
+                            <span aria-hidden="true">→</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3006,34 +3080,30 @@
             showAsanaDetails(asanaName) {
                 const asana = asanaData.find(a => a.name === asanaName);
                 if (!asana) return;
+                // Rich notes — falls back gracefully if PoseNotes hasn't loaded.
+                const notes = (typeof PoseNotes !== 'undefined' && PoseNotes[asanaName]) || {};
 
-                const backdrop = document.getElementById('asana-modal-backdrop');
-                const name = document.getElementById('modal-asana-name');
-                const sanskrit = document.getElementById('modal-asana-sanskrit');
-                const benefits = document.getElementById('modal-asana-benefits');
-                const precaution = document.getElementById('modal-asana-precaution');
-                const steps = document.getElementById('modal-asana-steps');
-                const category = document.getElementById('modal-asana-category');
-                const targeted = document.getElementById('modal-asana-targeted');
-                const startBtn = document.getElementById('modal-start-btn');
+                const $ = (id) => document.getElementById(id);
+                const setText = (id, val) => { const el = $(id); if (el) el.textContent = val == null || val === '' ? '—' : val; };
+                const setHTML = (id, html) => { const el = $(id); if (el) el.innerHTML = html; };
+                const showHide = (id, show) => { const el = $(id); if (el) el.style.display = show ? '' : 'none'; };
 
-                name.textContent = asana.name;
-                sanskrit.textContent = asana.sanskrit;
-                benefits.textContent = asana.benefits;
-                precaution.textContent = asana.precaution;
+                const backdrop = $('asana-modal-backdrop');
+                const startBtn = $('modal-start-btn');
+
+                // ── Hero ──────────────────────────────────────
+                setText('modal-asana-name', asana.name);
+                setText('modal-asana-sanskrit', asana.sanskrit);
+
+                const category = $('modal-asana-category');
                 category.textContent = asana.category;
-                targeted.textContent = asana.targeted;
+                category.className = `kicker ${asana.category === 'Beginner' ? 'bg-forest-900 text-cream' : asana.category === 'Intermediate' ? 'bg-terracotta-600 text-cream' : 'bg-ink-900 text-saffron-500'}`;
+                category.style.cssText = `background:${asana.category === 'Beginner' ? '#0F3D2E' : asana.category === 'Intermediate' ? '#C2552F' : '#14120E'}; color:${asana.category === 'Advanced' ? '#E0A23F' : '#F5F2EB'}; padding:3px 10px; border-radius:9999px; font-size:10px`;
 
-                category.className = `inline-flex px-3 py-1 text-[11px] rounded-full font-semibold ${asana.category === 'Beginner' ? 'bg-forest-900 text-cream' : asana.category === 'Intermediate' ? 'bg-terracotta-600 text-cream' : 'bg-ink-900 text-saffron-500'}`;
+                setText('modal-asana-category-kicker', asana.category);
+                setText('modal-view-badge', ((asana.view || 'front') + ' VIEW').toUpperCase());
 
-                // Update kicker category label
-                const kicker = document.getElementById('modal-asana-category-kicker');
-                if (kicker) kicker.textContent = asana.category;
-
-                // View badge + real pose photo
-                const viewBadge = document.getElementById('modal-view-badge');
-                if (viewBadge) viewBadge.textContent = ((asana.view || 'front') + ' VIEW').toUpperCase();
-                const silhouette = document.getElementById('modal-asana-silhouette');
+                const silhouette = $('modal-asana-silhouette');
                 if (silhouette) {
                     if (asana.imagePath) {
                         silhouette.src = asana.imagePath;
@@ -3044,20 +3114,138 @@
                     }
                 }
 
-                steps.innerHTML = asana.steps.map((step, idx) => `
+                // ── Quick stats strip ─────────────────────────
+                setText('modal-asana-stayfor', notes.stayFor);
+                setText('modal-asana-breath', notes.breath);
+                setText('modal-asana-element', notes.element);
+
+                // ── Sanskrit meaning ──────────────────────────
+                if (notes.meaning) {
+                    setText('modal-asana-meaning', notes.meaning);
+                    showHide('modal-meaning-block', true);
+                } else {
+                    showHide('modal-meaning-block', false);
+                }
+
+                // ── Overview (existing benefits prose) ────────
+                setText('modal-asana-benefits', asana.benefits);
+
+                // ── Quick practice steps (5 cues) ─────────────
+                setHTML('modal-asana-steps', (asana.steps || []).map((step, idx) => `
                     <li class="flex items-center" style="background:#EEE9DE; border-radius:12px; padding:10px 14px; gap:14px">
                         <span class="kicker" style="color:#C2552F">${String(idx + 1).padStart(2, '0')}</span>
                         <span style="font-size:15px; color:#14120E; line-height:1.55">${step}</span>
                     </li>
-                `).join('');
+                `).join(''));
 
+                // ── Detailed instructions ─────────────────────
+                if (Array.isArray(notes.instructions) && notes.instructions.length) {
+                    setHTML('modal-asana-instructions', notes.instructions.map((s, i) => `
+                        <li style="display:flex; gap:10px; align-items:flex-start; padding:8px 12px; border-bottom:1px solid #E0D9C8">
+                            <span style="color:#7A7364; font-size:11px; font-weight:600; min-width:22px; padding-top:2px">${String(i + 1).padStart(2,'0')}</span>
+                            <span style="color:#14120E; font-size:14px; line-height:1.55">${s}</span>
+                        </li>
+                    `).join(''));
+                    showHide('modal-instructions-section', true);
+                } else {
+                    showHide('modal-instructions-section', false);
+                }
+
+                // ── Common mistakes ───────────────────────────
+                if (Array.isArray(notes.commonMistakes) && notes.commonMistakes.length) {
+                    setHTML('modal-asana-mistakes', notes.commonMistakes.map(m => `
+                        <li style="display:flex; gap:10px; align-items:flex-start; background:#F6DACB; border-radius:10px; padding:10px 12px">
+                            <span style="color:#C2552F; font-weight:700; font-size:14px; line-height:1.4">×</span>
+                            <span style="color:#14120E; font-size:13px; line-height:1.5">${m}</span>
+                        </li>
+                    `).join(''));
+                    showHide('modal-mistakes-section', true);
+                } else {
+                    showHide('modal-mistakes-section', false);
+                }
+
+                // ── Modifications ─────────────────────────────
+                if (Array.isArray(notes.modifications) && notes.modifications.length) {
+                    setHTML('modal-asana-modifications', notes.modifications.map(m => `
+                        <li style="display:flex; gap:10px; align-items:flex-start; background:#EEE9DE; border-radius:10px; padding:10px 12px">
+                            <span style="color:#0F3D2E; font-weight:700; font-size:14px; line-height:1.4">＋</span>
+                            <span style="color:#14120E; font-size:13px; line-height:1.5">${m}</span>
+                        </li>
+                    `).join(''));
+                    showHide('modal-modifications-section', true);
+                } else {
+                    showHide('modal-modifications-section', false);
+                }
+
+                // ── Five benefits ─────────────────────────────
+                const benefitsList = Array.isArray(notes.benefitsList) && notes.benefitsList.length
+                    ? notes.benefitsList
+                    : (asana.benefits ? [asana.benefits] : []);
+                setHTML('modal-asana-benefits-list', benefitsList.map(b => `
+                    <li style="display:flex; gap:10px; align-items:flex-start">
+                        <span style="color:#0F3D2E; font-weight:700; font-size:13px; line-height:1.4; min-width:14px">·</span>
+                        <span style="color:#14120E; font-size:13px; line-height:1.55">${b}</span>
+                    </li>
+                `).join(''));
+
+                // ── Target areas (chips) ──────────────────────
+                const targetedItems = Array.isArray(notes.targetedList) && notes.targetedList.length
+                    ? notes.targetedList
+                    : (asana.targeted ? asana.targeted.split(/,\s*/) : []);
+                setHTML('modal-asana-targeted-list', targetedItems.map(t => `
+                    <span class="kicker" style="background:#0F3D2E; color:#F5F2EB; padding:4px 10px; border-radius:9999px; font-size:10px">${t}</span>
+                `).join(''));
+
+                setText('modal-asana-chakra', notes.chakra);
+
+                // ── Precaution + contraindications ────────────
+                setText('modal-asana-precaution', asana.precaution);
+                if (Array.isArray(notes.contraindications) && notes.contraindications.length) {
+                    setHTML('modal-asana-contraindications', notes.contraindications.map(c => `
+                        <li style="display:flex; gap:8px; align-items:flex-start">
+                            <span style="color:#C2552F; font-weight:700; font-size:12px; line-height:1.4">!</span>
+                            <span style="color:#14120E; font-size:12px; line-height:1.5">${c}</span>
+                        </li>
+                    `).join(''));
+                } else {
+                    setHTML('modal-asana-contraindications', '');
+                }
+
+                // ── Beginner tip + advanced variation ─────────
+                setText('modal-asana-beginner-tip', notes.beginnerTip);
+                setText('modal-asana-advanced', notes.advancedVariation);
+                showHide('modal-tips-section', !!(notes.beginnerTip || notes.advancedVariation));
+
+                // ── Pairs with (clickable chips) ──────────────
+                if (Array.isArray(notes.pairsWith) && notes.pairsWith.length) {
+                    setHTML('modal-asana-pairs', notes.pairsWith.map(p => `
+                        <button onclick="app.showAsanaDetails('${p.replace(/'/g, "\\'")}')" class="kicker pressable" style="background:#F5F2EB; color:#0F3D2E; padding:6px 12px; border-radius:9999px; font-size:10px; border:1px solid #D4CCB8; cursor:pointer">${p}</button>
+                    `).join(''));
+                    showHide('modal-pairs-section', true);
+                } else {
+                    showHide('modal-pairs-section', false);
+                }
+
+                // ── Why it works (science) ────────────────────
+                setText('modal-asana-science', notes.science);
+                showHide('modal-science-section', !!notes.science);
+
+                // ── Philosophy quote ──────────────────────────
+                setText('modal-asana-philosophy', notes.philosophy);
+                showHide('modal-philosophy-section', !!notes.philosophy);
+
+                // ── Start button ──────────────────────────────
                 startBtn.onclick = () => {
                     this.closeAsanaDetails();
                     this.selectAsanaAndStart(asana.name);
                 };
 
+                // Reset scroll to the top so users always start at the hero.
+                const content = document.getElementById('asana-modal-content');
+                if (content) content.scrollTop = 0;
+
                 backdrop.classList.add('active');
-                document.body.style.overflow = 'hidden'; // Prevent scroll
+                document.body.style.overflow = 'hidden';
             },
 
             closeAsanaDetails() {
