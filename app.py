@@ -41,6 +41,11 @@ except Exception:
 
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
+# Admin panel — allowlist of Google emails that can access /admin.
+# Optional ADMIN_PASSWORD adds a second factor on top of Google auth.
+ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get('ADMIN_EMAILS', 'pgayushrai@gmail.com').split(',') if e.strip()}
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'majen')
+
 app = Flask(__name__)
 # Use environment variable for secret key, fallback ONLY for local dev
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-this-in-render')
@@ -100,8 +105,13 @@ try:
     g_push_subs_col = gdb.push_subscriptions
     g_streak_freeze_col = gdb.streak_freezes
 
+    # Admin-shared collections — feedback, audit log, etc.
+    adb = client.get_database('admin_data')
+    feedback_col = adb.feedback
+    admin_audit_col = adb.audit
+
     client.admin.command('ping')
-    print(f"✓ MongoDB connected — legacy='{LEGACY_DB_NAME}', google='{GOOGLE_DB_NAME}'")
+    print(f"✓ MongoDB connected — legacy='{LEGACY_DB_NAME}', google='{GOOGLE_DB_NAME}', admin='admin_data'")
     db_connected = True
 except Exception as e:
     print(f"✗ MongoDB connection failed: {e}")
@@ -110,6 +120,7 @@ except Exception as e:
     push_subs_col = streak_freeze_col = None
     g_users = g_certificates_col = g_course_progress_col = None
     g_preferences_col = g_push_subs_col = g_streak_freeze_col = None
+    feedback_col = admin_audit_col = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -144,6 +155,141 @@ def get_push_subs_col():
 
 def get_streak_freeze_col():
     return g_streak_freeze_col if _is_google_session() else streak_freeze_col
+
+
+# ─────────────────────────────────────────────────────────────
+# ADMIN PANEL — access control + helpers
+# ─────────────────────────────────────────────────────────────
+from functools import wraps
+
+
+def is_admin_user():
+    """Returns True if the current session belongs to an admin (Google login + email in allowlist + admin gate passed)."""
+    if not session.get('logged_in'):
+        return False
+    if session.get('auth_provider') != 'google':
+        return False
+    email = (session.get('user_email') or '').lower()
+    if email not in ADMIN_EMAILS:
+        return False
+    if ADMIN_PASSWORD and not session.get('admin_unlocked'):
+        return False
+    return True
+
+
+def admin_required(f):
+    """Decorator: 404 to non-admins (don't reveal the panel exists)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not is_admin_user():
+            # If the user is an allowlisted admin who hasn't passed the
+            # password gate yet, redirect them to the unlock page.
+            email = (session.get('user_email') or '').lower()
+            if (session.get('logged_in') and
+                session.get('auth_provider') == 'google' and
+                email in ADMIN_EMAILS and
+                ADMIN_PASSWORD):
+                return redirect(url_for('admin_unlock_page'))
+            from flask import abort
+            abort(404)
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def admin_api_required(f):
+    """Same as admin_required but returns JSON 404 for API endpoints."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not is_admin_user():
+            return jsonify({'error': 'Not found'}), 404
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _audit(action, target_email='', meta=None):
+    """Append an entry to the admin audit log."""
+    if admin_audit_col is None:
+        return
+    try:
+        admin_audit_col.insert_one({
+            'admin_email': session.get('user_email'),
+            'action': action,
+            'target_email': target_email,
+            'meta': meta or {},
+            'ts': datetime.utcnow().isoformat(),
+        })
+    except Exception as e:
+        print(f'audit log error: {e}')
+
+
+def _all_user_docs():
+    """Return ALL student docs across both DBs, normalised, with provider tag."""
+    out = []
+    if g_users is not None:
+        for u in g_users.find({}):
+            u.pop('_id', None)
+            u['auth_provider'] = u.get('auth_provider', 'google')
+            out.append(u)
+    if users is not None:
+        for u in users.find({}):
+            u.pop('_id', None)
+            u['auth_provider'] = u.get('auth_provider', 'email')
+            out.append(u)
+    return out
+
+
+def _student_summary(u):
+    """Build a one-row summary for a student (for the admin list)."""
+    email = u.get('email', '')
+    activity = u.get('activity_log', []) or []
+    last_active = max(activity) if activity else None
+    # Streak quick-calc.
+    best = 0
+    cur = 0
+    prev = None
+    for d in sorted(activity):
+        try:
+            t = datetime.fromisoformat(d).date()
+        except Exception:
+            continue
+        if prev and (t - prev).days == 1:
+            cur += 1
+        else:
+            cur = 1
+        if cur > best:
+            best = cur
+        prev = t
+    # Course completion count.
+    sems_completed = 0
+    has_master = False
+    is_google = u.get('auth_provider') == 'google'
+    cp_col = g_course_progress_col if is_google else course_progress_col
+    cert_col = g_certificates_col if is_google else certificates_col
+    if cp_col is not None:
+        cp_doc = cp_col.find_one({'email': email}) or {}
+        progress = (cp_doc.get('progress') or {}).get('courses') or {}
+        for c in progress.values():
+            if c.get('completed'):
+                sems_completed += 1
+    if cert_col is not None:
+        master = cert_col.find_one({'email': email, 'courseId': 'master'})
+        has_master = bool(master)
+    completed_asanas = u.get('completed_asanas', {}) or {}
+    total_sessions = sum(int(v or 0) for v in completed_asanas.values())
+    return {
+        'email': email,
+        'name': u.get('name', ''),
+        'picture': u.get('picture', ''),
+        'auth_provider': u.get('auth_provider', 'email'),
+        'created_at': u['created_at'].isoformat() if hasattr(u.get('created_at'), 'isoformat') else (u.get('created_at') or None),
+        'last_active': last_active,
+        'active_days': len(activity),
+        'best_streak': best,
+        'total_sessions': total_sessions,
+        'poses_learned': len(completed_asanas),
+        'sems_completed': sems_completed,
+        'has_master': has_master,
+    }
 
 # Updated INDEX_HTML (with /home redirects)
 INDEX_HTML = """
@@ -1901,6 +2047,582 @@ a{color:#0F3D2E}
 @app.route('/privacy')
 def privacy_page():
     return PRIVACY_HTML
+
+
+# ═════════════════════════════════════════════════════════════
+# ADMIN PANEL — routes + APIs
+# ═════════════════════════════════════════════════════════════
+
+ADMIN_UNLOCK_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Admin · AsanMinds</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/assets/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F2EB;color:#14120E;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.card{background:#fff;border:1px solid #D4CCB8;border-radius:22px;padding:36px;max-width:380px;width:100%;text-align:center}
+h1{font-family:Fraunces,serif;font-size:32px;font-weight:300;margin:8px 0 4px;letter-spacing:-0.02em}
+.kicker{color:#C2552F;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500}
+input{width:100%;height:44px;padding:0 16px;border-radius:9999px;background:#EEE9DE;border:1px solid #D4CCB8;font-size:14px;font-family:inherit;outline:none;margin:14px 0;text-align:center}
+input:focus{border-color:#0F3D2E}
+button{width:100%;height:44px;border-radius:9999px;border:0;background:#0F3D2E;color:#F5F2EB;font-weight:500;cursor:pointer;font-size:14px}
+button:hover{background:#1F5A44}
+.err{color:#C2552F;font-size:13px;margin-top:10px;min-height:18px}
+.av{width:64px;height:64px;border-radius:9999px;background:#0F3D2E;color:#E0A23F;display:inline-flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:28px;background-size:cover;background-position:center;margin-bottom:8px}
+</style></head>
+<body><form class="card" method="POST" action="/admin/unlock">
+<div class="av" id="av">A</div>
+<span class="kicker">Admin gate</span>
+<h1 id="hello">Welcome.</h1>
+<p style="color:#7A7364;font-size:13px;margin:4px 0 0" id="who"></p>
+<input name="password" type="password" placeholder="Admin password" autofocus required>
+<button type="submit">Unlock</button>
+<p class="err">{{ error }}</p>
+<p style="color:#A8A294;font-size:11px;margin:18px 0 0">Signed in as <a href="/logout" style="color:#7A7364">{{ email }}</a></p>
+</form>
+<script>
+(async function(){
+  try {
+    const r = await fetch('/api/profile', { credentials:'same-origin' });
+    if (r.ok) {
+      const p = await r.json();
+      if (p.name) document.getElementById('hello').textContent = 'Welcome, ' + p.name.split(' ')[0] + '.';
+      if (p.email) document.getElementById('who').textContent = p.email;
+      const av = document.getElementById('av');
+      if (p.picture) { av.style.backgroundImage = 'url(' + p.picture + ')'; av.textContent = ''; }
+      else if (p.name) av.textContent = p.name.charAt(0).toUpperCase();
+    }
+  } catch(_){}
+})();
+</script>
+</body></html>"""
+
+
+@app.route('/admin/unlock', methods=['GET', 'POST'])
+def admin_unlock_page():
+    """Admin password gate — second factor on top of Google sign-in."""
+    if not session.get('logged_in'):
+        return redirect(url_for('index'))
+    if session.get('auth_provider') != 'google':
+        from flask import abort
+        abort(404)
+    email = (session.get('user_email') or '').lower()
+    if email not in ADMIN_EMAILS:
+        from flask import abort
+        abort(404)
+
+    error = ''
+    if request.method == 'POST':
+        pw = (request.form.get('password') or '').strip()
+        if pw == ADMIN_PASSWORD:
+            session['admin_unlocked'] = True
+            return redirect('/admin')
+        error = 'Wrong password.'
+
+    response = app.make_response(render_template_string(ADMIN_UNLOCK_HTML, error=error, email=email))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+
+@app.route('/admin')
+@admin_required
+def admin_page():
+    """Admin SPA — single HTML file that handles all admin views via hash routing."""
+    if not os.path.exists('admin.html'):
+        return "Error: admin.html not found", 500
+    with open('admin.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+    response = app.make_response(content)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+
+# ─────────────────────────────────────────────────
+# ADMIN APIs
+# ─────────────────────────────────────────────────
+
+@app.route('/api/admin/kpi')
+@admin_api_required
+def admin_kpi():
+    """Top-level KPIs + dashboard chart data."""
+    all_users = _all_user_docs()
+    total = len(all_users)
+    google_count = sum(1 for u in all_users if u.get('auth_provider') == 'google')
+    today = datetime.utcnow().date()
+    cutoff_1d = (today - timedelta(days=1)).isoformat()
+    cutoff_7d = (today - timedelta(days=7)).isoformat()
+    cutoff_30d = (today - timedelta(days=30)).isoformat()
+
+    active_1d = sum(1 for u in all_users if any(d >= cutoff_1d for d in (u.get('activity_log') or [])))
+    active_7d = sum(1 for u in all_users if any(d >= cutoff_7d for d in (u.get('activity_log') or [])))
+
+    # Certificates.
+    total_certs = 0
+    certs_30d = 0
+    for col in (certificates_col, g_certificates_col):
+        if col is not None:
+            total_certs += col.count_documents({})
+            certs_30d += col.count_documents({'issuedAt': {'$gte': cutoff_30d}})
+
+    # Average completion across enrolled semesters.
+    completion_pcts = []
+    for col in (course_progress_col, g_course_progress_col):
+        if col is None:
+            continue
+        for doc in col.find({}):
+            progress = (doc.get('progress') or {}).get('courses') or {}
+            for c in progress.values():
+                poses = c.get('poses') or []
+                if not poses:
+                    continue
+                done = sum(1 for p in poses if p.get('completed'))
+                completion_pcts.append(round(done / len(poses) * 100))
+    avg_completion = round(sum(completion_pcts) / len(completion_pcts)) if completion_pcts else 0
+
+    # Daily active chart — last 30 days.
+    dau_labels = []
+    dau_values = []
+    for i in range(29, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        dau_labels.append(datetime.fromisoformat(d).strftime('%d %b'))
+        dau_values.append(sum(1 for u in all_users if d in (u.get('activity_log') or [])))
+
+    # Funnel chart — students completed per semester.
+    funnel_labels = ['Sem 3', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8', 'Master']
+    funnel_values = [0, 0, 0, 0, 0, 0, 0]
+    sem_ids = ['sem3', 'sem4', 'sem5', 'sem6', 'sem7', 'sem8']
+    for col in (course_progress_col, g_course_progress_col):
+        if col is None:
+            continue
+        for doc in col.find({}):
+            progress = (doc.get('progress') or {}).get('courses') or {}
+            for idx, sid in enumerate(sem_ids):
+                if (progress.get(sid) or {}).get('completed'):
+                    funnel_values[idx] += 1
+    for col in (certificates_col, g_certificates_col):
+        if col is not None:
+            funnel_values[6] += col.count_documents({'courseId': 'master'})
+
+    return jsonify({
+        'totalStudents': total,
+        'googleStudents': google_count,
+        'active1d': active_1d,
+        'active7d': active_7d,
+        'totalCerts': total_certs,
+        'certs30d': certs_30d,
+        'avgCompletion': avg_completion,
+        'dauChart': {'labels': dau_labels, 'values': dau_values, 'label': 'Active users'},
+        'funnelChart': {'labels': funnel_labels, 'values': funnel_values, 'label': 'Completed'},
+    })
+
+
+@app.route('/api/admin/students')
+@admin_api_required
+def admin_students():
+    limit = int(request.args.get('limit', 0))
+    sort = request.args.get('sort', '')
+    rows = [_student_summary(u) for u in _all_user_docs()]
+    if sort == '-created_at':
+        rows.sort(key=lambda r: r.get('created_at') or '', reverse=True)
+    if limit > 0:
+        rows = rows[:limit]
+    return jsonify({'students': rows})
+
+
+@app.route('/api/admin/student/<path:email>')
+@admin_api_required
+def admin_student_deep(email):
+    email = email.lower().strip()
+    user = None
+    is_google = False
+    if g_users is not None:
+        u = g_users.find_one({'email': email})
+        if u:
+            user = u
+            is_google = True
+    if not user and users is not None:
+        user = users.find_one({'email': email})
+    if not user:
+        return jsonify({'error': 'Not found'}), 404
+    user.pop('_id', None)
+    user['auth_provider'] = user.get('auth_provider', 'google' if is_google else 'email')
+    if hasattr(user.get('created_at'), 'isoformat'):
+        user['created_at'] = user['created_at'].isoformat()
+
+    # Course progress.
+    cp_col = g_course_progress_col if is_google else course_progress_col
+    courses_out = []
+    sem_meta = [
+        {'id': 'sem3', 'n': 3, 'name': 'Foundations'},
+        {'id': 'sem4', 'n': 4, 'name': 'Grounding'},
+        {'id': 'sem5', 'n': 5, 'name': 'Restoration'},
+        {'id': 'sem6', 'n': 6, 'name': 'Strength'},
+        {'id': 'sem7', 'n': 7, 'name': 'Lateral Body'},
+        {'id': 'sem8', 'n': 8, 'name': 'Advanced Mastery'},
+    ]
+    progress = {}
+    if cp_col is not None:
+        cp_doc = cp_col.find_one({'email': email}) or {}
+        progress = (cp_doc.get('progress') or {}).get('courses') or {}
+    for sm in sem_meta:
+        c = progress.get(sm['id']) or {}
+        courses_out.append({
+            'id': sm['id'],
+            'semesterNumber': sm['n'],
+            'name': sm['name'],
+            'completed': bool(c.get('completed')),
+            'locked': not c.get('poses') or all(p.get('locked', True) for p in c.get('poses', [])),
+            'finalScore': c.get('finalScore'),
+        })
+
+    # Certificates.
+    cert_col = g_certificates_col if is_google else certificates_col
+    certs = []
+    if cert_col is not None:
+        for c in cert_col.find({'email': email}):
+            c.pop('_id', None)
+            certs.append(c)
+    certs.sort(key=lambda c: c.get('issuedAt', ''), reverse=True)
+
+    # Top poses.
+    completed_asanas = user.get('completed_asanas', {}) or {}
+    total_sessions = sum(int(v or 0) for v in completed_asanas.values())
+    top_poses = sorted(completed_asanas.items(), key=lambda x: -int(x[1] or 0))[:8]
+    max_count = max((int(v) for _, v in top_poses), default=1)
+    top_poses_out = [{'name': n, 'count': int(c), 'pct': round(int(c) / max_count * 100)} for n, c in top_poses if int(c) > 0]
+
+    # Recent sessions.
+    recent_sessions = (user.get('session_history') or [])[-60:]
+    recent_sessions = list(reversed(recent_sessions))
+
+    # Streak.
+    activity = sorted(user.get('activity_log', []) or [])
+    best, cur, prev = 0, 0, None
+    for d in activity:
+        try:
+            t = datetime.fromisoformat(d).date()
+        except Exception:
+            continue
+        if prev and (t - prev).days == 1:
+            cur += 1
+        else:
+            cur = 1
+        if cur > best:
+            best = cur
+        prev = t
+
+    # Feedback.
+    feedback_rows = []
+    if feedback_col is not None:
+        for f in feedback_col.find({'email': email}).sort('submitted_at', -1):
+            f.pop('_id', None)
+            feedback_rows.append(f)
+
+    return jsonify({
+        'user': user,
+        'courses': courses_out,
+        'certificates': certs,
+        'topPoses': top_poses_out,
+        'recentSessions': recent_sessions,
+        'totalSessions': total_sessions,
+        'activeDays': len(activity),
+        'bestStreak': best,
+        'feedback': feedback_rows,
+    })
+
+
+@app.route('/api/admin/feedback')
+@admin_api_required
+def admin_feedback():
+    """All feedback joined with user profile data for display."""
+    if feedback_col is None:
+        return jsonify({'feedback': []})
+    rows = []
+    user_cache = {}
+    for f in feedback_col.find({}).sort('submitted_at', -1).limit(500):
+        f.pop('_id', None)
+        em = f.get('email', '')
+        if em and em not in user_cache:
+            u = None
+            if g_users is not None:
+                u = g_users.find_one({'email': em})
+            if not u and users is not None:
+                u = users.find_one({'email': em})
+            user_cache[em] = u or {}
+        u = user_cache.get(em, {})
+        f['name'] = u.get('name', em.split('@')[0] if em else '')
+        f['picture'] = u.get('picture', '')
+        rows.append(f)
+    return jsonify({'feedback': rows})
+
+
+@app.route('/api/admin/certificates')
+@admin_api_required
+def admin_certificates():
+    rows = []
+    for col in (certificates_col, g_certificates_col):
+        if col is not None:
+            for c in col.find({}).sort('issuedAt', -1).limit(500):
+                c.pop('_id', None)
+                rows.append(c)
+    rows.sort(key=lambda c: c.get('issuedAt', ''), reverse=True)
+    return jsonify({'certificates': rows})
+
+
+@app.route('/api/admin/analytics')
+@admin_api_required
+def admin_analytics():
+    all_users = _all_user_docs()
+    today = datetime.utcnow().date()
+
+    # Pose popularity.
+    pose_totals = {}
+    for u in all_users:
+        for name, count in (u.get('completed_asanas') or {}).items():
+            pose_totals[name] = pose_totals.get(name, 0) + int(count or 0)
+    top_poses = sorted(pose_totals.items(), key=lambda x: -x[1])[:12]
+    poses_chart = {'labels': [n for n, _ in top_poses], 'values': [c for _, c in top_poses], 'label': 'Sessions'}
+
+    # Streak distribution.
+    buckets = [(0, '0'), (1, '1-2'), (3, '3-6'), (7, '7-13'), (14, '14-29'), (30, '30+')]
+    bucket_counts = [0] * len(buckets)
+    for u in all_users:
+        activity = sorted(u.get('activity_log', []) or [])
+        best, cur, prev = 0, 0, None
+        for d in activity:
+            try:
+                t = datetime.fromisoformat(d).date()
+            except Exception:
+                continue
+            if prev and (t - prev).days == 1:
+                cur += 1
+            else:
+                cur = 1
+            if cur > best:
+                best = cur
+            prev = t
+        for idx in range(len(buckets) - 1, -1, -1):
+            if best >= buckets[idx][0]:
+                bucket_counts[idx] += 1
+                break
+    streaks_chart = {'labels': [b[1] for b in buckets], 'values': bucket_counts, 'label': 'Users'}
+
+    # Cohort retention — D1, D7, D14, D30.
+    days_after = [1, 7, 14, 30]
+    retention = []
+    for d in days_after:
+        eligible, retained = 0, 0
+        cutoff = (today - timedelta(days=d)).isoformat()
+        for u in all_users:
+            created = u.get('created_at')
+            if hasattr(created, 'isoformat'):
+                created_iso = created.isoformat()[:10]
+            elif isinstance(created, str):
+                created_iso = created[:10]
+            else:
+                continue
+            if created_iso > cutoff:
+                continue
+            eligible += 1
+            activity = u.get('activity_log') or []
+            target_after = (datetime.fromisoformat(created_iso).date() + timedelta(days=d-1)).isoformat()
+            target_until = (datetime.fromisoformat(created_iso).date() + timedelta(days=d+1)).isoformat()
+            if any(target_after <= a <= target_until for a in activity):
+                retained += 1
+        retention.append(round(retained / eligible * 100) if eligible else 0)
+    retention_chart = {'labels': [f'D{d}' for d in days_after], 'values': retention, 'label': '% retained'}
+
+    # Sign-ups by week — last 12 weeks.
+    weeks = []
+    week_counts = []
+    for i in range(11, -1, -1):
+        wk_end = today - timedelta(days=i*7)
+        wk_start = wk_end - timedelta(days=6)
+        label = wk_start.strftime('%d %b')
+        weeks.append(label)
+        cnt = 0
+        for u in all_users:
+            created = u.get('created_at')
+            if hasattr(created, 'isoformat'):
+                ci = created.isoformat()[:10]
+            elif isinstance(created, str):
+                ci = created[:10]
+            else:
+                continue
+            if wk_start.isoformat() <= ci <= wk_end.isoformat():
+                cnt += 1
+        week_counts.append(cnt)
+    signups_chart = {'labels': weeks, 'values': week_counts, 'label': 'Sign-ups'}
+
+    return jsonify({
+        'poses': poses_chart,
+        'streaks': streaks_chart,
+        'retention': retention_chart,
+        'signups': signups_chart,
+    })
+
+
+@app.route('/api/admin/notify/<path:email>', methods=['POST'])
+@admin_api_required
+def admin_notify_one(email):
+    """Push a notification to a single user."""
+    if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY')):
+        return jsonify({'success': False, 'error': 'Push not configured.'}), 503
+    data = request.get_json(silent=True) or {}
+    title = data.get('title') or 'A note from your coach'
+    body = data.get('body') or ''
+    sub_doc = None
+    if g_push_subs_col is not None:
+        sub_doc = g_push_subs_col.find_one({'email': email})
+    if not sub_doc and push_subs_col is not None:
+        sub_doc = push_subs_col.find_one({'email': email})
+    if not sub_doc:
+        return jsonify({'success': False, 'error': 'User has no active push subscription.'}), 404
+    try:
+        webpush(
+            subscription_info=sub_doc['subscription'],
+            data=json.dumps({'title': title, 'body': body, 'url': '/home'}),
+            vapid_private_key=os.environ.get('VAPID_PRIVATE_KEY'),
+            vapid_claims={'sub': 'mailto:' + (os.environ.get('SENDGRID_FROM_EMAIL') or 'noreply@asanminds.app')},
+        )
+        _audit('notify_one', email, {'title': title})
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
+@app.route('/api/admin/broadcast', methods=['POST'])
+@admin_api_required
+def admin_broadcast():
+    """Send the same push to every subscribed user."""
+    if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY')):
+        return jsonify({'success': False, 'error': 'Push not configured.'}), 503
+    data = request.get_json(silent=True) or {}
+    title = data.get('title') or 'Sunday is waiting'
+    body = data.get('body') or ''
+    attempted, delivered, failures = 0, 0, []
+    for col in (g_push_subs_col, push_subs_col):
+        if col is None:
+            continue
+        for doc in col.find({}):
+            attempted += 1
+            try:
+                webpush(
+                    subscription_info=doc['subscription'],
+                    data=json.dumps({'title': title, 'body': body, 'url': '/home'}),
+                    vapid_private_key=os.environ.get('VAPID_PRIVATE_KEY'),
+                    vapid_claims={'sub': 'mailto:' + (os.environ.get('SENDGRID_FROM_EMAIL') or 'noreply@asanminds.app')},
+                )
+                delivered += 1
+            except Exception as e:
+                failures.append({'email': doc.get('email'), 'err': str(e)[:80]})
+    _audit('broadcast', '', {'title': title, 'attempted': attempted, 'delivered': delivered})
+    return jsonify({'success': True, 'attempted': attempted, 'delivered': delivered, 'failures': failures[:20]})
+
+
+@app.route('/api/admin/reset/<path:email>', methods=['POST'])
+@admin_api_required
+def admin_reset_progress(email):
+    """Wipe a user's course progress (keep their certificates and account)."""
+    deleted = 0
+    for col in (course_progress_col, g_course_progress_col):
+        if col is not None:
+            res = col.delete_one({'email': email})
+            deleted += res.deleted_count
+    _audit('reset_progress', email)
+    return jsonify({'success': True, 'deleted': deleted})
+
+
+@app.route('/api/admin/delete/<path:email>', methods=['POST', 'DELETE'])
+@admin_api_required
+def admin_delete_user(email):
+    """Hard-delete a user from both DBs."""
+    for col in (users, g_users):
+        if col is not None:
+            col.delete_one({'email': email})
+    for col in (
+        certificates_col, course_progress_col, preferences_col, push_subs_col, streak_freeze_col,
+        g_certificates_col, g_course_progress_col, g_preferences_col, g_push_subs_col, g_streak_freeze_col,
+        feedback_col,
+    ):
+        if col is not None:
+            col.delete_many({'email': email})
+    _audit('delete_user', email)
+    return jsonify({'success': True})
+
+
+@app.route('/admin/export/<kind>.csv')
+@admin_required
+def admin_export(kind):
+    import csv, io
+    out = io.StringIO()
+    w = csv.writer(out)
+    if kind == 'students':
+        w.writerow(['email', 'name', 'auth_provider', 'created_at', 'last_active', 'active_days', 'best_streak', 'sems_completed', 'has_master', 'total_sessions', 'poses_learned'])
+        for s in (_student_summary(u) for u in _all_user_docs()):
+            w.writerow([s['email'], s['name'], s['auth_provider'], s['created_at'] or '', s['last_active'] or '', s['active_days'], s['best_streak'], s['sems_completed'], 'yes' if s['has_master'] else 'no', s['total_sessions'], s['poses_learned']])
+    elif kind == 'feedback':
+        w.writerow(['email', 'rating', 'course_id', 'helpful', 'hardest', 'nps', 'submitted_at'])
+        if feedback_col is not None:
+            for f in feedback_col.find({}):
+                w.writerow([f.get('email', ''), f.get('rating', ''), f.get('course_id', ''), f.get('helpful', ''), f.get('hardest', ''), f.get('nps', ''), f.get('submitted_at', '')])
+    elif kind == 'sessions':
+        w.writerow(['email', 'pose', 'peak_score', 'duration_s', 'ts'])
+        for u in _all_user_docs():
+            for s in (u.get('session_history') or []):
+                w.writerow([u.get('email', ''), s.get('pose', ''), s.get('peakScore', ''), s.get('durationS', ''), s.get('ts', '')])
+    else:
+        return 'Unknown export', 404
+
+    response = app.make_response(out.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = f'attachment; filename={kind}.csv'
+    _audit('export_csv', '', {'kind': kind})
+    return response
+
+
+# ─────────────────────────────────────────────────
+# FEEDBACK — student-side submission
+# ─────────────────────────────────────────────────
+
+@app.route('/api/feedback', methods=['POST'])
+def submit_feedback():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if feedback_col is None:
+        return jsonify({'success': False, 'error': 'DB offline'}), 500
+    data = request.get_json(silent=True) or {}
+    rating = data.get('rating')
+    try:
+        rating = int(rating)
+    except Exception:
+        rating = 0
+    if rating < 1 or rating > 5:
+        return jsonify({'success': False, 'error': 'Rating must be 1-5'}), 400
+    feedback_col.insert_one({
+        'email': session.get('user_email'),
+        'auth_provider': session.get('auth_provider', 'email'),
+        'rating': rating,
+        'course_id': (data.get('course_id') or 'general')[:40],
+        'helpful': (data.get('helpful') or '').strip()[:1000],
+        'hardest': (data.get('hardest') or '').strip()[:1000],
+        'nps': (data.get('nps') or '').strip().lower()[:10] if data.get('nps') in ('yes', 'maybe', 'no') else '',
+        'submitted_at': datetime.utcnow().isoformat(),
+    })
+    return jsonify({'success': True})
+
+
+@app.route('/api/feedback/mine')
+def my_feedback():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if feedback_col is None:
+        return jsonify({'success': True, 'feedback': []})
+    rows = []
+    for f in feedback_col.find({'email': session.get('user_email')}).sort('submitted_at', -1):
+        f.pop('_id', None)
+        rows.append(f)
+    return jsonify({'success': True, 'feedback': rows})
 
 
 if __name__ == '__main__':

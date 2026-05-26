@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Admin · AsanMinds</title>
+<link rel="icon" href="/assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+    --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
+    --text-1:#14120E; --text-2:#4A453B; --text-3:#7A7364; --text-4:#A8A294;
+    --primary:#0F3D2E; --primary-2:#1F5A44; --primary-3:#6FA089; --primary-4:#C7DBCE;
+    --accent:#C2552F; --accent-soft:#F6DACB; --highlight:#E0A23F; --highlight-2:#F3D58C;
+    --success:#3E8A52; --warn:#E0A23F; --danger:#C2552F;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text-1);font-family:Inter,system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--primary);text-decoration:none}
+.kicker{font-family:Inter,sans-serif;font-weight:500;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--text-3)}
+.display{font-family:Fraunces,serif;letter-spacing:-0.02em;font-weight:300}
+.mono{font-family:'JetBrains Mono',monospace}
+.pressable{transition:transform .12s ease,background .2s ease,box-shadow .2s ease;cursor:pointer}
+.pressable:active{transform:scale(0.98)}
+
+.topbar{position:sticky;top:0;z-index:30;background:rgba(245,242,235,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(26,24,20,.06)}
+.topbar-inner{max-width:1400px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-dot{width:30px;height:30px;border-radius:8px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:15px;font-weight:500}
+.brand-word{font-family:Fraunces,serif;font-size:19px;font-weight:500;letter-spacing:-0.01em}
+.brand-tag{background:var(--accent);color:var(--bg);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase}
+.nav{display:flex;align-items:center;gap:4px}
+.nav a{padding:8px 14px;border-radius:9999px;color:var(--text-3);font-size:13px;font-weight:500}
+.nav a.active{background:rgba(15,61,46,.08);color:var(--text-1)}
+.nav a:hover{background:rgba(15,61,46,.04);color:var(--text-1)}
+.nav-right{display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:9999px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;background-size:cover;background-position:center;font-family:Fraunces,serif;font-size:13px;font-weight:500}
+
+.page{max-width:1400px;margin:0 auto;padding:32px 24px 80px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap}
+.page-head h1{font-family:Fraunces,serif;font-size:42px;font-weight:300;letter-spacing:-0.02em;margin:6px 0 0}
+
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:32px}
+@media(min-width:768px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px}
+.kpi-label{color:var(--text-3);font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase}
+.kpi-n{font-family:Fraunces,serif;font-size:38px;font-weight:300;line-height:1.1;letter-spacing:-0.02em;margin-top:6px;color:var(--text-1)}
+.kpi-sub{color:var(--text-3);font-size:12px;margin-top:6px}
+
+.section{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:24px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.section-head h2{font-family:Fraunces,serif;font-size:22px;font-weight:400;margin:0}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.input{height:38px;padding:0 14px;border-radius:9999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-1);font-size:13px;font-family:inherit;outline:none;min-width:200px}
+.input:focus{border-color:var(--primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:9999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-1);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn:hover{background:var(--surface-3)}
+.btn-primary{background:var(--primary);color:var(--bg);border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-2)}
+.btn-accent{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.btn-accent:hover{filter:brightness(1.05)}
+.btn-danger{background:transparent;color:var(--danger);border-color:var(--danger)}
+.btn-danger:hover{background:var(--danger);color:var(--bg)}
+.btn-sm{height:30px;padding:0 12px;font-size:12px}
+
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--surface-2);font-size:13px;vertical-align:middle}
+.table th{color:var(--text-3);font-weight:500;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;background:var(--surface-2);position:sticky;top:64px;cursor:pointer}
+.table th.sortable:hover{background:var(--surface-3)}
+.table tr.row{cursor:pointer}
+.table tr.row:hover{background:var(--surface-2)}
+.cell-name{display:flex;align-items:center;gap:10px}
+.cell-name .av{width:32px;height:32px;border-radius:9999px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:13px;background-size:cover;background-position:center;flex-shrink:0}
+.cell-name .meta{display:flex;flex-direction:column}
+.cell-name .meta .n{color:var(--text-1);font-weight:500}
+.cell-name .meta .e{color:var(--text-3);font-size:11px}
+
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:9999px;font-size:11px;font-weight:500;letter-spacing:0.06em}
+.badge-google{background:#E8F0FE;color:#1A73E8}
+.badge-email{background:var(--surface-3);color:var(--text-2)}
+.badge-master{background:var(--accent);color:var(--bg)}
+.badge-progress{background:var(--primary);color:var(--bg)}
+.badge-locked{background:var(--surface-3);color:var(--text-3)}
+.badge-active{background:#D4F5DC;color:var(--success)}
+
+.chart-grid{display:grid;grid-template-columns:1fr;gap:18px}
+@media(min-width:1024px){.chart-grid{grid-template-columns:1fr 1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px}
+.chart-card h3{font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px}
+.chart-card .sub{color:var(--text-3);font-size:12px;margin-bottom:14px}
+.chart-host{position:relative;height:280px}
+
+.empty{padding:32px;text-align:center;color:var(--text-3);font-size:14px}
+.spinner{width:24px;height:24px;border:3px solid rgba(15,61,46,.15);border-top-color:var(--primary);border-radius:50%;animation:spin .9s linear infinite;margin:32px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.deep-grid{display:grid;grid-template-columns:1fr;gap:18px}
+@media(min-width:1024px){.deep-grid{grid-template-columns:1fr 1fr}}
+
+.profile-hero{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.profile-hero .av{width:96px;height:96px;border-radius:9999px;background:var(--primary);color:var(--bg);font-family:Fraunces,serif;font-size:42px;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center}
+.profile-hero h1{margin:0;font-family:Fraunces,serif;font-size:36px;font-weight:300;letter-spacing:-0.02em}
+.profile-hero .meta{color:var(--text-3);font-size:14px;margin-top:4px}
+.profile-hero .actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+
+.kv{display:grid;grid-template-columns:140px 1fr;gap:8px 16px;font-size:13px}
+.kv .k{color:var(--text-3);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;font-weight:500;align-self:center}
+.kv .v{color:var(--text-1)}
+
+.sem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:10px}
+.sem{padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--surface-2);font-size:13px}
+.sem.done{background:var(--primary);color:var(--bg);border-color:var(--primary)}
+.sem.locked{opacity:.5}
+.sem .t{font-family:Fraunces,serif;font-size:18px;font-weight:300;letter-spacing:-0.01em;line-height:1.2}
+.sem .s{font-size:11px;letter-spacing:0.16em;text-transform:uppercase;margin-bottom:4px}
+.sem .mark{font-family:Fraunces,serif;font-size:24px;font-weight:300;line-height:1;margin-top:6px}
+
+.bar-row{display:flex;align-items:center;gap:10px;margin:6px 0}
+.bar-row .label{flex:1;font-size:13px;color:var(--text-2)}
+.bar-row .track{flex:2;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.bar-row .fill{height:100%;background:var(--primary);border-radius:3px}
+.bar-row .pct{width:40px;text-align:right;font-size:12px;color:var(--text-3);font-family:'JetBrains Mono',monospace}
+
+.feedback-card{padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface-2)}
+.feedback-card .stars{color:var(--highlight);font-size:14px;letter-spacing:1px}
+.feedback-card .head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.feedback-card .body{font-size:13px;color:var(--text-2);line-height:1.55}
+.feedback-card .body p{margin:6px 0}
+.feedback-card .body strong{color:var(--text-1);font-weight:500}
+
+.modal-bg{position:fixed;inset:0;background:rgba(20,18,14,.7);backdrop-filter:blur(8px);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-bg.active{display:flex}
+.modal{background:var(--surface);border-radius:22px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;border:1px solid var(--border)}
+.modal-h{padding:22px 24px 12px;border-bottom:1px solid var(--surface-2)}
+.modal-h h3{font-family:Fraunces,serif;font-size:22px;font-weight:400;margin:0}
+.modal-b{padding:18px 24px}
+.modal-b textarea{width:100%;min-height:90px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-family:inherit;font-size:13px;color:var(--text-1);resize:vertical}
+.modal-b label{display:block;font-size:12px;color:var(--text-3);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:6px;margin-top:14px}
+
+.tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:9999px;padding:4px;margin-bottom:18px;overflow-x:auto}
+.tabs span{padding:8px 16px;border-radius:9999px;font-size:12px;font-weight:500;color:var(--text-3);cursor:pointer;white-space:nowrap}
+.tabs span.active{background:var(--primary);color:var(--bg)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="/admin">
+            <span class="brand-dot">s</span>
+            <span class="brand-word">sunday</span>
+            <span class="brand-tag">Admin</span>
+        </a>
+        <nav class="nav" id="top-nav"></nav>
+        <div class="nav-right">
+            <a href="/home" class="btn btn-sm" title="Back to app">← App</a>
+            <a href="/logout" class="btn btn-sm">Sign out</a>
+            <span class="avatar" id="admin-av"></span>
+        </div>
+    </div>
+</header>
+
+<main id="content" class="page">
+    <div class="spinner"></div>
+</main>
+
+<div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+
+<script>
+// ─────────────────────────────────────────────────
+// Admin SPA — single-file router, fetches from /api/admin/*
+// ─────────────────────────────────────────────────
+const $ = (s, p) => (p || document).querySelector(s);
+const $$ = (s, p) => Array.from((p || document).querySelectorAll(s));
+const fmtDate = (s) => s ? new Date(s).toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' }) : '—';
+const initials = (n) => (n || 'A').trim().charAt(0).toUpperCase();
+
+const ROUTES = [
+    { path: 'dashboard', label: 'Dashboard' },
+    { path: 'students', label: 'Students' },
+    { path: 'feedback', label: 'Feedback' },
+    { path: 'certificates', label: 'Certificates' },
+    { path: 'analytics', label: 'Analytics' },
+];
+
+let adminProfile = null;
+
+function renderNav(active) {
+    const nav = $('#top-nav');
+    nav.innerHTML = ROUTES.map(r =>
+        `<a href="#${r.path}" class="${active === r.path ? 'active' : ''}">${r.label}</a>`
+    ).join('');
+}
+
+async function fetchJSON(url) {
+    const r = await fetch(url, { credentials: 'same-origin' });
+    if (!r.ok) throw new Error(`${url} → ${r.status}`);
+    return r.json();
+}
+
+async function bootProfile() {
+    try {
+        const p = await fetchJSON('/api/profile');
+        adminProfile = p;
+        const av = $('#admin-av');
+        if (p.picture) {
+            av.style.backgroundImage = `url(${p.picture})`;
+            av.textContent = '';
+        } else {
+            av.textContent = initials(p.name);
+        }
+    } catch (e) { console.warn('profile fetch failed', e); }
+}
+
+function showModal(html) {
+    $('#modal').innerHTML = html;
+    $('#modal-bg').classList.add('active');
+}
+function closeModal() { $('#modal-bg').classList.remove('active'); }
+
+function renderRoute() {
+    const hash = (location.hash || '#dashboard').slice(1);
+    const [route, ...rest] = hash.split('/');
+    renderNav(route);
+    if (route === 'dashboard') return renderDashboard();
+    if (route === 'students') {
+        if (rest.length) return renderStudentDeep(decodeURIComponent(rest.join('/')));
+        return renderStudents();
+    }
+    if (route === 'feedback') return renderFeedback();
+    if (route === 'certificates') return renderCertificates();
+    if (route === 'analytics') return renderAnalytics();
+    location.hash = '#dashboard';
+}
+
+window.addEventListener('hashchange', renderRoute);
+
+// ─────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────
+async function renderDashboard() {
+    $('#content').innerHTML = '<div class="spinner"></div>';
+    let data;
+    try { data = await fetchJSON('/api/admin/kpi'); }
+    catch (e) { $('#content').innerHTML = '<div class="empty">Failed to load.</div>'; return; }
+
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div>
+                <span class="kicker">Overview</span>
+                <h1>Welcome${adminProfile ? ', ' + adminProfile.name.split(' ')[0] : ''}</h1>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-accent" onclick="openBroadcastModal()">📣 Send broadcast push</button>
+                <a class="btn btn-primary" href="#analytics">View analytics →</a>
+            </div>
+        </div>
+        <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Total students</span><div class="kpi-n">${data.totalStudents}</div><div class="kpi-sub">${data.googleStudents} via Google</div></div>
+            <div class="kpi"><span class="kpi-label">Active 7d</span><div class="kpi-n">${data.active7d}</div><div class="kpi-sub">${data.active1d} today</div></div>
+            <div class="kpi"><span class="kpi-label">Certificates</span><div class="kpi-n">${data.totalCerts}</div><div class="kpi-sub">${data.certs30d} this month</div></div>
+            <div class="kpi"><span class="kpi-label">Avg completion</span><div class="kpi-n">${data.avgCompletion}%</div><div class="kpi-sub">across all enrolled semesters</div></div>
+        </div>
+
+        <div class="chart-grid">
+            <div class="chart-card">
+                <h3>Daily active users</h3>
+                <p class="sub">Last 30 days · unique active emails per day</p>
+                <div class="chart-host"><canvas id="chart-dau"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>Course completion funnel</h3>
+                <p class="sub">Students who completed each semester</p>
+                <div class="chart-host"><canvas id="chart-funnel"></canvas></div>
+            </div>
+        </div>
+
+        <div class="section" style="margin-top:24px">
+            <div class="section-head">
+                <div><span class="kicker">Recent</span><h2>Latest sign-ups</h2></div>
+                <a href="#students" class="btn btn-sm">All students →</a>
+            </div>
+            <div id="recent-students"></div>
+        </div>
+    `;
+    drawChart('chart-dau', 'line', data.dauChart);
+    drawChart('chart-funnel', 'bar', data.funnelChart);
+
+    const recent = await fetchJSON('/api/admin/students?limit=8&sort=-created_at');
+    $('#recent-students').innerHTML = renderStudentsTable(recent.students);
+}
+
+function drawChart(canvasId, type, payload) {
+    if (!payload) return;
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    new Chart(ctx, {
+        type,
+        data: {
+            labels: payload.labels,
+            datasets: [{
+                label: payload.label,
+                data: payload.values,
+                backgroundColor: type === 'bar' ? '#0F3D2E' : 'rgba(15,61,46,.12)',
+                borderColor: '#0F3D2E',
+                borderWidth: 2,
+                tension: 0.35,
+                fill: type === 'line',
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { color: '#7A7364', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+                x: { ticks: { color: '#7A7364', font: { size: 11 } }, grid: { display: false } },
+            },
+        },
+    });
+}
+
+// ─────────────────────────────────────────────────
+// STUDENTS LIST
+// ─────────────────────────────────────────────────
+let studentCache = [];
+async function renderStudents() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Students</span><h1>All practitioners</h1></div>
+            <div style="display:flex;gap:8px">
+                <a class="btn" href="/admin/export/students.csv" download>⤓ Export CSV</a>
+                <button class="btn btn-accent" onclick="openBroadcastModal()">📣 Push to all</button>
+            </div>
+        </div>
+        <div class="section">
+            <div class="toolbar">
+                <input class="input" id="search" placeholder="Search name or email…" oninput="filterStudents()">
+                <select class="input" id="filter-provider" onchange="filterStudents()">
+                    <option value="">All providers</option>
+                    <option value="google">Google only</option>
+                    <option value="email">Email only</option>
+                </select>
+                <select class="input" id="filter-active" onchange="filterStudents()">
+                    <option value="">Any activity</option>
+                    <option value="7">Active in 7 days</option>
+                    <option value="30">Active in 30 days</option>
+                    <option value="never">Never active</option>
+                </select>
+            </div>
+            <div id="student-table"><div class="spinner"></div></div>
+        </div>
+    `;
+    try {
+        const data = await fetchJSON('/api/admin/students');
+        studentCache = data.students || [];
+        filterStudents();
+    } catch (e) {
+        $('#student-table').innerHTML = '<div class="empty">Failed to load students.</div>';
+    }
+}
+
+function filterStudents() {
+    const q = ($('#search')?.value || '').toLowerCase();
+    const prov = $('#filter-provider')?.value || '';
+    const act = $('#filter-active')?.value || '';
+    const today = new Date().toISOString().slice(0,10);
+    const cutoff = (days) => {
+        const d = new Date(); d.setDate(d.getDate() - days);
+        return d.toISOString().slice(0,10);
+    };
+    const filtered = studentCache.filter(s => {
+        if (q && !((s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))) return false;
+        if (prov && s.auth_provider !== prov) return false;
+        if (act === '7' && (!s.last_active || s.last_active < cutoff(7))) return false;
+        if (act === '30' && (!s.last_active || s.last_active < cutoff(30))) return false;
+        if (act === 'never' && s.last_active) return false;
+        return true;
+    });
+    $('#student-table').innerHTML = renderStudentsTable(filtered);
+}
+
+function renderStudentsTable(rows) {
+    if (!rows.length) return '<div class="empty">No students match.</div>';
+    return `
+        <div style="overflow-x:auto">
+        <table class="table">
+            <thead><tr>
+                <th>Student</th>
+                <th>Provider</th>
+                <th>Joined</th>
+                <th>Last active</th>
+                <th>Streak</th>
+                <th>Sessions</th>
+                <th>Sems</th>
+                <th>Master</th>
+            </tr></thead>
+            <tbody>
+            ${rows.map(s => `
+                <tr class="row" onclick="location.hash='#students/${encodeURIComponent(s.email)}'">
+                    <td>
+                        <div class="cell-name">
+                            <div class="av" ${s.picture ? `style="background-image:url(${s.picture})"` : ''}>${s.picture ? '' : initials(s.name)}</div>
+                            <div class="meta"><span class="n">${s.name || '—'}</span><span class="e">${s.email}</span></div>
+                        </div>
+                    </td>
+                    <td><span class="badge badge-${s.auth_provider === 'google' ? 'google' : 'email'}">${s.auth_provider === 'google' ? 'Google' : 'Email'}</span></td>
+                    <td>${fmtDate(s.created_at)}</td>
+                    <td>${fmtDate(s.last_active)}</td>
+                    <td>${s.best_streak || 0}d</td>
+                    <td>${s.total_sessions || 0}</td>
+                    <td>${s.sems_completed || 0}/6</td>
+                    <td>${s.has_master ? '<span class="badge badge-master">★</span>' : '—'}</td>
+                </tr>
+            `).join('')}
+            </tbody>
+        </table>
+        </div>
+    `;
+}
+
+// ─────────────────────────────────────────────────
+// STUDENT DEEP-DIVE
+// ─────────────────────────────────────────────────
+async function renderStudentDeep(email) {
+    $('#content').innerHTML = '<div class="spinner"></div>';
+    let data;
+    try { data = await fetchJSON('/api/admin/student/' + encodeURIComponent(email)); }
+    catch (e) { $('#content').innerHTML = '<div class="empty">Student not found.</div>'; return; }
+
+    const u = data.user || {};
+    const stars = (n) => '★'.repeat(n) + '☆'.repeat(5-n);
+
+    $('#content').innerHTML = `
+        <div style="margin-bottom:18px"><a href="#students" class="btn btn-sm">← Back to all students</a></div>
+        <div class="section">
+            <div class="profile-hero">
+                <div class="av" ${u.picture ? `style="background-image:url(${u.picture})"` : ''}>${u.picture ? '' : initials(u.name)}</div>
+                <div style="flex:1;min-width:220px">
+                    <span class="kicker">${u.auth_provider === 'google' ? 'Google account' : 'Email account'} · joined ${fmtDate(u.created_at)}</span>
+                    <h1>${u.name || '—'}</h1>
+                    <div class="meta">${u.email}</div>
+                </div>
+                <div class="actions">
+                    <button class="btn" onclick="openNotifyModal('${u.email}')">🔔 Send push</button>
+                    <button class="btn btn-danger" onclick="confirmReset('${u.email}')">Reset progress</button>
+                    <button class="btn btn-danger" onclick="confirmDelete('${u.email}')">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Active days</span><div class="kpi-n">${data.activeDays || 0}</div></div>
+            <div class="kpi"><span class="kpi-label">Best streak</span><div class="kpi-n">${data.bestStreak || 0}</div></div>
+            <div class="kpi"><span class="kpi-label">Total sessions</span><div class="kpi-n">${data.totalSessions || 0}</div></div>
+            <div class="kpi"><span class="kpi-label">Certificates</span><div class="kpi-n">${(data.certificates||[]).length}</div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-head"><div><span class="kicker">Course progress</span><h2>Six semesters</h2></div></div>
+            <div class="sem-grid">
+                ${(data.courses || []).map(c => {
+                    const cls = c.completed ? 'sem done' : c.locked ? 'sem locked' : 'sem';
+                    return `
+                    <div class="${cls}">
+                        <div class="s">Sem ${c.semesterNumber}</div>
+                        <div class="t">${c.name}</div>
+                        <div class="mark">${c.completed ? (c.finalScore || 0) + '%' : (c.locked ? 'Locked' : 'In progress')}</div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>
+
+        <div class="deep-grid">
+            <div class="section">
+                <div class="section-head"><div><span class="kicker">Top poses</span><h2>Most practised</h2></div></div>
+                ${(data.topPoses || []).length ? data.topPoses.map(p => `
+                    <div class="bar-row">
+                        <span class="label">${p.name}</span>
+                        <span class="track"><span class="fill" style="width:${p.pct}%"></span></span>
+                        <span class="pct">${p.count}</span>
+                    </div>
+                `).join('') : '<div class="empty">No sessions yet.</div>'}
+            </div>
+            <div class="section">
+                <div class="section-head"><div><span class="kicker">Certificates</span><h2>Issued</h2></div></div>
+                ${(data.certificates || []).length ? `
+                    <table class="table">
+                        <tbody>
+                        ${data.certificates.map(c => `
+                            <tr>
+                                <td><strong>${c.courseTitle}</strong><br><span class="mono" style="color:#7A7364;font-size:11px">${c.certId}</span></td>
+                                <td>${c.score}%</td>
+                                <td>${fmtDate(c.issuedAt)}</td>
+                                <td><a class="btn btn-sm" href="/verify/${c.certId}" target="_blank">Verify ↗</a></td>
+                            </tr>
+                        `).join('')}
+                        </tbody>
+                    </table>
+                ` : '<div class="empty">No certificates yet.</div>'}
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head"><div><span class="kicker">Activity</span><h2>Recent sessions</h2></div></div>
+            ${(data.recentSessions || []).length ? `
+                <table class="table">
+                    <thead><tr><th>When</th><th>Pose</th><th>Peak</th><th>Duration</th></tr></thead>
+                    <tbody>
+                    ${data.recentSessions.slice(0, 30).map(s => `
+                        <tr>
+                            <td>${new Date(s.ts).toLocaleString()}</td>
+                            <td>${s.pose}</td>
+                            <td>${Math.round(s.peakScore || 0)}%</td>
+                            <td>${Math.round(s.durationS || 0)}s</td>
+                        </tr>
+                    `).join('')}
+                    </tbody>
+                </table>
+            ` : '<div class="empty">No sessions logged.</div>'}
+        </div>
+
+        ${(data.feedback || []).length ? `
+        <div class="section">
+            <div class="section-head"><div><span class="kicker">Feedback</span><h2>Their words</h2></div></div>
+            ${data.feedback.map(f => `
+                <div class="feedback-card">
+                    <div class="head">
+                        <span class="stars">${stars(f.rating || 0)}</span>
+                        <span style="color:#7A7364;font-size:11px">${f.course_id || 'general'} · ${fmtDate(f.submitted_at)}</span>
+                    </div>
+                    <div class="body">
+                        ${f.helpful ? `<p><strong>Most helpful:</strong> ${f.helpful}</p>` : ''}
+                        ${f.hardest ? `<p><strong>Hardest:</strong> ${f.hardest}</p>` : ''}
+                        ${f.nps ? `<p><strong>Recommend:</strong> ${f.nps}</p>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>` : ''}
+    `;
+}
+
+// ─────────────────────────────────────────────────
+// FEEDBACK
+// ─────────────────────────────────────────────────
+async function renderFeedback() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Feedback</span><h1>Voice of the practitioner</h1></div>
+            <a class="btn" href="/admin/export/feedback.csv" download>⤓ Export CSV</a>
+        </div>
+        <div class="section" id="fb-summary"><div class="spinner"></div></div>
+        <div class="section">
+            <div class="section-head">
+                <div><span class="kicker">All</span><h2>Submissions</h2></div>
+                <select class="input" id="fb-filter" onchange="filterFeedback()">
+                    <option value="">All ratings</option>
+                    <option value="5">5 stars only</option>
+                    <option value="4">4 stars and up</option>
+                    <option value="low">3 stars or fewer</option>
+                </select>
+            </div>
+            <div id="fb-list"><div class="spinner"></div></div>
+        </div>
+    `;
+    try {
+        const data = await fetchJSON('/api/admin/feedback');
+        window.__feedback = data.feedback || [];
+        const fb = window.__feedback;
+        const ratings = fb.map(x => x.rating || 0).filter(Boolean);
+        const avg = ratings.length ? (ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1) : '—';
+        const npsBuckets = { yes:0, maybe:0, no:0 };
+        fb.forEach(x => { if (x.nps && npsBuckets[x.nps] !== undefined) npsBuckets[x.nps]++; });
+        const promoters = npsBuckets.yes;
+        const detractors = npsBuckets.no;
+        const totalNps = promoters + npsBuckets.maybe + detractors;
+        const npsScore = totalNps ? Math.round(((promoters - detractors) / totalNps) * 100) : 0;
+        $('#fb-summary').innerHTML = `
+            <div class="kpis" style="margin:0">
+                <div class="kpi"><span class="kpi-label">Avg rating</span><div class="kpi-n">${avg}<span style="font-size:18px;color:#E0A23F">★</span></div><div class="kpi-sub">${ratings.length} ratings</div></div>
+                <div class="kpi"><span class="kpi-label">NPS</span><div class="kpi-n">${npsScore}</div><div class="kpi-sub">${promoters} yes / ${npsBuckets.maybe} maybe / ${detractors} no</div></div>
+                <div class="kpi"><span class="kpi-label">Submissions</span><div class="kpi-n">${fb.length}</div><div class="kpi-sub">total</div></div>
+                <div class="kpi"><span class="kpi-label">Last 7 days</span><div class="kpi-n">${fb.filter(x => x.submitted_at > new Date(Date.now()-7*86400000).toISOString()).length}</div></div>
+            </div>
+        `;
+        filterFeedback();
+    } catch (e) {
+        $('#fb-list').innerHTML = '<div class="empty">Failed to load.</div>';
+    }
+}
+
+function filterFeedback() {
+    const v = $('#fb-filter')?.value || '';
+    let rows = window.__feedback || [];
+    if (v === '5') rows = rows.filter(r => r.rating === 5);
+    else if (v === '4') rows = rows.filter(r => r.rating >= 4);
+    else if (v === 'low') rows = rows.filter(r => r.rating && r.rating <= 3);
+    if (!rows.length) { $('#fb-list').innerHTML = '<div class="empty">No feedback yet.</div>'; return; }
+    const stars = (n) => '★'.repeat(n||0) + '☆'.repeat(5-(n||0));
+    $('#fb-list').innerHTML = rows.map(f => `
+        <div class="feedback-card">
+            <div class="head">
+                <div class="cell-name">
+                    <div class="av" ${f.picture ? `style="background-image:url(${f.picture})"` : ''}>${f.picture ? '' : initials(f.name)}</div>
+                    <div class="meta">
+                        <span class="n">${f.name || '—'}</span>
+                        <span class="e">${f.email}</span>
+                    </div>
+                </div>
+                <span class="stars">${stars(f.rating)}</span>
+                <span style="color:#7A7364;font-size:11px">${f.course_id || 'general'} · ${fmtDate(f.submitted_at)}</span>
+            </div>
+            <div class="body">
+                ${f.helpful ? `<p><strong>Most helpful:</strong> ${f.helpful}</p>` : ''}
+                ${f.hardest ? `<p><strong>Hardest:</strong> ${f.hardest}</p>` : ''}
+                ${f.nps ? `<p><strong>Recommend:</strong> ${f.nps}</p>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ─────────────────────────────────────────────────
+// CERTIFICATES
+// ─────────────────────────────────────────────────
+async function renderCertificates() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Certificates</span><h1>All issued</h1></div>
+        </div>
+        <div class="section" id="cert-list"><div class="spinner"></div></div>
+    `;
+    try {
+        const data = await fetchJSON('/api/admin/certificates');
+        const rows = data.certificates || [];
+        if (!rows.length) { $('#cert-list').innerHTML = '<div class="empty">No certificates issued yet.</div>'; return; }
+        $('#cert-list').innerHTML = `
+            <div style="overflow-x:auto"><table class="table">
+                <thead><tr>
+                    <th>Practitioner</th><th>Course</th><th>Mark</th><th>Issued</th><th>Cert id</th><th></th>
+                </tr></thead>
+                <tbody>
+                ${rows.map(c => `
+                    <tr>
+                        <td><strong>${c.userName || '—'}</strong><br><span style="color:#7A7364;font-size:11px">${c.email}</span></td>
+                        <td>${c.courseTitle}${c.isMaster ? ' <span class="badge badge-master">Master</span>' : ''}</td>
+                        <td>${c.score}%</td>
+                        <td>${fmtDate(c.issuedAt)}</td>
+                        <td class="mono" style="font-size:11px">${c.certId}</td>
+                        <td><a class="btn btn-sm" href="/verify/${c.certId}" target="_blank">Verify ↗</a></td>
+                    </tr>
+                `).join('')}
+                </tbody>
+            </table></div>
+        `;
+    } catch (e) { $('#cert-list').innerHTML = '<div class="empty">Failed to load.</div>'; }
+}
+
+// ─────────────────────────────────────────────────
+// ANALYTICS
+// ─────────────────────────────────────────────────
+async function renderAnalytics() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Analytics</span><h1>Deeper insights</h1></div>
+        </div>
+        <div class="chart-grid">
+            <div class="chart-card"><h3>Pose popularity</h3><p class="sub">Top 12 poses by total sessions logged</p><div class="chart-host"><canvas id="ch-poses"></canvas></div></div>
+            <div class="chart-card"><h3>Streak distribution</h3><p class="sub">How many users on each streak length</p><div class="chart-host"><canvas id="ch-streaks"></canvas></div></div>
+            <div class="chart-card"><h3>Cohort retention</h3><p class="sub">% of new sign-ups still active after N days</p><div class="chart-host"><canvas id="ch-retention"></canvas></div></div>
+            <div class="chart-card"><h3>Sign-ups by week</h3><p class="sub">New practitioners over time</p><div class="chart-host"><canvas id="ch-signups"></canvas></div></div>
+        </div>
+    `;
+    try {
+        const data = await fetchJSON('/api/admin/analytics');
+        drawChart('ch-poses', 'bar', data.poses);
+        drawChart('ch-streaks', 'bar', data.streaks);
+        drawChart('ch-retention', 'line', data.retention);
+        drawChart('ch-signups', 'bar', data.signups);
+    } catch (e) {
+        $('.chart-grid').innerHTML = '<div class="empty">Failed to load analytics.</div>';
+    }
+}
+
+// ─────────────────────────────────────────────────
+// ACTIONS
+// ─────────────────────────────────────────────────
+function openBroadcastModal() {
+    showModal(`
+        <div class="modal-h"><h3>Broadcast push notification</h3></div>
+        <div class="modal-b">
+            <p style="color:#4A453B;font-size:13px;margin:0 0 12px">Sends to every student who has opted in to daily reminders.</p>
+            <label>Title</label>
+            <input class="input" id="bc-title" style="width:100%" value="Sunday is waiting" />
+            <label>Message</label>
+            <textarea id="bc-body">A few minutes of practice today goes a long way.</textarea>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-accent" onclick="sendBroadcast()">Send to all</button>
+            </div>
+        </div>
+    `);
+}
+async function sendBroadcast() {
+    const title = $('#bc-title').value.trim();
+    const body = $('#bc-body').value.trim();
+    if (!title || !body) return;
+    const r = await fetch('/api/admin/broadcast', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body }),
+    });
+    const j = await r.json();
+    closeModal();
+    alert(j.success ? `Sent to ${j.delivered} of ${j.attempted} subscribers.` : (j.error || 'Failed.'));
+}
+
+function openNotifyModal(email) {
+    showModal(`
+        <div class="modal-h"><h3>Send a push to ${email}</h3></div>
+        <div class="modal-b">
+            <label>Title</label>
+            <input class="input" id="nf-title" style="width:100%" value="A note from your coach" />
+            <label>Message</label>
+            <textarea id="nf-body">Keep going — your form is improving.</textarea>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-accent" onclick="sendNotify('${email}')">Send</button>
+            </div>
+        </div>
+    `);
+}
+async function sendNotify(email) {
+    const title = $('#nf-title').value.trim();
+    const body = $('#nf-body').value.trim();
+    if (!title || !body) return;
+    const r = await fetch('/api/admin/notify/' + encodeURIComponent(email), {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body }),
+    });
+    const j = await r.json();
+    closeModal();
+    alert(j.success ? 'Push sent.' : (j.error || 'Failed.'));
+}
+
+async function confirmReset(email) {
+    if (!confirm(`Reset all course progress for ${email}? Their certificates remain.`)) return;
+    const r = await fetch('/api/admin/reset/' + encodeURIComponent(email), { method: 'POST', credentials: 'same-origin' });
+    const j = await r.json();
+    alert(j.success ? 'Progress reset.' : (j.error || 'Failed.'));
+    if (j.success) renderStudentDeep(email);
+}
+async function confirmDelete(email) {
+    if (!confirm(`Permanently delete account ${email}? This cannot be undone.`)) return;
+    if (!confirm('Are you absolutely sure? All data will be erased.')) return;
+    const r = await fetch('/api/admin/delete/' + encodeURIComponent(email), { method: 'POST', credentials: 'same-origin' });
+    const j = await r.json();
+    alert(j.success ? 'Deleted.' : (j.error || 'Failed.'));
+    if (j.success) location.hash = '#students';
+}
+
+// Boot
+(async function() {
+    await bootProfile();
+    renderRoute();
+})();
+</script>
+</body>
+</html>

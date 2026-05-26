@@ -577,6 +577,26 @@
         <div id="onboard-card"></div>
     </div>
 
+    <!-- Feedback modal (shown after a course completes; or via Settings) -->
+    <style>
+        #feedback-overlay { position:fixed; inset:0; background:rgba(20,18,14,0.78); backdrop-filter:blur(12px); display:none; align-items:center; justify-content:center; z-index:75; padding:16px; }
+        #feedback-overlay.active { display:flex; }
+        #feedback-card { background:#F5F2EB; max-width:520px; width:100%; max-height:92vh; overflow-y:auto; border-radius:24px; border:1px solid #D4CCB8; }
+        #feedback-card .stars { display:flex; gap:6px; margin:10px 0 16px; }
+        #feedback-card .star { font-size:32px; color:#D4CCB8; cursor:pointer; transition:color .15s; line-height:1; }
+        #feedback-card .star.filled { color:#E0A23F; }
+        #feedback-card textarea { width:100%; min-height:74px; padding:12px; border-radius:10px; border:1px solid #D4CCB8; background:#FFFFFF; font-family:inherit; font-size:13px; resize:vertical; }
+        #feedback-card label { display:block; font-size:11px; color:#7A7364; letter-spacing:0.18em; text-transform:uppercase; font-weight:500; margin:14px 0 6px; }
+        #feedback-card .nps { display:flex; gap:8px; }
+        #feedback-card .nps button { flex:1; height:38px; border-radius:9999px; border:1px solid #D4CCB8; background:#FFFFFF; color:#14120E; font-size:13px; font-weight:500; cursor:pointer; }
+        #feedback-card .nps button.active { background:#0F3D2E; color:#F5F2EB; border-color:#0F3D2E; }
+    </style>
+    <div id="feedback-overlay" onclick="if(event.target===this)app._closeFeedback()">
+        <div id="feedback-card">
+            <div id="feedback-body"></div>
+        </div>
+    </div>
+
 
 
     <script>
@@ -4297,6 +4317,8 @@
                     cp.completedAt = Date.now();
                     cp.certificateEarned = true;
                     cp.finalScore = (typeof CourseUtils !== 'undefined') ? CourseUtils.courseMark(cp) : 0;
+                    // Trigger one-time feedback modal for this course.
+                    setTimeout(() => this._openFeedbackModal(courseId), 800);
                 }
 
                 try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
@@ -5052,6 +5074,7 @@
                         </label>` : ''}
                         <div style="border-top:1px solid #E0D9C8;padding-top:14px;display:flex;flex-direction:column;gap:10px">
                             <a href="/privacy" target="_blank" style="font-size:13px;color:#0F3D2E;text-decoration:underline">Privacy policy</a>
+                            <button onclick="app._openFeedbackModal('general')" class="pressable" style="height:38px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Send feedback</button>
                             <button onclick="app._sendTestEmail()" class="pressable" style="height:38px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Send me a SendGrid test email</button>
                         </div>
                         <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account & all data</button>
@@ -5115,6 +5138,103 @@
                 const out = new Uint8Array(rawData.length);
                 for (let i = 0; i < rawData.length; i++) out[i] = rawData.charCodeAt(i);
                 return out;
+            },
+
+            // ─────────────────────────────────────────────────
+            // FEEDBACK (course-completion + on-demand)
+            // ─────────────────────────────────────────────────
+            _openFeedbackModal(courseId) {
+                // Don't double-show — track per-course in localStorage.
+                try {
+                    const seen = JSON.parse(localStorage.getItem('sunday_feedback_shown') || '{}');
+                    if (courseId && seen[courseId]) return;
+                    if (courseId) { seen[courseId] = Date.now(); localStorage.setItem('sunday_feedback_shown', JSON.stringify(seen)); }
+                } catch (_) {}
+
+                const overlay = document.getElementById('feedback-overlay');
+                const body = document.getElementById('feedback-body');
+                if (!overlay || !body) return;
+
+                this._fbState = { courseId: courseId || 'general', rating: 0, nps: '' };
+                const courseName = (typeof SUNDAY_COURSES !== 'undefined' && courseId)
+                    ? (SUNDAY_COURSES.find(c => c.id === courseId)?.name || courseId)
+                    : '';
+
+                body.innerHTML = `
+                    <div style="padding:24px 26px 8px">
+                        <span class="kicker" style="color:#C2552F">${courseName ? 'Semester complete' : 'Feedback'}</span>
+                        <h2 style="font-family:'Fraunces',serif;font-size:28px;font-weight:300;margin:6px 0 4px;color:#14120E;letter-spacing:-0.02em">${courseName ? 'Beautiful work, ' + (this.userData?.name?.split(' ')[0] || 'practitioner') + '.' : 'How is your practice?'}</h2>
+                        <p style="margin:0;color:#7A7364;font-size:13px">${courseName ? 'How was your ' + courseName + ' experience?' : 'A minute of feedback helps us tune the course.'}</p>
+                    </div>
+                    <div style="padding:8px 26px 24px">
+                        <label>Your rating</label>
+                        <div class="stars" id="fb-stars">
+                            ${[1,2,3,4,5].map(n => `<span class="star" data-n="${n}" onclick="app._fbSetRating(${n})">★</span>`).join('')}
+                        </div>
+                        <label>What did you find most helpful?</label>
+                        <textarea id="fb-helpful" placeholder="The voice cues, the pace, anything…"></textarea>
+                        <label>What was hardest?</label>
+                        <textarea id="fb-hardest" placeholder="A pose, the AR detection, the timing…"></textarea>
+                        <label>Would you recommend AsanMinds?</label>
+                        <div class="nps" id="fb-nps">
+                            <button onclick="app._fbSetNps('yes')">Yes</button>
+                            <button onclick="app._fbSetNps('maybe')">Maybe</button>
+                            <button onclick="app._fbSetNps('no')">No</button>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                            <button class="pressable" onclick="app._closeFeedback()" style="height:40px;padding:0 16px;border-radius:9999px;background:transparent;border:1px solid #D4CCB8;color:#7A7364;font-size:13px;cursor:pointer">Skip</button>
+                            <button class="btn btn-accent pressable" onclick="app._submitFeedback()" style="padding:11px 22px">Send feedback</button>
+                        </div>
+                    </div>
+                `;
+                overlay.classList.add('active');
+            },
+
+            _fbSetRating(n) {
+                if (!this._fbState) return;
+                this._fbState.rating = n;
+                document.querySelectorAll('#fb-stars .star').forEach((el, idx) => {
+                    el.classList.toggle('filled', idx < n);
+                });
+            },
+
+            _fbSetNps(val) {
+                if (!this._fbState) return;
+                this._fbState.nps = val;
+                document.querySelectorAll('#fb-nps button').forEach(b => {
+                    b.classList.toggle('active', b.textContent.toLowerCase() === val);
+                });
+            },
+
+            async _submitFeedback() {
+                const s = this._fbState || {};
+                if (!s.rating) { alert('Pick a rating first.'); return; }
+                const payload = {
+                    course_id: s.courseId,
+                    rating: s.rating,
+                    helpful: document.getElementById('fb-helpful')?.value || '',
+                    hardest: document.getElementById('fb-hardest')?.value || '',
+                    nps: s.nps,
+                };
+                try {
+                    const r = await fetch('/api/feedback', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const j = await r.json();
+                    if (j.success) {
+                        this._closeFeedback();
+                        alert('Thank you. Your feedback shapes the next version.');
+                    } else {
+                        alert(j.error || 'Could not save feedback.');
+                    }
+                } catch (e) { alert('Network error.'); }
+            },
+
+            _closeFeedback() {
+                document.getElementById('feedback-overlay')?.classList.remove('active');
             },
 
             async _sendTestEmail() {
