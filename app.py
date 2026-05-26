@@ -181,6 +181,14 @@ INDEX_HTML = """
                         Sign In
                     </button>
                 </form>
+                <div id="login-google" style="display:none; margin-top:24px">
+                    <div style="display:flex; align-items:center; gap:10px; color:#6B7280; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:14px">
+                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
+                        <span>Or</span>
+                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
+                    </div>
+                    <div id="g-host-login" style="display:flex; justify-content:center"></div>
+                </div>
                 <p class="text-center mt-10 text-gray-600 text-sm">
                     New to SUNDAY? 
                     <button id="show-register" class="text-blue-400 hover:text-blue-300 font-black ml-1 uppercase text-xs tracking-widest">Create Account</button>
@@ -206,6 +214,14 @@ INDEX_HTML = """
                         Get Started
                     </button>
                 </form>
+                <div id="register-google" style="display:none; margin-top:24px">
+                    <div style="display:flex; align-items:center; gap:10px; color:#6B7280; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:14px">
+                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
+                        <span>Or</span>
+                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
+                    </div>
+                    <div id="g-host-register" style="display:flex; justify-content:center"></div>
+                </div>
                 <p class="text-center mt-10 text-gray-600 text-sm">
                     Already a member? 
                     <button id="show-login" class="text-blue-400 hover:text-blue-300 font-black ml-1 uppercase text-xs tracking-widest">Log In</button>
@@ -303,6 +319,68 @@ INDEX_HTML = """
                 error.classList.remove('hidden');
             }
         };
+
+        // ── Google Sign-In ──
+        // Asks the server for the configured client ID, lazy-loads Google
+        // Identity Services, and renders a button on both the sign-in and
+        // sign-up panels. One Tap also fires for users already signed in
+        // to Google in their browser.
+        (async function setupGoogle() {
+            try {
+                const r = await fetch('/auth/google/config');
+                const cfg = r.ok ? await r.json() : {};
+                if (!cfg.enabled || !cfg.clientId) return;
+
+                window.handleGoogleCredential = async (response) => {
+                    showLoader(true);
+                    try {
+                        const res = await fetch('/auth/google', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ credential: response.credential }),
+                        });
+                        const data = await res.json();
+                        if (data.success) { window.location.href = '/home'; return; }
+                        showLoader(false);
+                        const err = document.getElementById('login-error');
+                        if (err) {
+                            err.textContent = data.error || 'Google sign-in failed.';
+                            err.classList.remove('hidden');
+                        }
+                    } catch (e) {
+                        showLoader(false);
+                    }
+                };
+
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://accounts.google.com/gsi/client';
+                    s.async = true; s.defer = true;
+                    s.onload = resolve; s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+
+                google.accounts.id.initialize({
+                    client_id: cfg.clientId,
+                    callback: window.handleGoogleCredential,
+                    auto_select: false,
+                    use_fedcm_for_prompt: true,
+                });
+
+                const opts = { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left', width: 320 };
+                const loginHost = document.getElementById('g-host-login');
+                const regHost = document.getElementById('g-host-register');
+                if (loginHost) google.accounts.id.renderButton(loginHost, opts);
+                if (regHost) google.accounts.id.renderButton(regHost, opts);
+                document.getElementById('login-google').style.display = 'block';
+                document.getElementById('register-google').style.display = 'block';
+
+                google.accounts.id.prompt();
+            } catch (e) {
+                console.warn('Google sign-in unavailable:', e);
+            }
+        })();
     </script>
 </body>
 </html>
