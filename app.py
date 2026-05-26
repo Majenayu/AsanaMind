@@ -61,6 +61,17 @@ LIVE_VIEW_PASSWORD = os.environ.get('LIVE_VIEW_PASSWORD', '')
 LIVE_FRAME_TTL = 8.0  # seconds — frames older than this count as "offline"
 
 app = Flask(__name__)
+# Behind Render / any reverse proxy, X-Forwarded-* headers carry the real
+# client IP and protocol. ProxyFix tells Flask to trust them so:
+#   • request.remote_addr returns the user's real IP (not the proxy)
+#   • request.url uses https when the proxy says so
+# Trusting only one hop is sufficient for Render.
+try:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+except Exception:
+    pass
+
 # Flask SECRET_KEY MUST come from the environment in production. We refuse
 # to start with a known default so a leaked repo can't forge sessions.
 _secret = os.environ.get('SECRET_KEY')
@@ -80,6 +91,34 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Mark cookies secure when running behind https (Render does this).
 if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
     app.config['SESSION_COOKIE_SECURE'] = True
+
+
+@app.after_request
+def _security_headers(resp):
+    """Defense-in-depth headers applied to every response.
+
+    • X-Content-Type-Options: blocks MIME sniffing
+    • X-Frame-Options: prevents clickjacking via iframe
+    • Referrer-Policy: strips full URL from outgoing referrers
+    • Permissions-Policy: limits which APIs the browser will run
+      (camera + microphone allowed because the AR coach uses them;
+       everything else denied for safety)
+    • Strict-Transport-Security: only set behind HTTPS so localhost dev
+      isn't pinned. Tells browsers to never load this site over HTTP.
+    """
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault(
+        'Permissions-Policy',
+        'camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=()',
+    )
+    if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+        resp.headers.setdefault(
+            'Strict-Transport-Security',
+            'max-age=15552000; includeSubDomains',
+        )
+    return resp
 
 # Rate limiting — 30/min for /api/assistant, generous defaults elsewhere.
 if LIMITER_AVAILABLE:
@@ -807,7 +846,9 @@ def google_auth():
         # Verify the JWT against Google's certs and our client ID.
         info = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID, clock_skew_in_seconds=10)
     except ValueError as e:
-        return jsonify({'success': False, 'error': 'Invalid Google token: ' + str(e)}), 401
+        # Don't leak library internals — just say it failed and log details.
+        print(f'Google token verification failed: {e}')
+        return jsonify({'success': False, 'error': 'Invalid or expired Google sign-in token. Please try again.'}), 401
 
     email = (info.get('email') or '').lower().strip()
     if not email or not info.get('email_verified'):
@@ -1235,22 +1276,33 @@ def assistant_proxy():
     # Build a compact context line the model can reason over. We keep it
     # short (models do better with tight system prompts) and strip any
     # fields the client did not send.
+    # Cap each context value defensively to prevent prompt-injection /
+    # token-burning via fields like a 50KB poseSanskrit string.
+    def _cap(v, n=120):
+        return str(v or '')[:n]
+
     ctx_bits = []
     if ctx.get('screen'):
-        ctx_bits.append(f"Screen: {ctx['screen']}")
+        ctx_bits.append(f"Screen: {_cap(ctx['screen'], 40)}")
     if ctx.get('pose'):
-        pose_bit = ctx['pose']
+        pose_bit = _cap(ctx['pose'], 60)
         if ctx.get('poseSanskrit') and ctx['poseSanskrit'] != pose_bit:
-            pose_bit = f"{pose_bit} ({ctx['poseSanskrit']})"
+            pose_bit = f"{pose_bit} ({_cap(ctx['poseSanskrit'], 60)})"
         if ctx.get('poseLevel'):
-            pose_bit += f", {ctx['poseLevel']}"
+            pose_bit += f", {_cap(ctx['poseLevel'], 30)}"
         ctx_bits.append(f"Current pose: {pose_bit}")
     if ctx.get('score') is not None:
-        ctx_bits.append(f"Alignment: {ctx['score']}%")
+        try:
+            ctx_bits.append(f"Alignment: {int(ctx['score'])}%")
+        except Exception:
+            pass
     if ctx.get('courseMode'):
         ctx_bits.append("In course test mode")
     if ctx.get('courseCompleted') is not None and ctx.get('courseTotal'):
-        ctx_bits.append(f"Course progress: {ctx['courseCompleted']} of {ctx['courseTotal']} complete")
+        try:
+            ctx_bits.append(f"Course progress: {int(ctx['courseCompleted'])} of {int(ctx['courseTotal'])} complete")
+        except Exception:
+            pass
     ctx_line = " | ".join(ctx_bits) if ctx_bits else "No screen context"
 
     # Compact knowledge base — about 700 tokens. Small enough to include
@@ -1411,14 +1463,32 @@ def sync_history():
     sessions = data.get('sessions') or []
     if not sessions:
         return jsonify({'success': True, 'synced': 0})
+    # Sanitise — keep only allowed keys, cap each value, take latest 60.
+    allowed_keys = {'pose', 'poseSanskrit', 'peakScore', 'durationS', 'ts'}
+    cleaned = []
+    for s in sessions[-60:]:
+        if not isinstance(s, dict):
+            continue
+        out = {}
+        for k in allowed_keys:
+            v = s.get(k)
+            if isinstance(v, str):
+                out[k] = v[:80]
+            elif isinstance(v, (int, float, bool)):
+                out[k] = v
+            elif v is None:
+                continue
+        cleaned.append(out)
+    if not cleaned:
+        return jsonify({'success': True, 'synced': 0})
     email = session.get('user_email', '')
     try:
         get_users_col().update_one(
             {'email': email},
-            {'$push': {'session_history': {'$each': sessions[-60:]}}},
+            {'$push': {'session_history': {'$each': cleaned, '$slice': -200}}},
             upsert=True
         )
-        return jsonify({'success': True, 'synced': len(sessions)})
+        return jsonify({'success': True, 'synced': len(cleaned)})
     except Exception as e:
         print(f'sync-history error: {e}')
         return jsonify({'success': True, 'synced': 0, 'note': 'DB error'})
@@ -1797,9 +1867,9 @@ def email_test():
             from_email=sender,
             to_emails=recipient,
             subject='AsanMinds — SendGrid test',
-            html_content=f"""<p>Hi {user_name},</p>
+            html_content=f"""<p>Hi {_html.escape(user_name)},</p>
 <p>This is a test email from your AsanMinds deployment to confirm SendGrid is wired up correctly.</p>
-<p><b>From:</b> {sender}<br><b>To:</b> {recipient}</p>
+<p><b>From:</b> {_html.escape(sender)}<br><b>To:</b> {_html.escape(recipient)}</p>
 <p>If you got this, the certificate email button will also work.</p>
 <p>Namaste,<br>Sunday · AsanMinds</p>""")
         sg = SendGridAPIClient(api_key)
@@ -1869,8 +1939,8 @@ def email_certificate():
             from_email=sender,
             to_emails=user_email,
             subject=f'Your AsanMinds Certificate: {course_title}',
-            html_content=f"""<p>Dear {user_name},</p>
-<p>Congratulations on completing <b>{course_title}</b> with a final mark of <b>{score}%</b>.</p>
+            html_content=f"""<p>Dear {_html.escape(user_name)},</p>
+<p>Congratulations on completing <b>{_html.escape(course_title)}</b> with a final mark of <b>{int(score)}%</b>.</p>
 <p>Your certificate is attached. You can also share it from inside the app, or anyone can verify it at the URL on the certificate.</p>
 <p>Namaste,<br>Sunday · AsanMinds</p>""")
         attachment = Attachment(
@@ -2943,22 +3013,31 @@ def admin_live_frame(email):
 @admin_required
 def admin_export(kind):
     import csv, io
+    # CSV-injection guard — values starting with =, +, -, or @ are
+    # interpreted as formulas in Excel/Google Sheets. Prefix with a tab
+    # to neutralise without changing the visible value.
+    def _safe(v):
+        s = '' if v is None else str(v)
+        if s and s[0] in ('=', '+', '-', '@'):
+            return '\t' + s
+        return s
+
     out = io.StringIO()
     w = csv.writer(out)
     if kind == 'students':
         w.writerow(['email', 'name', 'auth_provider', 'created_at', 'last_active', 'active_days', 'best_streak', 'sems_completed', 'has_master', 'total_sessions', 'poses_learned'])
         for s in (_student_summary(u) for u in _all_user_docs()):
-            w.writerow([s['email'], s['name'], s['auth_provider'], s['created_at'] or '', s['last_active'] or '', s['active_days'], s['best_streak'], s['sems_completed'], 'yes' if s['has_master'] else 'no', s['total_sessions'], s['poses_learned']])
+            w.writerow([_safe(s['email']), _safe(s['name']), _safe(s['auth_provider']), _safe(s['created_at'] or ''), _safe(s['last_active'] or ''), s['active_days'], s['best_streak'], s['sems_completed'], 'yes' if s['has_master'] else 'no', s['total_sessions'], s['poses_learned']])
     elif kind == 'feedback':
         w.writerow(['email', 'rating', 'course_id', 'helpful', 'hardest', 'nps', 'submitted_at'])
         if feedback_col is not None:
             for f in feedback_col.find({}):
-                w.writerow([f.get('email', ''), f.get('rating', ''), f.get('course_id', ''), f.get('helpful', ''), f.get('hardest', ''), f.get('nps', ''), f.get('submitted_at', '')])
+                w.writerow([_safe(f.get('email', '')), f.get('rating', ''), _safe(f.get('course_id', '')), _safe(f.get('helpful', '')), _safe(f.get('hardest', '')), _safe(f.get('nps', '')), _safe(f.get('submitted_at', ''))])
     elif kind == 'sessions':
         w.writerow(['email', 'pose', 'peak_score', 'duration_s', 'ts'])
         for u in _all_user_docs():
             for s in (u.get('session_history') or []):
-                w.writerow([u.get('email', ''), s.get('pose', ''), s.get('peakScore', ''), s.get('durationS', ''), s.get('ts', '')])
+                w.writerow([_safe(u.get('email', '')), _safe(s.get('pose', '')), s.get('peakScore', ''), s.get('durationS', ''), _safe(s.get('ts', ''))])
     else:
         return 'Unknown export', 404
 
