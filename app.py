@@ -31,6 +31,16 @@ try:
 except Exception:
     PUSH_AVAILABLE = False
 
+# Google Sign-In — verifies the ID token Google's frontend SDK gives us.
+try:
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    GOOGLE_AUTH_AVAILABLE = True
+except Exception:
+    GOOGLE_AUTH_AVAILABLE = False
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+
 app = Flask(__name__)
 # Use environment variable for secret key, fallback ONLY for local dev
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-this-in-render')
@@ -376,6 +386,7 @@ def register():
     result = users.insert_one(user_data)
     
     if result.inserted_id:
+        session.permanent = True
         session['logged_in'] = True
         session['user_email'] = email
         session['user_name'] = name
@@ -406,12 +417,88 @@ def login():
     today = datetime.now().strftime('%Y-%m-%d')
     users.update_one({'email': email}, {'$addToSet': {'activity_log': today}})
     
+    session.permanent = True
     session['logged_in'] = True
     session['user_email'] = email
     session['user_name'] = name
     return jsonify({'success': True})
 
-@app.route('/api/profile')
+@app.route('/auth/google', methods=['POST'])
+def google_auth():
+    """Sign in / sign up via Google ID token (item: Google Sign-In).
+
+    Frontend calls google.accounts.id.prompt() which returns a JWT ID token.
+    We verify the token against Google's public keys, then create or look up
+    the user in our DB.
+    """
+    if not GOOGLE_AUTH_AVAILABLE:
+        return jsonify({'success': False, 'error': 'Google sign-in not configured on server.'}), 503
+    if not GOOGLE_CLIENT_ID:
+        return jsonify({'success': False, 'error': 'GOOGLE_CLIENT_ID env var not set.'}), 503
+    if not db_connected:
+        return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+    data = request.get_json(silent=True) or {}
+    token = data.get('credential') or data.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Missing credential'}), 400
+
+    try:
+        # Verify the JWT against Google's certs and our client ID.
+        info = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID, clock_skew_in_seconds=10)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'Invalid Google token: ' + str(e)}), 401
+
+    email = (info.get('email') or '').lower().strip()
+    if not email or not info.get('email_verified'):
+        return jsonify({'success': False, 'error': 'Google account email is not verified.'}), 401
+
+    name = (info.get('name') or info.get('given_name') or email.split('@')[0]).strip()
+    picture = info.get('picture', '')
+    google_sub = info.get('sub')
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    existing = users.find_one({'email': email})
+    if existing:
+        # Backfill google linkage and update activity log.
+        users.update_one(
+            {'email': email},
+            {
+                '$set': {'name': existing.get('name') or name, 'picture': picture, 'google_sub': google_sub},
+                '$addToSet': {'activity_log': today},
+            },
+        )
+        session_name = existing.get('name') or name
+    else:
+        users.insert_one({
+            'name': name,
+            'email': email,
+            'picture': picture,
+            'google_sub': google_sub,
+            'auth_provider': 'google',
+            'created_at': datetime.utcnow(),
+            'activity_log': [today],
+            'completed_asanas': {},
+        })
+        session_name = name
+
+    session.permanent = True
+    session['logged_in'] = True
+    session['user_email'] = email
+    session['user_name'] = session_name
+    session['picture'] = picture
+    return jsonify({'success': True, 'name': session_name, 'email': email})
+
+
+@app.route('/auth/google/config', methods=['GET'])
+def google_config():
+    """Tells the frontend whether Google sign-in is configured and the client ID."""
+    return jsonify({
+        'enabled': bool(GOOGLE_AUTH_AVAILABLE and GOOGLE_CLIENT_ID),
+        'clientId': GOOGLE_CLIENT_ID,
+    })
+
+
 def profile():
     if not session.get('logged_in'):
         return jsonify({'error': 'Not authenticated'}), 401

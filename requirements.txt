@@ -6,3 +6,5 @@ flask-limiter
 sendgrid
 pywebpush
 cryptography
+google-auth
+requests

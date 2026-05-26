@@ -173,6 +173,16 @@
                     <span aria-hidden="true">→</span>
                 </button>
 
+                <!-- Google Sign-In divider + button -->
+                <div id="google-block" style="display:none;flex-direction:column;gap:12px">
+                    <div style="display:flex;align-items:center;gap:10px;color:var(--text-4);font-size:11px;letter-spacing:0.18em;text-transform:uppercase">
+                        <span style="flex:1;height:1px;background:var(--border)"></span>
+                        <span>Or</span>
+                        <span style="flex:1;height:1px;background:var(--border)"></span>
+                    </div>
+                    <div id="g-button-host" style="display:flex;justify-content:center"></div>
+                </div>
+
                 <div style="text-align:center">
                     <span class="t-body-s" id="auth-switch-label" style="color:var(--text-3)">New to Sunday? </span>
                     <button type="button" class="link-btn" id="auth-switch">Create an account</button>
@@ -250,6 +260,67 @@
         });
 
         applyMode();
+
+        // ── Google Sign-In bootstrap ──
+        // Asks the server whether Google is configured (i.e. GOOGLE_CLIENT_ID
+        // env var is set on Render). If yes, lazy-loads the Google Identity
+        // Services script and renders a One-Tap button.
+        (async function setupGoogle() {
+            try {
+                const r = await fetch('/auth/google/config');
+                const cfg = r.ok ? await r.json() : {};
+                if (!cfg.enabled || !cfg.clientId) return;
+
+                window.handleGoogleCredential = async (response) => {
+                    showLoader(true);
+                    try {
+                        const res = await fetch('/auth/google', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ credential: response.credential }),
+                        });
+                        const data = await res.json();
+                        if (data.success) { window.location.href = '/home'; return; }
+                        showLoader(false);
+                        showErr(data.error || 'Google sign-in failed.');
+                    } catch (e) {
+                        showLoader(false);
+                        showErr('Connection error during Google sign-in.');
+                    }
+                };
+
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://accounts.google.com/gsi/client';
+                    s.async = true; s.defer = true;
+                    s.onload = resolve; s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+
+                google.accounts.id.initialize({
+                    client_id: cfg.clientId,
+                    callback: window.handleGoogleCredential,
+                    auto_select: false,
+                    use_fedcm_for_prompt: true,
+                });
+                const host = document.getElementById('g-button-host');
+                google.accounts.id.renderButton(host, {
+                    theme: 'outline',
+                    size: 'large',
+                    text: 'continue_with',
+                    shape: 'pill',
+                    logo_alignment: 'left',
+                    width: 320,
+                });
+                document.getElementById('google-block').style.display = 'flex';
+
+                // One Tap — only on signin mode, only if user isn't already signed in.
+                google.accounts.id.prompt();
+            } catch (e) {
+                console.warn('Google sign-in unavailable:', e);
+            }
+        })();
     </script>
 </body>
 </html>
