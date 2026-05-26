@@ -349,7 +349,11 @@
                 const userA = live[joint];
                 if (userA == null) continue;
                 const refA = refVec[joint];
-                const tol = JOINT_TOLERANCE[joint] || 20;
+                let tol = JOINT_TOLERANCE[joint] || 20;
+                // Adaptive softening (item 10) — chronic struggle adds 5°.
+                if (window.AdaptiveDifficulty && poseName) {
+                    tol += window.AdaptiveDifficulty.getToleranceBoost(poseName);
+                }
                 const delta = Math.abs(userA - refA);
                 // Error is how many "tolerance units" the user is off.
                 const err = Math.max(0, delta - tol * 0.4) / tol;
@@ -364,6 +368,42 @@
         const normal = diffFor(ref);
         const mirrored = diffFor(flipped);
         const best = normal.avgErr <= mirrored.avgErr ? normal : mirrored;
+
+        // ── Asymmetric pose side-tracking (item 9) ──
+        // For poses with a "forward" leg (Warrior I/II/III, Triangle,
+        // Half Moon, etc.) we report which side performed better and
+        // by how much. Detected by presence of a 'forward_*' joint in
+        // the pose's static rules, but here we infer via knee bend.
+        let sideAnalysis = null;
+        try {
+            const lKneeAng = live['left_knee'];
+            const rKneeAng = live['right_knee'];
+            // If one knee is bent ≥30° more than the other, this is an
+            // asymmetric stance. Score each side from its joint deltas.
+            if (lKneeAng != null && rKneeAng != null && Math.abs(lKneeAng - rKneeAng) > 25) {
+                const leftBent = lKneeAng < rKneeAng;
+                const forwardSide = leftBent ? 'left' : 'right';
+                const backSide = leftBent ? 'right' : 'left';
+                // Aggregate err per side using the chosen ref vector.
+                let leftErr = 0, leftN = 0, rightErr = 0, rightN = 0;
+                for (const [joint, v] of Object.entries(best.deltas)) {
+                    if (joint.startsWith('left_')) { leftErr += v.err; leftN++; }
+                    else if (joint.startsWith('right_')) { rightErr += v.err; rightN++; }
+                }
+                const lAvg = leftN ? leftErr / leftN : 0;
+                const rAvg = rightN ? rightErr / rightN : 0;
+                const lScore = Math.max(0, Math.min(100, Math.round(100 * (1 - lAvg / 1.2))));
+                const rScore = Math.max(0, Math.min(100, Math.round(100 * (1 - rAvg / 1.2))));
+                sideAnalysis = {
+                    leftScore: lScore,
+                    rightScore: rScore,
+                    forwardSide,
+                    backSide,
+                    betterSide: lScore > rScore + 4 ? 'left' : rScore > lScore + 4 ? 'right' : 'even',
+                    diff: Math.abs(lScore - rScore),
+                };
+            }
+        } catch (_) {}
 
         // Score: 100 when avgErr==0, decays to 0 by avgErr==1.2
         const score = Math.max(0, Math.min(100, Math.round(100 * (1 - best.avgErr / 1.2))));
@@ -402,7 +442,7 @@
                 };
             });
 
-        return { score, corrections: worst, deltas: best.deltas, usedMirror: best === mirrored };
+        return { score, corrections: worst, deltas: best.deltas, usedMirror: best === mirrored, sideAnalysis };
     }
 
 
@@ -1635,8 +1675,110 @@
         },
     ];
 
+    // ─────────────────────────────────────────────────
+    // ADAPTIVE DIFFICULTY (item 10)
+    // ─────────────────────────────────────────────────
+    // Tracks recent AR scores per pose in localStorage. After 3+
+    // consecutive sessions under 70%, the pose is flagged "struggling"
+    // and tolerance softens by 5° on the next session.
+    const AdaptiveDifficulty = {
+        STORAGE_KEY: 'sunday_pose_difficulty',
+        SOFTEN_THRESHOLD: 70,
+        STREAK_NEEDED: 3,
+
+        _read() {
+            try { return JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '{}'); }
+            catch (_) { return {}; }
+        },
+
+        _write(d) {
+            try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(d)); } catch (_) {}
+        },
+
+        recordSession(poseName, score) {
+            const d = this._read();
+            const rec = d[poseName] || { recent: [], softened: false };
+            rec.recent.push({ score: Math.round(score), ts: Date.now() });
+            if (rec.recent.length > 10) rec.recent = rec.recent.slice(-10);
+            // Re-evaluate softening flag.
+            const last3 = rec.recent.slice(-this.STREAK_NEEDED);
+            if (last3.length === this.STREAK_NEEDED && last3.every(r => r.score < this.SOFTEN_THRESHOLD)) {
+                rec.softened = true;
+            } else if (rec.recent.slice(-2).every(r => r.score >= 80)) {
+                // Two strong sessions clear the softening.
+                rec.softened = false;
+            }
+            d[poseName] = rec;
+            this._write(d);
+            return rec;
+        },
+
+        isStruggling(poseName) {
+            const rec = this._read()[poseName];
+            return !!(rec && rec.softened);
+        },
+
+        getToleranceBoost(poseName) {
+            return this.isStruggling(poseName) ? 5 : 0;
+        },
+
+        getRecommendation(poseName) {
+            if (!this.isStruggling(poseName)) return null;
+            return {
+                soften: 5,
+                modification: 'Try a beginner modification today — use a wall, chair, or block for support. Tolerance has been relaxed by 5°.',
+            };
+        },
+    };
+
+    // ─────────────────────────────────────────────────
+    // LIGHTING / WEBCAM QUALITY CHECK (item 12)
+    // ─────────────────────────────────────────────────
+    // Runs a 2-second sample of MoveNet detections and analyzes the
+    // average keypoint confidence to flag low-light or bad-angle setups.
+    const QualityCheck = {
+        async run(video, detector, durationMs = 2000) {
+            if (!video || !detector) return { ok: true };
+            const start = Date.now();
+            const confidences = [];
+            const visibleKpsCounts = [];
+            while (Date.now() - start < durationMs) {
+                try {
+                    const poses = await detector.estimatePoses(video);
+                    if (poses && poses[0] && poses[0].keypoints) {
+                        const kps = poses[0].keypoints;
+                        const avgC = kps.reduce((s, k) => s + (k.score || 0), 0) / kps.length;
+                        confidences.push(avgC);
+                        const visible = kps.filter(k => k.score > 0.4).length;
+                        visibleKpsCounts.push(visible);
+                    }
+                } catch (_) {}
+                await new Promise(r => setTimeout(r, 80));
+            }
+            const avgConf = confidences.length ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+            const avgVisible = visibleKpsCounts.length ? visibleKpsCounts.reduce((a, b) => a + b, 0) / visibleKpsCounts.length : 0;
+
+            const issues = [];
+            if (avgConf < 0.35) issues.push('low light or low contrast');
+            if (avgVisible < 11) issues.push('not all of you is in frame');
+            if (confidences.length < 5) issues.push('camera initialising — give it a moment');
+
+            return {
+                ok: issues.length === 0,
+                avgConfidence: +avgConf.toFixed(2),
+                avgVisibleKeypoints: +avgVisible.toFixed(1),
+                issues,
+                advice: issues.length === 0
+                    ? 'Lighting and framing look good. Begin when ready.'
+                    : 'Fix before starting: ' + issues.join(', ') + '. Move to a brighter spot or step back so your full body is visible.',
+            };
+        },
+    };
+
     window.ASANA_LIBRARY = ASANA_LIBRARY;
     window.asanaData = ASANA_LIBRARY;
     window.PoseEngine = PoseEngine;
     window.PoseImage = PoseImage;
+    window.AdaptiveDifficulty = AdaptiveDifficulty;
+    window.QualityCheck = QualityCheck;
 })();

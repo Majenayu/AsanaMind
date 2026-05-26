@@ -233,6 +233,20 @@
             <div id="heatmap" class="heat-grid"></div>
         </section>
 
+        <section class="ach-wrap" id="certificates-strip">
+            <a id="certificates" style="display:block;position:relative;top:-80px"></a>
+            <div class="ach-head">
+                <div>
+                    <span class="kicker" style="color:var(--accent)">Credentials</span>
+                    <h3 class="chart-title" style="font-size:22px">Your certificates</h3>
+                </div>
+                <span class="kicker" style="color:var(--text-3)" id="certs-meta">0 of 7 earned</span>
+            </div>
+            <div id="certs-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+                <p style="color:var(--text-3);font-size:13px;grid-column:1/-1;margin:0">Loading certificates…</p>
+            </div>
+        </section>
+
         <section class="ach-wrap" id="progress-section">
             <div class="ach-head">
                 <div>
@@ -435,6 +449,106 @@
                 }
             }
         } catch(_){}
+
+        // ── Certificates strip (item 3) ──
+        // Pulls earned certificates from /api/certificates and renders 6
+        // semester slots + 1 master ribbon. Earned ones in colour, locked
+        // ones greyed.
+        try {
+            const r = await fetch('/api/certificates', { credentials: 'same-origin' });
+            const j = r.ok ? await r.json() : { certificates: [] };
+            const earned = j.certificates || [];
+            const earnedById = {};
+            for (const c of earned) earnedById[c.courseId] = c;
+
+            const SEMS = [
+                { id: 'sem3', n: 3, name: 'Foundations',     color: '#0F3D2E', accent: '#E0A23F' },
+                { id: 'sem4', n: 4, name: 'Grounding',       color: '#1F5A44', accent: '#E0A23F' },
+                { id: 'sem5', n: 5, name: 'Restoration',     color: '#1F5A44', accent: '#6FA089' },
+                { id: 'sem6', n: 6, name: 'Strength',        color: '#C2552F', accent: '#E0A23F' },
+                { id: 'sem7', n: 7, name: 'Lateral Body',    color: '#0F3D2E', accent: '#C2552F' },
+                { id: 'sem8', n: 8, name: 'Advanced Mastery',color: '#0F3D2E', accent: '#F3D58C' },
+            ];
+            const grid = document.getElementById('certs-grid');
+            const meta = document.getElementById('certs-meta');
+            const masterCert = earnedById['master'];
+            const earnedSemCount = SEMS.filter(s => earnedById[s.id]).length;
+            const totalEarned = earnedSemCount + (masterCert ? 1 : 0);
+            if (meta) meta.textContent = `${totalEarned} of 7 earned`;
+
+            if (grid) {
+                grid.innerHTML = '';
+                grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px';
+                for (const s of SEMS) {
+                    const got = earnedById[s.id];
+                    const card = document.createElement('div');
+                    if (got) {
+                        const issued = new Date(got.issuedAt).toLocaleDateString('en-US', { month:'short', year:'numeric' });
+                        card.style.cssText = `background:${s.color};color:var(--bg);border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;min-height:160px;cursor:pointer;border:1px solid ${s.accent}`;
+                        card.innerHTML = `
+                            <div>
+                                <span class="kicker" style="color:${s.accent};font-size:9px">SEM ${s.n} · CERTIFICATE</span>
+                                <h4 style="font-family:Fraunces,serif;font-size:22px;font-weight:300;margin:8px 0 0;color:var(--bg);letter-spacing:-0.01em">${s.name}</h4>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:flex-end">
+                                <div>
+                                    <span class="kicker" style="color:${s.accent};font-size:9px">Mark</span>
+                                    <div style="font-family:Fraunces,serif;font-size:30px;font-weight:300;color:var(--bg);line-height:1">${got.score || 0}%</div>
+                                </div>
+                                <span style="font-size:10px;color:${s.accent};letter-spacing:0.18em;text-transform:uppercase">${issued}</span>
+                            </div>
+                        `;
+                        if (got.verifyUrl) card.onclick = () => window.open(got.verifyUrl, '_blank');
+                    } else {
+                        card.style.cssText = 'background:var(--surface-3);color:var(--text-4);border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;min-height:160px;border:1px dashed var(--border)';
+                        card.innerHTML = `
+                            <div>
+                                <span class="kicker" style="color:var(--text-4);font-size:9px">SEM ${s.n} · LOCKED</span>
+                                <h4 style="font-family:Fraunces,serif;font-size:22px;font-weight:300;margin:8px 0 0;color:var(--text-3);letter-spacing:-0.01em">${s.name}</h4>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:flex-end">
+                                <span style="font-size:11px;color:var(--text-4)">Complete the course to earn</span>
+                                <span style="font-family:Fraunces,serif;font-size:24px;color:var(--text-4);line-height:1">☆</span>
+                            </div>
+                        `;
+                    }
+                    grid.appendChild(card);
+                }
+
+                // Master ribbon — full-width.
+                const master = document.createElement('div');
+                master.style.cssText = 'grid-column:1/-1;margin-top:8px';
+                if (masterCert) {
+                    const issued = new Date(masterCert.issuedAt).toLocaleDateString('en-US', { day:'numeric', month:'long', year:'numeric' });
+                    master.innerHTML = `
+                        <div onclick="${masterCert.verifyUrl ? `window.open('${masterCert.verifyUrl}','_blank')` : ''}" style="background:linear-gradient(135deg,#0F3D2E 0%,#1F5A44 100%);border:2px solid #E0A23F;border-radius:22px;padding:24px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;cursor:pointer">
+                            <div>
+                                <span class="kicker" style="color:#E0A23F">Master programme</span>
+                                <h4 style="font-family:Fraunces,serif;font-size:28px;font-weight:300;margin:6px 0 0;color:var(--bg);letter-spacing:-0.02em">AsanMinds 3-Year Yoga Master</h4>
+                                <p style="margin:6px 0 0;color:#C7DBCE;font-size:12px">Issued ${issued}</p>
+                            </div>
+                            <div style="text-align:right">
+                                <span class="kicker" style="color:#E0A23F;font-size:9px">Final mark</span>
+                                <div style="font-family:Fraunces,serif;font-size:48px;font-weight:300;color:var(--bg);line-height:1">${masterCert.score || 0}%</div>
+                            </div>
+                        </div>`;
+                } else {
+                    master.innerHTML = `
+                        <div style="background:var(--surface-3);border:2px dashed var(--border);border-radius:22px;padding:24px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                            <div>
+                                <span class="kicker" style="color:var(--text-4)">Master programme</span>
+                                <h4 style="font-family:Fraunces,serif;font-size:28px;font-weight:300;margin:6px 0 0;color:var(--text-3);letter-spacing:-0.02em">AsanMinds 3-Year Yoga Master</h4>
+                                <p style="margin:6px 0 0;color:var(--text-4);font-size:12px">Unlocks once all 6 semesters are passed</p>
+                            </div>
+                            <span style="font-family:Fraunces,serif;font-size:48px;color:var(--text-4);line-height:1">☆</span>
+                        </div>`;
+                }
+                grid.appendChild(master);
+            }
+        } catch (e) {
+            const grid = document.getElementById('certs-grid');
+            if (grid) grid.innerHTML = '<p style="color:var(--text-3);font-size:13px;grid-column:1/-1;margin:0">Could not load certificates right now.</p>';
+        }
     })();
     </script>
 

@@ -4,8 +4,9 @@
  * Caches all static assets so the app works fully offline after first load.
  * Strategy: cache-first for static assets, network-first for API calls.
  */
-// Bumped from v4 to v5 because static/courses.js was added (item 36).
-const CACHE_NAME = 'sunday-v5';
+// Bumped to v6 — added Web Push notification handler (item 11) and the
+// privacy + verify routes need to bypass the offline cache (always live).
+const CACHE_NAME = 'sunday-v6';
 const STATIC_ASSETS = [
     '/',
     '/home',
@@ -59,6 +60,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
+    // Always live — verification + privacy + push must hit the server.
+    if (url.pathname.startsWith('/verify/') || url.pathname === '/privacy') {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
     // API calls: network-first, fallback to cache.
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
@@ -93,6 +100,45 @@ self.addEventListener('fetch', (event) => {
                 }
                 return response;
             });
+        })
+    );
+});
+
+// ─────────────────────────────────────────────────
+// WEB PUSH (item 11) — daily reminder notifications
+// ─────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+    let data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (_) { data = { title: 'Sunday', body: event.data?.text() || '' }; }
+    const title = data.title || 'Sunday is waiting';
+    const body = data.body || 'A few minutes of practice today goes a long way.';
+    const tag = data.tag || 'sunday-reminder';
+    const url = data.url || '/home';
+
+    event.waitUntil(self.registration.showNotification(title, {
+        body,
+        tag,
+        icon: '/assets/logo.png',
+        badge: '/assets/logo.png',
+        vibrate: [120, 60, 120],
+        data: { url },
+        actions: [
+            { action: 'open', title: 'Open Sunday' },
+            { action: 'dismiss', title: 'Later' },
+        ],
+    }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    if (event.action === 'dismiss') return;
+    const url = event.notification.data?.url || '/home';
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+            for (const c of list) {
+                if (c.url.includes(url) && 'focus' in c) return c.focus();
+            }
+            return self.clients.openWindow(url);
         })
     );
 });

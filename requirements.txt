@@ -2,3 +2,7 @@ flask
 pymongo[srv]
 gunicorn
 dnspython
+flask-limiter
+sendgrid
+pywebpush
+cryptography

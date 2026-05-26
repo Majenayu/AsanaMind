@@ -13,6 +13,8 @@
     <script
         src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
     <script src="/static/poses.js"></script>
     <script src="/static/voice-kb.js"></script>
     <script src="/static/pose-cues.js"></script>
@@ -191,6 +193,23 @@
             border: 1px solid var(--primary-2);
             box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.18);
         }
+        /* Mobile-first portrait — fill the visible viewport so the camera
+           feels like a phone-native AR experience (item 8). */
+        @media (max-width: 768px) and (orientation: portrait) {
+            #video-container {
+                height: 60vh;
+                max-height: none;
+                border-radius: 22px;
+                margin-bottom: 12px;
+            }
+            #ar-session #feedback-area {
+                position: sticky;
+                bottom: 0;
+                margin-top: 0;
+                border-radius: 22px 22px 0 0;
+                padding: 18px;
+            }
+        }
         #video-feed {
             position: absolute;
             top: 0; left: 0;
@@ -337,6 +356,12 @@
                     <span id="mic-status-text" class="kicker hidden sm:inline" style="font-size:10px">Voice</span>
                 </button>
                 <a href="/logout" class="hidden md:inline" style="font-size:13px; color:#7A7364; padding:8px 14px">Sign out</a>
+                <button id="settings-btn" onclick="app.openSettings()" title="Settings" aria-label="Open settings"
+                    class="flex items-center justify-center pressable" style="width:40px; height:40px; border-radius:9999px; background:#EEE9DE; border:1px solid #D4CCB8; color:#4A453B">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
+                        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
                 <a href="/profile" id="avatar-btn" class="rounded-full flex items-center justify-center pressable"
                     style="width:36px; height:36px; background:#0F3D2E; color:#E0A23F; font-family:Fraunces,serif; font-size:15px; font-weight:500">A</a>
             </div>
@@ -514,6 +539,42 @@
             <button onclick="app.closeQuiz()" aria-label="Close" class="absolute pressable flex items-center justify-center" style="top:14px; right:14px; width:36px; height:36px; border-radius:9999px; background:#EEE9DE; color:#4A453B; border:0; cursor:pointer; z-index:10; font-size:18px">×</button>
             <div id="quiz-modal-body"></div>
         </div>
+    </div>
+
+    <!-- Certificate Share Modal -->
+    <style>
+        #cert-share-modal {
+            position: fixed; inset: 0; background: rgba(20,18,14,0.78); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            z-index: 70; padding: 16px;
+        }
+        #cert-share-modal.active { opacity: 1; pointer-events: auto; }
+        #cert-share-modal .cert-card {
+            transform: scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            background:#F5F2EB; width:100%; max-width:720px; max-height:92vh; border-radius:28px;
+            border:1px solid #D4CCB8; box-shadow:0 16px 40px 0 rgba(20,18,14,0.24); overflow-y:auto; position:relative;
+        }
+        #cert-share-modal.active .cert-card { transform: scale(1); }
+    </style>
+    <div id="cert-share-modal" onclick="if(event.target === this) app._closeCertModal()">
+        <div class="cert-card">
+            <button onclick="app._closeCertModal()" aria-label="Close" class="pressable flex items-center justify-center" style="position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:9999px;background:#EEE9DE;color:#4A453B;border:0;cursor:pointer;z-index:10;font-size:18px">×</button>
+            <div id="cert-share-body"></div>
+        </div>
+    </div>
+
+    <!-- Onboarding Tour Overlay -->
+    <style>
+        #onboard-overlay {
+            position: fixed; inset: 0; background: rgba(20,18,14,0.86); backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center; z-index: 80; padding: 24px;
+        }
+        #onboard-overlay.active { display: flex; }
+        #onboard-card { background:#F5F2EB; max-width:480px; width:100%; border-radius:24px; padding:32px 28px; text-align:center; }
+    </style>
+    <div id="onboard-overlay">
+        <div id="onboard-card"></div>
     </div>
 
 
@@ -977,6 +1038,103 @@
                         app.navigate('course');
                         app.speakCorrection('Opening the course.', true);
                         updateMicStatus(true, 'Course');
+                        return true;
+                    }},
+                    // ── Voice course flow (item 2) ──
+                    // "start sem 3" / "open semester 5"
+                    { re: /\b(start|open|begin|go to)\s+(sem(ester)?\s*)([3-8])\b/, h: (t, app) => {
+                        const m = t.match(/([3-8])/);
+                        if (!m) return false;
+                        const semNum = parseInt(m[1], 10);
+                        const c = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES.find(x => x.semesterNumber === semNum) : null;
+                        if (!c) { app.speakCorrection('That semester is not available.', true); return true; }
+                        app.navigate('course');
+                        setTimeout(() => { if (app.openCourseDetail) app.openCourseDetail(c.id); }, 400);
+                        app.speakCorrection('Opening semester ' + semNum + ', ' + c.name + '.', true);
+                        return true;
+                    }},
+                    // "take quiz for tree pose" / "quiz me on warrior two"
+                    { re: /\b(take (the )?quiz|quiz me|start (the )?quiz)\b/, h: (t, app) => {
+                        // Try to extract a pose name.
+                        const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
+                        const aliasMap = {
+                            'tree': 'Vrikshasana', 'mountain': 'Tadasana', 'prayer': 'Anjali Mudra',
+                            'downward dog': 'Adho Mukha Svanasana', 'down dog': 'Adho Mukha Svanasana',
+                            'warrior one': 'Virabhadrasana I', 'warrior 1': 'Virabhadrasana I',
+                            'warrior two': 'Virabhadrasana II', 'warrior 2': 'Virabhadrasana II',
+                            'warrior three': 'Virabhadrasana III', 'warrior 3': 'Virabhadrasana III',
+                            'triangle': 'Utthita Trikonasana', 'chair': 'Utkatasana',
+                            'side angle': 'Utthita Parsvakonasana', 'bridge': 'Setu Bandhasana',
+                            'half moon': 'Ardha Chandrasana', 'dancer': 'Natarajasana',
+                            'child': 'Balasana', 'easy': 'Sukhasana', 'staff': 'Dandasana',
+                            'bound angle': 'Baddha Konasana', 'butterfly': 'Baddha Konasana',
+                            'forward fold': 'Paschimottanasana', 'standing forward fold': 'Uttanasana',
+                            'upward salute': 'Urdhva Hastasana',
+                        };
+                        let target = null;
+                        for (const alias of Object.keys(aliasMap)) {
+                            if (t.includes(alias)) { target = aliasMap[alias]; break; }
+                        }
+                        if (!target) {
+                            for (const a of lib) {
+                                if (t.includes(a.name.toLowerCase()) || (a.sanskrit && t.includes(a.sanskrit.toLowerCase()))) {
+                                    target = a.name; break;
+                                }
+                            }
+                        }
+                        if (!target) {
+                            app.speakCorrection('Which pose would you like to be quizzed on?', true);
+                            app.navigate('course');
+                            return true;
+                        }
+                        if (app.openQuizForPose) {
+                            app.speakCorrection('Starting your quiz on ' + target + '.', true);
+                            setTimeout(() => app.openQuizForPose(target), 400);
+                        } else {
+                            app.navigate('course');
+                        }
+                        return true;
+                    }},
+                    // "what's my course mark" / "my master mark"
+                    { re: /\b(course mark|my mark|my marks|master mark|how('m| am) i doing in (the )?course)\b/, h: (t, app) => {
+                        try {
+                            const cp = app.courseProgress || {};
+                            const courses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                            if (!courses.length) { app.speakCorrection('No courses available.', true); return true; }
+                            const marks = courses.map(c => {
+                                const cd = cp.courses?.[c.id];
+                                if (!cd) return null;
+                                if (cd.completed) return { name: c.name, mark: cd.finalScore || (typeof CourseUtils !== 'undefined' ? CourseUtils.courseMark(cd) : 0) };
+                                return null;
+                            }).filter(Boolean);
+                            if (!marks.length) { app.speakCorrection('You have not completed any semester yet.', true); return true; }
+                            const master = (typeof CourseUtils !== 'undefined') ? CourseUtils.masterMark(cp) : 0;
+                            const top = marks.map(m => m.name + ' at ' + m.mark + ' percent').join(', ');
+                            const msg = 'Your completed semesters: ' + top + '. Master mark so far is ' + master + ' percent.';
+                            app.speakCorrection(msg, true);
+                        } catch (e) { app.speakCorrection('Could not read your marks right now.', true); }
+                        return true;
+                    }},
+                    // "my certificates" / "show my certificates"
+                    { re: /\b(my certificates|show (my )?certificates|list (my )?certificates|how many certificates)\b/, h: (t, app) => {
+                        app.speakCorrection('Opening your profile to view certificates.', true);
+                        setTimeout(() => window.location.href = '/profile#certificates', 600);
+                        return true;
+                    }},
+                    // "use streak freeze"
+                    { re: /\b(use (my )?streak freeze|freeze (my )?streak|skip today|streak freeze)\b/, h: (t, app) => {
+                        if (app.useStreakFreeze) app.useStreakFreeze();
+                        return true;
+                    }},
+                    // "what's my streak"
+                    { re: /\b(my streak|how('s| is) my streak|streak count|day streak)\b/, h: (t, app) => {
+                        const s = app.streakInfo || {};
+                        const cur = s.current || 0;
+                        const best = s.best || 0;
+                        const msg = cur > 0
+                            ? 'You are on a ' + cur + ' day streak. Your best is ' + best + ' days.'
+                            : 'Your streak is at zero. Practise today to start a new one.';
+                        app.speakCorrection(msg, true);
                         return true;
                     }},
                     // ── Breathing / calm ──
@@ -1649,6 +1807,21 @@
                     this.correctionHistory = [];
                 }
 
+                // ── Adaptive difficulty hint (item 10) ──
+                // If the user has been struggling with this pose, surface a
+                // beginner-friendly modification before the AR loop starts.
+                try {
+                    if (window.AdaptiveDifficulty) {
+                        const advice = window.AdaptiveDifficulty.getRecommendation(poseName);
+                        if (advice && correctionLog) {
+                            const hint = document.createElement('div');
+                            hint.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:12px;background:#F6DACB;color:#7D2F0F;font-size:12px;line-height:1.4';
+                            hint.textContent = '🌱 ' + advice.modification;
+                            correctionLog.appendChild(hint);
+                        }
+                    }
+                } catch (_) {}
+
                 this.startARAssessment();
 
                 // Speak the pose-specific opening line once the session
@@ -2148,7 +2321,35 @@
                 }
                 this._lastDiagnostics = result.diagnostics || [];
                 this._lastStance = result.stance || null;
+
+                // ── Symmetric scoring strip (item 9) ──
+                if (result.sideAnalysis) {
+                    this._lastSideAnalysis = result.sideAnalysis;
+                    this._maybeRenderSideStrip(result.sideAnalysis);
+                }
                 return result.corrections || [];
+            },
+
+            _maybeRenderSideStrip(sa) {
+                const now = Date.now();
+                if (now - (this._lastSideStripRender || 0) < 800) return;
+                this._lastSideStripRender = now;
+                const host = document.getElementById('side-strip');
+                if (!host) return;
+                const lOK = sa.leftScore >= 70;
+                const rOK = sa.rightScore >= 70;
+                const lColor = lOK ? '#6FA089' : sa.leftScore >= 50 ? '#E0A23F' : '#C2552F';
+                const rColor = rOK ? '#6FA089' : sa.rightScore >= 50 ? '#E0A23F' : '#C2552F';
+                const tag = sa.betterSide === 'even' ? 'Both sides level'
+                    : `Stronger on the ${sa.betterSide} (+${sa.diff} pts)`;
+                host.style.display = 'flex';
+                host.innerHTML = `
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11px">
+                        <span style="background:${lColor};color:#0A100B;border-radius:9999px;padding:3px 9px;font-weight:600">L ${sa.leftScore}%</span>
+                        <span style="background:${rColor};color:#0A100B;border-radius:9999px;padding:3px 9px;font-weight:600">R ${sa.rightScore}%</span>
+                        <span style="color:#C7DBCE;font-size:10px;letter-spacing:0.1em;text-transform:uppercase">${tag}</span>
+                    </div>
+                `;
             },
 
             /**
@@ -2257,6 +2458,26 @@
 
                             // Start the ML loop, passing video reference
                             this.poseDetectionFrame(video, ctx, this.detector, feedbackText);
+
+                            // ── Lighting / framing pre-check (item 12) ──
+                            // Runs once after the loop starts so users get a
+                            // banner if they're in low light or out of frame.
+                            // Skipped for course-mode tests (would distract).
+                            try {
+                                if (!this.courseMode && window.QualityCheck && !this._qcDone) {
+                                    this._qcDone = true;
+                                    setTimeout(async () => {
+                                        const qc = await window.QualityCheck.run(video, this.detector, 1800);
+                                        if (!qc.ok && feedbackText) {
+                                            const banner = document.createElement('div');
+                                            banner.style.cssText = 'margin-top:10px;padding:10px 14px;border-radius:12px;background:#F6DACB;color:#7D2F0F;font-size:12px;font-weight:500;line-height:1.4';
+                                            banner.textContent = '⚠ ' + qc.advice;
+                                            feedbackText.parentElement && feedbackText.parentElement.appendChild(banner);
+                                            setTimeout(() => banner.remove(), 8000);
+                                        }
+                                    }, 600);
+                                }
+                            } catch (_) {}
                         };
                     })
                     .catch((err) => {
@@ -2813,6 +3034,15 @@
                             };
                             window.VoiceHistory.logSession(record);
 
+                            // ── Adaptive difficulty (item 10) ──
+                            // Records this session against the pose so the next
+                            // attempt softens tolerance if scores are chronically low.
+                            try {
+                                if (window.AdaptiveDifficulty) {
+                                    window.AdaptiveDifficulty.recordSession(this.currentPose, peak);
+                                }
+                            } catch (_) {}
+
                             // Post-session recap card — item 25.
                             if (window.PracticeFlow && window.PracticeFlow.SessionRecap) {
                                 window.PracticeFlow.SessionRecap.show(record);
@@ -2846,6 +3076,9 @@
 
                 this.currentPose = null;
                 this.correctionHistory = [];
+                this._qcDone = false;
+                const sideStrip = document.getElementById('side-strip');
+                if (sideStrip) { sideStrip.style.display = 'none'; sideStrip.innerHTML = ''; }
                 console.log("AR assessment stopped.");
             },
 
@@ -3454,6 +3687,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div id="side-strip" style="display:none;align-items:center"></div>
                                 <div id="correction-log" class="scrollable-content" style="border-top:1px solid #1F5A44; padding-top:14px; max-height:160px">
                                     <span class="kicker" style="color:#6FA089">Correction log</span>
                                 </div>
@@ -3958,6 +4192,17 @@
             // ─────────────────────────────────────────────────
             // QUIZ FLOW (per pose, within a course)
             // ─────────────────────────────────────────────────
+            // Voice helper — finds which course owns the pose, then starts.
+            openQuizForPose(poseName) {
+                const courses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                const owner = courses.find(c => c.poses.some(p => p.name === poseName || p.sanskrit === poseName));
+                if (!owner) { alert(poseName + ' is not part of any semester yet.'); return; }
+                this.activeCourseDetail = owner.id;
+                this.activeCourseId = owner.id;
+                if (this.currentView !== 'course') this.navigate('course');
+                setTimeout(() => this.startQuiz(owner.id, poseName), 200);
+            },
+
             startQuiz(courseId, poseName) {
                 const bank = (typeof QUIZ_BANK !== 'undefined') ? QUIZ_BANK[poseName] : null;
                 if (!bank || !bank.length) {
@@ -4100,34 +4345,139 @@
                 }
 
                 try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
+                this._syncCourseProgress();
+            },
+
+            // ─────────────────────────────────────────────────
+            // SERVER SYNC + PREFERENCES + STREAK FREEZE (items 1, 5, 33)
+            // ─────────────────────────────────────────────────
+            _syncCourseProgress() {
+                // Debounced PUT — coalesces rapid mutations (e.g. quiz + AR
+                // both completing within seconds) into one request.
+                clearTimeout(this._syncTimer);
+                this._syncTimer = setTimeout(() => {
+                    fetch('/api/course-progress', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ progress: this.courseProgress }),
+                    }).catch(() => {});
+                }, 800);
+            },
+
+            _applyPreferences() {
+                const prefs = this.preferences || {};
+                // Light/dark mode (item 33)
+                const theme = prefs.theme || 'auto';
+                this._applyTheme(theme);
+                // Stay-signed-in (item 39)
+                if (prefs.rememberMe) {
+                    fetch('/api/preferences', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ preferences: { ...prefs, rememberMe: true } }),
+                    }).catch(() => {});
+                }
+            },
+
+            _savePreferences(partial) {
+                this.preferences = { ...(this.preferences || {}), ...partial };
+                this._applyPreferences();
+                fetch('/api/preferences', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ preferences: this.preferences }),
+                }).catch(() => {});
+            },
+
+            _applyTheme(theme) {
+                // 'auto' uses prefers-color-scheme, 'light' or 'dark' override.
+                const html = document.documentElement;
+                let resolved = theme;
+                if (theme === 'auto') {
+                    resolved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                }
+                html.dataset.theme = resolved;
+                if (resolved === 'dark') {
+                    html.style.setProperty('--bg', '#14120E');
+                    html.style.setProperty('--surface', '#1C1A15');
+                    html.style.setProperty('--surface-2', '#22201A');
+                    html.style.setProperty('--surface-3', '#2A271F');
+                    html.style.setProperty('--border', '#3A3631');
+                    html.style.setProperty('--text-1', '#F5F2EB');
+                    html.style.setProperty('--text-2', '#D4CCB8');
+                    html.style.setProperty('--text-3', '#A8A294');
+                    html.style.setProperty('--text-4', '#7A7364');
+                } else {
+                    // Reset to defaults — let the original tokens take over.
+                    html.style.removeProperty('--bg');
+                    html.style.removeProperty('--surface');
+                    html.style.removeProperty('--surface-2');
+                    html.style.removeProperty('--surface-3');
+                    html.style.removeProperty('--border');
+                    html.style.removeProperty('--text-1');
+                    html.style.removeProperty('--text-2');
+                    html.style.removeProperty('--text-3');
+                    html.style.removeProperty('--text-4');
+                }
+            },
+
+            async useStreakFreeze() {
+                if (!confirm('Use your weekly streak freeze for today? You get one free skip-day per week.')) return;
+                try {
+                    const r = await fetch('/api/streak/freeze', { method: 'POST', credentials: 'same-origin' });
+                    const j = await r.json();
+                    if (j.success) {
+                        alert('Streak freeze applied for ' + j.usedFor);
+                        // Refresh streak info.
+                        const r2 = await fetch('/api/streak', { credentials: 'same-origin' });
+                        if (r2.ok) this.streakInfo = await r2.json();
+                        this.renderContent();
+                    } else {
+                        alert(j.error || 'Could not apply freeze.');
+                    }
+                } catch (e) {
+                    alert('Network error. Try again.');
+                }
             },
 
             // ─────────────────────────────────────────────────
             // CERTIFICATES (per-course + master)
             // ─────────────────────────────────────────────────
-            downloadCourseCertificate(courseId) {
+            async downloadCourseCertificate(courseId, opts) {
                 const c = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES.find(x => x.id === courseId) : null;
                 const cp = this.courseProgress.courses[courseId];
                 if (!c || !cp) return;
                 const userName = (this.userData?.name) || (window.__user_name) || 'Yoga Practitioner';
                 const score = cp.finalScore || (typeof CourseUtils !== 'undefined' ? CourseUtils.courseMark(cp) : 0);
                 const dateStr = new Date(cp.completedAt || Date.now()).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+                const poses = cp.poses.map(p => ({ name: p.name, mark: p.finalScore || (CourseUtils.poseMark(p)) }));
 
-                this._renderCertificate({
+                const certInfo = await this._issueCertOnServer({
+                    courseId, courseTitle: c.title, userName, score, poses, isMaster: false,
+                });
+
+                await this._renderCertificate({
                     headline: 'Certificate of Completion',
                     subheading: `Semester ${c.semesterNumber} — ${c.name}`,
                     name: userName,
                     body: `has successfully completed ${c.title}, demonstrating mastery of ${c.poses.length} asanas through AR alignment testing and theory examination.`,
                     score,
-                    poses: cp.poses.map(p => ({ name: p.name, mark: p.finalScore || (CourseUtils.poseMark(p)) })),
+                    poses,
                     dateStr,
                     bg: c.color,
                     accent: c.accent,
-                    fileName: `Sunday_Certificate_Sem${c.semesterNumber}_${c.name.replace(/\s/g, '_')}.png`,
+                    fileName: `AsanMinds_Sem${c.semesterNumber}_${c.name.replace(/\s/g, '_')}`,
+                    certId: certInfo?.certId,
+                    verifyUrl: certInfo?.verifyUrl,
+                    courseTitle: c.title,
+                    format: (opts && opts.format) || 'pdf',
                 });
             },
 
-            downloadMasterCertificate() {
+            async downloadMasterCertificate(opts) {
                 const courses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
                 const allDone = courses.every(c => this.courseProgress.courses[c.id]?.completed);
                 if (!allDone) {
@@ -4139,7 +4489,11 @@
                 const dateStr = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
                 const courseRows = courses.map(c => ({ name: c.title, mark: this.courseProgress.courses[c.id].finalScore || CourseUtils.courseMark(this.courseProgress.courses[c.id]) }));
 
-                this._renderCertificate({
+                const certInfo = await this._issueCertOnServer({
+                    courseId: 'master', courseTitle: 'AsanMinds Master Programme', userName, score, poses: courseRows, isMaster: true,
+                });
+
+                await this._renderCertificate({
                     headline: 'Master Certificate',
                     subheading: 'AsanMinds 3-Year Yoga Programme',
                     name: userName,
@@ -4149,18 +4503,53 @@
                     dateStr,
                     bg: '#0F3D2E',
                     accent: '#E0A23F',
-                    fileName: `Sunday_Master_Certificate_${userName.replace(/\s/g, '_')}.png`,
+                    fileName: `AsanMinds_Master_Certificate`,
                     isMaster: true,
+                    certId: certInfo?.certId,
+                    verifyUrl: certInfo?.verifyUrl,
+                    courseTitle: 'AsanMinds Master Programme',
+                    format: (opts && opts.format) || 'pdf',
                 });
             },
 
-            _renderCertificate(opts) {
+            async _issueCertOnServer(payload) {
+                try {
+                    const r = await fetch('/api/certificate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload),
+                    });
+                    if (!r.ok) return null;
+                    const j = await r.json();
+                    return j.success ? j : null;
+                } catch (_) { return null; }
+            },
+
+            // Orchestrator — picks PDF or PNG, draws canvas, opens share modal.
+            async _renderCertificate(opts) {
+                const canvas = this._renderCertificateCanvas(opts);
+                const meta = {
+                    canvasDataUrl: canvas.toDataURL('image/png'),
+                    fileName: opts.fileName,
+                    courseTitle: opts.courseTitle || opts.headline,
+                    score: opts.score,
+                    name: opts.name,
+                    certId: opts.certId,
+                    verifyUrl: opts.verifyUrl,
+                    isMaster: !!opts.isMaster,
+                    format: opts.format || 'pdf',
+                    rendered: opts,
+                };
+                this._showCertificateShareModal(meta);
+            },
+
+            _renderCertificateCanvas(opts) {
                 const W = 1280, H = 900;
                 const canvas = document.createElement('canvas');
                 canvas.width = W; canvas.height = H;
                 const ctx = canvas.getContext('2d');
 
-                // Cream paper background.
                 ctx.fillStyle = '#F5F2EB';
                 ctx.fillRect(0, 0, W, H);
 
@@ -4176,7 +4565,6 @@
                 ctx.lineWidth = 2;
                 ctx.strokeRect(60, 60, W - 120, H - 120);
 
-                // Ornament — corner triangles.
                 ctx.fillStyle = opts.accent;
                 [[60, 60], [W - 60, 60], [60, H - 60], [W - 60, H - 60]].forEach(([x, y]) => {
                     ctx.beginPath();
@@ -4184,38 +4572,31 @@
                     ctx.fill();
                 });
 
-                // Brand kicker.
                 ctx.fillStyle = '#7A7364';
                 ctx.font = '600 14px Inter, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('S U N D A Y  ·  A S A N M I N D S', W / 2, 130);
 
-                // Headline.
                 ctx.fillStyle = opts.bg;
                 ctx.font = '300 56px "Fraunces", serif';
                 ctx.fillText(opts.headline, W / 2, 200);
 
-                // Subheading.
                 ctx.fillStyle = opts.accent;
                 ctx.font = 'italic 400 26px "Fraunces", serif';
                 ctx.fillText(opts.subheading, W / 2, 240);
 
-                // Awarded to.
                 ctx.fillStyle = '#7A7364';
                 ctx.font = '500 14px Inter, sans-serif';
                 ctx.fillText('A W A R D E D   T O', W / 2, 310);
 
-                // Name.
                 ctx.fillStyle = '#14120E';
                 ctx.font = '300 64px "Fraunces", serif';
                 ctx.fillText(opts.name, W / 2, 370);
 
-                // Body — wrap to lines.
                 ctx.fillStyle = '#4A453B';
                 ctx.font = '400 18px Inter, sans-serif';
                 this._wrapText(ctx, opts.body, W / 2, 420, W - 220, 28);
 
-                // Score block.
                 const scoreY = 540;
                 ctx.fillStyle = opts.bg;
                 ctx.fillRect(W / 2 - 220, scoreY - 30, 440, 80);
@@ -4226,7 +4607,6 @@
                 ctx.font = '300 56px "Fraunces", serif';
                 ctx.fillText(opts.score + '%', W / 2, scoreY + 38);
 
-                // Marks list (per-pose or per-course).
                 ctx.fillStyle = '#7A7364';
                 ctx.font = '500 11px Inter, sans-serif';
                 ctx.textAlign = 'left';
@@ -4235,22 +4615,19 @@
                 ctx.fillText(opts.isMaster ? 'S E M E S T E R   M A R K S' : 'P O S E   M A R K S', listX, listY);
                 listY += 22;
                 ctx.font = '400 13px Inter, sans-serif';
-                ctx.fillStyle = '#14120E';
                 const cols = 2;
                 const colW = (W - 220) / cols;
-                opts.poses.forEach((row, i) => {
+                (opts.poses || []).forEach((row, i) => {
                     const col = i % cols;
                     const r = Math.floor(i / cols);
                     const x = listX + col * colW;
                     const y = listY + r * 22;
-                    const label = row.name + ' '.repeat(2) + '·';
                     ctx.fillStyle = '#14120E';
                     ctx.fillText(row.name, x, y);
                     ctx.fillStyle = opts.bg;
                     ctx.fillText(row.mark + '%', x + colW - 60, y);
                 });
 
-                // Date + signature.
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#7A7364';
                 ctx.font = '500 12px Inter, sans-serif';
@@ -4266,10 +4643,156 @@
                 ctx.font = 'italic 18px "Fraunces", serif';
                 ctx.fillText('Sunday  ·  AsanMinds', W / 2, H - 70);
 
-                const link = document.createElement('a');
-                link.download = opts.fileName;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
+                // QR code (verification URL) — bottom-right corner.
+                if (opts.verifyUrl && typeof QRious !== 'undefined') {
+                    try {
+                        const qrCanvas = document.createElement('canvas');
+                        new QRious({
+                            element: qrCanvas,
+                            value: opts.verifyUrl,
+                            size: 110,
+                            background: '#F5F2EB',
+                            foreground: opts.bg,
+                            level: 'M',
+                        });
+                        ctx.drawImage(qrCanvas, W - 175, H - 195, 110, 110);
+                        ctx.fillStyle = '#7A7364';
+                        ctx.font = '500 9px Inter, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('VERIFY', W - 120, H - 75);
+                    } catch (e) { console.warn('QR generation failed', e); }
+                }
+
+                if (opts.certId) {
+                    ctx.fillStyle = '#A8A294';
+                    ctx.font = '500 9px Inter, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('ID  ' + opts.certId, 90, H - 70);
+                }
+
+                return canvas;
+            },
+
+            _showCertificateShareModal(meta) {
+                const modal = document.getElementById('cert-share-modal');
+                const body = document.getElementById('cert-share-body');
+                if (!modal || !body) {
+                    // Fallback to direct PNG download.
+                    const a = document.createElement('a');
+                    a.download = meta.fileName + '.png';
+                    a.href = meta.canvasDataUrl;
+                    a.click();
+                    return;
+                }
+                const verifyUrl = meta.verifyUrl || '';
+                const shareText = `I just earned the ${meta.courseTitle} certificate from AsanMinds with ${meta.score}%! 🧘`;
+                const linkedinUrl = verifyUrl ? `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(verifyUrl)}` : '#';
+                const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + (verifyUrl ? ' ' + verifyUrl : ''))}`;
+                const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}${verifyUrl ? '&url=' + encodeURIComponent(verifyUrl) : ''}`;
+
+                window.__certMeta = meta;
+                body.innerHTML = `
+                    <div style="padding:24px 26px 18px">
+                        <span class="kicker" style="color:#C2552F">Certificate ready</span>
+                        <h2 style="font-family:'Fraunces',serif;font-size:28px;font-weight:300;margin:6px 0 4px;color:#14120E">${meta.courseTitle}</h2>
+                        <p style="margin:0;color:#7A7364;font-size:13px">${meta.score}% · ${meta.name}</p>
+                    </div>
+                    <div style="padding:0 26px"><img src="${meta.canvasDataUrl}" alt="Certificate preview" style="width:100%;border-radius:14px;border:1px solid #D4CCB8"></div>
+                    <div style="padding:18px 26px 24px;display:flex;flex-direction:column;gap:10px">
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+                            <button onclick="app._downloadCertificatePDF()" class="pressable" style="height:44px;border-radius:12px;background:#0F3D2E;color:#F5F2EB;border:0;font-weight:500;cursor:pointer">Download PDF</button>
+                            <button onclick="app._downloadCertificatePNG()" class="pressable" style="height:44px;border-radius:12px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-weight:500;cursor:pointer">Download PNG</button>
+                        </div>
+                        <button onclick="app._emailCertificate()" class="pressable" style="height:44px;border-radius:12px;background:#C2552F;color:#F5F2EB;border:0;font-weight:500;cursor:pointer">Email me a copy</button>
+                        ${verifyUrl ? `
+                        <div style="border-top:1px solid #E0D9C8;padding-top:14px;margin-top:4px">
+                            <span class="kicker" style="color:#7A7364;font-size:10px">Share</span>
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">
+                                <a href="${linkedinUrl}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#0A66C2;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">LinkedIn</a>
+                                <a href="${whatsappUrl}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">WhatsApp</a>
+                                <a href="${twitterUrl}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#1DA1F2;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">Twitter</a>
+                                <button onclick="navigator.clipboard.writeText('${verifyUrl}').then(()=>alert('Verification link copied'))" style="height:40px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Copy link</button>
+                            </div>
+                            <p style="margin:10px 0 0;color:#7A7364;font-size:11px;word-break:break-all">${verifyUrl}</p>
+                        </div>` : ''}
+                    </div>
+                `;
+                modal.classList.add('active');
+            },
+
+            _closeCertModal() {
+                const modal = document.getElementById('cert-share-modal');
+                if (modal) modal.classList.remove('active');
+            },
+
+            _downloadCertificatePNG() {
+                const meta = window.__certMeta;
+                if (!meta) return;
+                const a = document.createElement('a');
+                a.download = meta.fileName + '.png';
+                a.href = meta.canvasDataUrl;
+                a.click();
+            },
+
+            _downloadCertificatePDF() {
+                const meta = window.__certMeta;
+                if (!meta) return;
+                const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+                if (!jsPDFCtor) {
+                    // Fallback to PNG if jsPDF is unavailable.
+                    return this._downloadCertificatePNG();
+                }
+                // A4 landscape — 297 x 210 mm.
+                const pdf = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                pdf.addImage(meta.canvasDataUrl, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+                if (meta.verifyUrl) {
+                    pdf.setProperties({
+                        title: meta.courseTitle + ' — AsanMinds Certificate',
+                        subject: 'Certificate of Completion · ' + meta.score + '%',
+                        author: 'Sunday · AsanMinds',
+                        keywords: 'yoga, certificate, ' + (meta.certId || ''),
+                    });
+                }
+                pdf.save(meta.fileName + '.pdf');
+            },
+
+            async _emailCertificate() {
+                const meta = window.__certMeta;
+                if (!meta) return;
+                const btn = event && event.target;
+                if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+                try {
+                    // Build a PDF data URL.
+                    let pdfDataUrl = '';
+                    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+                    if (jsPDFCtor) {
+                        const pdf = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                        pdf.addImage(meta.canvasDataUrl, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+                        pdfDataUrl = pdf.output('datauristring');
+                    }
+                    const r = await fetch('/api/certificate/email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            certId: meta.certId,
+                            courseTitle: meta.courseTitle,
+                            score: meta.score,
+                            pngDataUrl: meta.canvasDataUrl,
+                            pdfDataUrl,
+                        }),
+                    });
+                    const j = await r.json();
+                    if (j.success) {
+                        alert('Certificate sent to your email.');
+                    } else {
+                        alert(j.error || 'Could not send email. Save it locally for now.');
+                    }
+                } catch (e) {
+                    alert('Network error. Try again.');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Email me a copy'; }
+                }
             },
 
             _wrapText(ctx, text, cx, y, maxWidth, lineHeight) {
@@ -4308,6 +4831,37 @@
                 } catch (e) {
                     console.warn('profile fetch failed', e);
                 }
+
+                // ── Hydrate course progress from server (item 1) ──
+                // Server is the source of truth across devices; the local copy
+                // becomes the offline-first cache. Server progress always wins.
+                try {
+                    const r = await fetch('/api/course-progress', { credentials: 'same-origin' });
+                    if (r.ok) {
+                        const j = await r.json();
+                        if (j.progress && j.progress.schemaVersion === 2) {
+                            this.courseProgress = j.progress;
+                            try { localStorage.setItem('courseProgress', JSON.stringify(j.progress)); } catch (_) {}
+                            console.log('course progress hydrated from server, last updated', j.updatedAt);
+                        }
+                    }
+                } catch (_) {}
+
+                // ── Hydrate user preferences (theme, remember-me, reminder time) ──
+                try {
+                    const r = await fetch('/api/preferences', { credentials: 'same-origin' });
+                    if (r.ok) {
+                        const j = await r.json();
+                        this.preferences = j.preferences || {};
+                        this._applyPreferences();
+                    }
+                } catch (_) { this.preferences = {}; }
+
+                // ── Hydrate streak (with auto-applied freezes) ──
+                try {
+                    const r = await fetch('/api/streak', { credentials: 'same-origin' });
+                    if (r.ok) this.streakInfo = await r.json();
+                } catch (_) {}
 
                 this.renderNav();
                 this.renderContent();
@@ -4363,6 +4917,193 @@
                         }).catch(() => {});
                     }
                 } catch(_){}
+
+                // ── Onboarding tour (first-run, item 4) ──
+                try {
+                    const seen = localStorage.getItem('sunday_onboarding_done');
+                    if (!seen) setTimeout(() => this._startOnboardingTour(), 1200);
+                } catch(_){}
+
+                // ── Web push registration if user opted in (item 11) ──
+                try {
+                    if (this.preferences && this.preferences.dailyReminder) {
+                        this._registerPushNotifications();
+                    }
+                } catch(_){}
+            },
+
+            // ─────────────────────────────────────────────────
+            // ONBOARDING TOUR (item 4)
+            // ─────────────────────────────────────────────────
+            _startOnboardingTour() {
+                this._tourStep = 0;
+                this._renderOnboardStep();
+            },
+
+            _renderOnboardStep() {
+                const steps = [
+                    { title: 'Welcome to Sunday', body: 'Your personal AI yoga instructor. Let\'s take a quick tour.', emoji: '🧘' },
+                    { title: 'Your dashboard', body: 'Today shows your streak, recommended pose, and quick start. Everything begins here.', emoji: '🏠' },
+                    { title: 'Pose library', body: 'Browse 20 asanas with detailed notes, alignment cues, and contraindications.', emoji: '📚' },
+                    { title: 'Practice with AR', body: 'Real-time pose correction using your camera. Just say "start tree pose" to begin.', emoji: '📷' },
+                    { title: 'Earn certificates', body: '6 semester courses + 1 master certificate. Pass AR + quiz tests to graduate.', emoji: '🏆' },
+                ];
+                const overlay = document.getElementById('onboard-overlay');
+                const card = document.getElementById('onboard-card');
+                if (!overlay || !card) return;
+                const i = this._tourStep;
+                if (i >= steps.length) {
+                    overlay.classList.remove('active');
+                    try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
+                    return;
+                }
+                const s = steps[i];
+                const dots = steps.map((_, j) => `<span style="width:6px;height:6px;border-radius:9999px;background:${j === i ? '#0F3D2E' : '#D4CCB8'}"></span>`).join('');
+                card.innerHTML = `
+                    <div style="font-size:48px;margin-bottom:8px">${s.emoji}</div>
+                    <h2 style="font-family:'Fraunces',serif;font-size:30px;font-weight:300;color:#14120E;margin:0 0 10px;letter-spacing:-0.02em">${s.title}</h2>
+                    <p style="color:#4A453B;font-size:15px;margin:0 0 24px;line-height:1.55">${s.body}</p>
+                    <div style="display:flex;justify-content:center;gap:6px;margin-bottom:18px">${dots}</div>
+                    <div style="display:flex;gap:10px;justify-content:center">
+                        <button onclick="app._skipOnboarding()" class="pressable" style="background:transparent;border:1px solid #D4CCB8;color:#7A7364;padding:10px 18px;border-radius:9999px;font-size:13px;cursor:pointer">Skip</button>
+                        <button onclick="app._nextOnboardingStep()" class="btn btn-accent pressable" style="padding:11px 28px">${i === steps.length - 1 ? 'Get started' : 'Next'}</button>
+                    </div>
+                `;
+                overlay.classList.add('active');
+            },
+
+            _nextOnboardingStep() {
+                this._tourStep = (this._tourStep || 0) + 1;
+                this._renderOnboardStep();
+            },
+
+            _skipOnboarding() {
+                document.getElementById('onboard-overlay')?.classList.remove('active');
+                try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
+            },
+
+            // ─────────────────────────────────────────────────
+            // SETTINGS MODAL (theme, remember-me, push, delete)
+            // ─────────────────────────────────────────────────
+            openSettings() {
+                const modal = document.getElementById('cert-share-modal');
+                const body = document.getElementById('cert-share-body');
+                if (!modal || !body) return;
+                const p = this.preferences || {};
+                const theme = p.theme || 'auto';
+                const reminderTime = p.reminderTime || '07:00';
+                body.innerHTML = `
+                    <div style="padding:26px 26px 8px">
+                        <span class="kicker" style="color:#C2552F">Settings</span>
+                        <h2 style="font-family:'Fraunces',serif;font-size:28px;font-weight:300;margin:6px 0 4px;color:#14120E">Your preferences</h2>
+                    </div>
+                    <div style="padding:8px 26px 26px;display:flex;flex-direction:column;gap:18px">
+                        <div>
+                            <span class="kicker" style="color:#7A7364;font-size:10px">Theme</span>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">
+                                ${['auto', 'light', 'dark'].map(t => `
+                                    <button onclick="app._savePreferences({theme:'${t}'}); app.openSettings()" class="pressable" style="height:44px;border-radius:12px;background:${theme === t ? '#0F3D2E' : '#EEE9DE'};color:${theme === t ? '#F5F2EB' : '#14120E'};border:1px solid #D4CCB8;font-size:13px;font-weight:500;cursor:pointer;text-transform:capitalize">${t}</button>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <label style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                            <div>
+                                <div style="font-size:14px;font-weight:500;color:#14120E">Stay signed in for 30 days</div>
+                                <div style="font-size:12px;color:#7A7364;margin-top:2px">Skips the login on this device</div>
+                            </div>
+                            <input type="checkbox" ${p.rememberMe ? 'checked' : ''} onchange="app._savePreferences({rememberMe: this.checked})" style="width:20px;height:20px;cursor:pointer">
+                        </label>
+                        <label style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                            <div>
+                                <div style="font-size:14px;font-weight:500;color:#14120E">Daily reminder</div>
+                                <div style="font-size:12px;color:#7A7364;margin-top:2px">Web push at your chosen time</div>
+                            </div>
+                            <input type="checkbox" ${p.dailyReminder ? 'checked' : ''} onchange="app._togglePushReminder(this.checked)" style="width:20px;height:20px;cursor:pointer">
+                        </label>
+                        ${p.dailyReminder ? `
+                        <label style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                            <span style="font-size:13px;color:#4A453B">Reminder time</span>
+                            <input type="time" value="${reminderTime}" onchange="app._savePreferences({reminderTime: this.value})" style="background:#EEE9DE;border:1px solid #D4CCB8;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer">
+                        </label>` : ''}
+                        <div style="border-top:1px solid #E0D9C8;padding-top:14px">
+                            <a href="/privacy" target="_blank" style="font-size:13px;color:#0F3D2E;text-decoration:underline">Privacy policy</a>
+                        </div>
+                        <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account & all data</button>
+                    </div>
+                `;
+                modal.classList.add('active');
+            },
+
+            async _togglePushReminder(enabled) {
+                this._savePreferences({ dailyReminder: enabled });
+                if (enabled) {
+                    await this._registerPushNotifications();
+                } else {
+                    await this._unregisterPushNotifications();
+                }
+                this.openSettings();
+            },
+
+            async _registerPushNotifications() {
+                if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+                try {
+                    const reg = await navigator.serviceWorker.ready;
+                    const keyResp = await fetch('/api/push/key', { credentials: 'same-origin' });
+                    const keyJson = await keyResp.json();
+                    if (!keyJson.publicKey) return;
+                    const perm = await Notification.requestPermission();
+                    if (perm !== 'granted') return;
+                    const sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: this._urlBase64ToUint8Array(keyJson.publicKey),
+                    });
+                    await fetch('/api/push/subscribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ subscription: sub.toJSON() }),
+                    });
+                } catch (e) { console.warn('Push registration failed', e); }
+            },
+
+            async _unregisterPushNotifications() {
+                if (!('serviceWorker' in navigator)) return;
+                try {
+                    const reg = await navigator.serviceWorker.ready;
+                    const sub = await reg.pushManager.getSubscription();
+                    if (sub) {
+                        await sub.unsubscribe();
+                        await fetch('/api/push/unsubscribe', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ endpoint: sub.endpoint }),
+                        });
+                    }
+                } catch (e) { console.warn('Push unsubscribe failed', e); }
+            },
+
+            _urlBase64ToUint8Array(base64String) {
+                const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+                const rawData = window.atob(base64);
+                const out = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; i++) out[i] = rawData.charCodeAt(i);
+                return out;
+            },
+
+            async _confirmDeleteAccount() {
+                if (!confirm('This will permanently delete your account, progress, certificates, and preferences. Continue?')) return;
+                if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
+                try {
+                    const r = await fetch('/api/delete-account', { method: 'POST', credentials: 'same-origin' });
+                    if (r.ok) {
+                        alert('Your account has been deleted. Thank you for trying Sunday.');
+                        window.location.href = '/';
+                    } else {
+                        const j = await r.json().catch(() => ({}));
+                        alert(j.error || 'Could not delete account. Please try again later.');
+                    }
+                } catch (e) { alert('Network error. Try again.'); }
             },
 
             /** Error boundary banner — shows a non-blocking toast on crash. */

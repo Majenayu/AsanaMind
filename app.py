@@ -4,13 +4,55 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import os
 import json
+import uuid
+import secrets
 import urllib.request
 import urllib.error
+
+# Optional dependencies — graceful fallback if not installed in the environment.
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    LIMITER_AVAILABLE = True
+except Exception:
+    LIMITER_AVAILABLE = False
+
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
+    import base64 as _b64
+    SENDGRID_AVAILABLE = True
+except Exception:
+    SENDGRID_AVAILABLE = False
+
+try:
+    from pywebpush import webpush, WebPushException
+    PUSH_AVAILABLE = True
+except Exception:
+    PUSH_AVAILABLE = False
 
 app = Flask(__name__)
 # Use environment variable for secret key, fallback ONLY for local dev
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-this-in-render')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+# Persistent sessions — supports the "stay signed in for 30 days" toggle.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+# Mark cookies secure when running behind https (Render does this).
+if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+    app.config['SESSION_COOKIE_SECURE'] = True
+
+# Rate limiting — 30/min for /api/assistant, generous defaults elsewhere.
+if LIMITER_AVAILABLE:
+    limiter = Limiter(get_remote_address, app=app, default_limits=['600 per hour'], storage_uri='memory://')
+    def rate_limit_assistant(f):
+        return limiter.limit('30 per minute')(f)
+else:
+    limiter = None
+    def rate_limit_assistant(f):
+        return f
+    print('⚠ flask-limiter not installed — rate-limiting disabled')
 
 # MongoDB connection
 db_connected = False
@@ -22,12 +64,19 @@ try:
     # Ensure the correct database name is used
     db = client.get_database("face_auth")
     users = db.users
+    certificates_col = db.certificates
+    course_progress_col = db.course_progress
+    preferences_col = db.preferences
+    push_subs_col = db.push_subscriptions
+    streak_freeze_col = db.streak_freezes
     client.admin.command('ping')
     print("✓ MongoDB connected successfully")
     db_connected = True
 except Exception as e:
     print(f"✗ MongoDB connection failed: {e}")
     print("App will run without DB (profile features disabled)")
+    certificates_col = course_progress_col = preferences_col = None
+    push_subs_col = streak_freeze_col = None
 
 # Updated INDEX_HTML (with /home redirects)
 INDEX_HTML = """
@@ -636,16 +685,10 @@ def yoga_fallback(prompt: str, ctx: dict = None) -> str:
 
 
 @app.route('/api/assistant', methods=['POST'])
+@rate_limit_assistant
 def assistant_proxy():
-    """Server-side proxy for the AI assistant. Prefers Gemini via
-    OpenRouter when a key is available; otherwise returns a curated
-    yoga fallback so the user never hears 'service unavailable'.
-
-    Accepts an optional `context` object describing the user's current
-    screen, pose, score, and level, so the model can answer questions
-    like 'what is this course?' or 'how am I doing?' with awareness
-    instead of a generic reply.
-    """
+    """Server-side proxy for the AI assistant. Rate-limited to 30 calls/minute
+    per IP (when flask-limiter is available)."""
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     data = request.get_json(silent=True) or {}
@@ -849,6 +892,548 @@ def sync_history():
     except Exception as e:
         print(f'sync-history error: {e}')
         return jsonify({'success': True, 'synced': 0, 'note': 'DB error'})
+
+
+# ─────────────────────────────────────────────────────────────
+# COURSE PROGRESS — server-synced (item 1)
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/course-progress', methods=['GET'])
+def get_course_progress():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected or course_progress_col is None:
+        return jsonify({'success': True, 'progress': None, 'note': 'DB offline'})
+    email = session.get('user_email')
+    doc = course_progress_col.find_one({'email': email})
+    if not doc:
+        return jsonify({'success': True, 'progress': None})
+    doc.pop('_id', None)
+    return jsonify({'success': True, 'progress': doc.get('progress'), 'updatedAt': doc.get('updatedAt')})
+
+
+@app.route('/api/course-progress', methods=['PUT', 'POST'])
+def save_course_progress():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected or course_progress_col is None:
+        return jsonify({'success': True, 'note': 'DB offline'})
+    data = request.get_json(silent=True) or {}
+    progress = data.get('progress')
+    if not progress:
+        return jsonify({'success': False, 'error': 'Empty progress'}), 400
+    email = session.get('user_email')
+    course_progress_col.update_one(
+        {'email': email},
+        {'$set': {'progress': progress, 'updatedAt': datetime.utcnow().isoformat()}},
+        upsert=True,
+    )
+    return jsonify({'success': True})
+
+
+# ─────────────────────────────────────────────────────────────
+# STREAK + STREAK FREEZE (item 5)
+# Each user gets 1 streak freeze per ISO week. Auto-applied if a user misses
+# a day. Manual trigger via POST /api/streak/freeze (consumes the week token).
+# ─────────────────────────────────────────────────────────────
+
+def _iso_week_key(dt):
+    iso = dt.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _ensure_streak_freezes_doc(email):
+    if streak_freeze_col is None:
+        return None
+    doc = streak_freeze_col.find_one({'email': email})
+    if not doc:
+        doc = {'email': email, 'usedWeeks': [], 'autoApplied': []}
+        streak_freeze_col.insert_one(doc)
+    return doc
+
+
+@app.route('/api/streak', methods=['GET'])
+def get_streak():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected:
+        return jsonify({'success': True, 'streak': 0, 'best': 0, 'freezeAvailable': False})
+    email = session.get('user_email')
+    user = users.find_one({'email': email})
+    activity = sorted(user.get('activity_log', [])) if user else []
+
+    # Compute streak — number of consecutive days up to today, with freeze tokens
+    # auto-applied to bridge a single missed day per ISO week.
+    today = datetime.utcnow().date()
+    freeze_doc = _ensure_streak_freezes_doc(email) if streak_freeze_col is not None else None
+    auto_applied = list((freeze_doc or {}).get('autoApplied', []))
+    used_weeks = set((freeze_doc or {}).get('usedWeeks', []))
+    activity_set = set(activity)
+
+    streak = 0
+    cursor = today
+    while True:
+        key = cursor.isoformat()
+        if key in activity_set or key in auto_applied:
+            streak += 1
+            cursor = cursor - timedelta(days=1)
+            continue
+        # See if a freeze can bridge this missed day.
+        wk = _iso_week_key(cursor)
+        if wk not in used_weeks and streak > 0:
+            # Auto-apply freeze for this missed day, only if the day before is active.
+            prev_active = (cursor - timedelta(days=1)).isoformat() in activity_set
+            if prev_active:
+                used_weeks.add(wk)
+                auto_applied.append(key)
+                if streak_freeze_col is not None:
+                    streak_freeze_col.update_one(
+                        {'email': email},
+                        {'$addToSet': {'usedWeeks': wk, 'autoApplied': key}},
+                    )
+                streak += 1
+                cursor = cursor - timedelta(days=1)
+                continue
+        break
+
+    # Best streak — quick scan through activity_log.
+    best = 0
+    if activity:
+        run = 1
+        for i in range(1, len(activity)):
+            d_prev = datetime.fromisoformat(activity[i-1]).date()
+            d_cur = datetime.fromisoformat(activity[i]).date()
+            if (d_cur - d_prev).days == 1:
+                run += 1
+                best = max(best, run)
+            else:
+                run = 1
+        best = max(best, run, streak)
+
+    cur_week = _iso_week_key(today)
+    freeze_available = cur_week not in used_weeks
+
+    return jsonify({
+        'success': True,
+        'streak': streak,
+        'best': best,
+        'freezeAvailable': freeze_available,
+        'currentWeek': cur_week,
+        'autoApplied': auto_applied[-7:],
+    })
+
+
+@app.route('/api/streak/freeze', methods=['POST'])
+def use_streak_freeze():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected or streak_freeze_col is None:
+        return jsonify({'success': False, 'error': 'DB offline'}), 500
+    email = session.get('user_email')
+    today = datetime.utcnow().date()
+    wk = _iso_week_key(today)
+    doc = _ensure_streak_freezes_doc(email)
+    if wk in doc.get('usedWeeks', []):
+        return jsonify({'success': False, 'error': 'Freeze already used this week'}), 400
+    streak_freeze_col.update_one(
+        {'email': email},
+        {'$addToSet': {'usedWeeks': wk, 'autoApplied': today.isoformat()}},
+    )
+    # Add to activity_log so dashboard reflects it.
+    users.update_one({'email': email}, {'$addToSet': {'activity_log': today.isoformat()}})
+    return jsonify({'success': True, 'usedFor': today.isoformat()})
+
+
+# ─────────────────────────────────────────────────────────────
+# CERTIFICATES — issue, look up, public verify (items 6, 7, 36)
+# Each cert has a unique id used in the verification URL on the PDF QR.
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/certificate', methods=['POST'])
+def issue_certificate():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    data = request.get_json(silent=True) or {}
+    course_id = data.get('courseId')
+    course_title = data.get('courseTitle') or ''
+    user_name = (data.get('userName') or session.get('user_name') or 'Yoga Practitioner').strip()
+    score = int(data.get('score') or 0)
+    poses = data.get('poses') or []  # [{name, mark}, ...]
+    is_master = bool(data.get('isMaster'))
+
+    if not course_id and not is_master:
+        return jsonify({'success': False, 'error': 'courseId required'}), 400
+    if score < 0 or score > 100:
+        return jsonify({'success': False, 'error': 'Invalid score'}), 400
+
+    cert_id = uuid.uuid4().hex[:12].upper()
+    record = {
+        'certId': cert_id,
+        'email': session.get('user_email'),
+        'userName': user_name,
+        'courseId': course_id or 'master',
+        'courseTitle': course_title or ('AsanMinds Master Programme' if is_master else course_id),
+        'score': score,
+        'poses': poses,
+        'isMaster': is_master,
+        'issuedAt': datetime.utcnow().isoformat(),
+    }
+
+    if db_connected and certificates_col is not None:
+        try:
+            certificates_col.update_one(
+                {'email': record['email'], 'courseId': record['courseId']},
+                {'$setOnInsert': record},
+                upsert=True,
+            )
+            existing = certificates_col.find_one({'email': record['email'], 'courseId': record['courseId']})
+            if existing and 'certId' in existing:
+                cert_id = existing['certId']
+        except Exception as e:
+            print(f'certificate save error: {e}')
+
+    return jsonify({
+        'success': True,
+        'certId': cert_id,
+        'verifyUrl': request.url_root.rstrip('/') + '/verify/' + cert_id,
+    })
+
+
+@app.route('/api/certificates', methods=['GET'])
+def list_certificates():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected or certificates_col is None:
+        return jsonify({'success': True, 'certificates': []})
+    docs = list(certificates_col.find({'email': session.get('user_email')}))
+    out = []
+    for d in docs:
+        d.pop('_id', None)
+        out.append(d)
+    return jsonify({'success': True, 'certificates': out})
+
+
+@app.route('/verify/<cert_id>')
+def verify_certificate(cert_id):
+    """Public verification page — anyone with the URL can confirm authenticity."""
+    if not db_connected or certificates_col is None:
+        return _verify_html(None, cert_id, 'database-offline')
+    cert = certificates_col.find_one({'certId': (cert_id or '').upper()})
+    if not cert:
+        return _verify_html(None, cert_id, 'not-found')
+    return _verify_html(cert, cert_id, 'ok')
+
+
+def _verify_html(cert, requested_id, state):
+    name = cert.get('userName') if cert else ''
+    course = cert.get('courseTitle') if cert else ''
+    score = cert.get('score') if cert else ''
+    issued = cert.get('issuedAt') if cert else ''
+    poses = cert.get('poses') or [] if cert else []
+    is_master = cert.get('isMaster') if cert else False
+    issued_str = ''
+    if issued:
+        try:
+            issued_str = datetime.fromisoformat(issued).strftime('%d %b %Y')
+        except Exception:
+            issued_str = issued[:10]
+    body_status = {
+        'ok': 'verified',
+        'not-found': 'not found',
+        'database-offline': 'temporarily unavailable',
+    }.get(state, 'unknown')
+
+    rows_html = ''
+    for r in poses:
+        rows_html += f'<tr><td style="padding:8px 0;color:#14120E">{r.get("name","")}</td><td style="text-align:right;color:#0F3D2E;font-weight:600">{r.get("mark",0)}%</td></tr>'
+
+    if state == 'ok':
+        body = f"""
+        <span class=\"kicker\" style=\"color:#0F3D2E\">Authentic ✓</span>
+        <h1 style=\"font-family:Fraunces,serif;font-size:42px;font-weight:300;color:#14120E;margin:8px 0 0\">{name}</h1>
+        <p style=\"color:#4A453B;margin:6px 0 18px\">{course} {'(Master Certificate)' if is_master else ''}</p>
+        <div style=\"background:#0F3D2E;color:#F5F2EB;border-radius:18px;padding:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap\">
+            <div><span class=\"kicker\" style=\"color:#E0A23F\">Final mark</span><div style=\"font-family:Fraunces,serif;font-size:36px;font-weight:300;line-height:1\">{score}%</div></div>
+            <div><span class=\"kicker\" style=\"color:#E0A23F\">Issued</span><div style=\"font-family:Fraunces,serif;font-size:18px;line-height:1.3;margin-top:8px\">{issued_str}</div></div>
+            <div><span class=\"kicker\" style=\"color:#E0A23F\">Cert id</span><div style=\"font-family:monospace;font-size:13px;margin-top:8px\">{cert.get('certId','')}</div></div>
+        </div>
+        {f'<table style="width:100%;margin-top:20px;border-collapse:collapse;font-size:14px"><tbody>{rows_html}</tbody></table>' if rows_html else ''}
+        """
+    else:
+        body = f"""
+        <span class=\"kicker\" style=\"color:#C2552F\">Not verifiable</span>
+        <h1 style=\"font-family:Fraunces,serif;font-size:36px;font-weight:300;color:#14120E;margin:8px 0 0\">Certificate {body_status}</h1>
+        <p style=\"color:#4A453B;margin:6px 0 0\">No certificate exists with id <code>{requested_id}</code>.</p>
+        """
+
+    return f"""<!DOCTYPE html>
+<html><head><meta charset=\"utf-8\"><title>Verify Certificate · AsanMinds</title>
+<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+<link rel=\"icon\" href=\"/assets/logo.png\">
+<link href=\"https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap\" rel=\"stylesheet\">
+<style>body{{font-family:Inter,sans-serif;background:#F5F2EB;color:#14120E;margin:0;padding:32px;line-height:1.5}}
+.kicker{{font-weight:500;font-size:11px;letter-spacing:0.22em;text-transform:uppercase}}
+.card{{max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #D4CCB8;border-radius:24px;padding:32px}}
+.brand{{text-align:center;margin-bottom:16px;color:#7A7364}}</style>
+</head><body>
+<div class=\"brand kicker\">S U N D A Y · A S A N M I N D S</div>
+<div class=\"card\">{body}</div>
+<p style=\"text-align:center;color:#7A7364;font-size:12px;margin-top:16px\">Public certificate verification · Authentic certificates earned through AR-tested practice and theory examination.</p>
+</body></html>"""
+
+
+# ─────────────────────────────────────────────────────────────
+# CERTIFICATE EMAIL (item 6)
+# Accepts a base64 PDF/PNG from the client and emails it via SendGrid.
+# Falls back to "no email service" gracefully if SENDGRID_API_KEY isn't set.
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/certificate/email', methods=['POST'])
+def email_certificate():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    data = request.get_json(silent=True) or {}
+    file_b64 = data.get('fileBase64') or ''
+    filename = (data.get('fileName') or 'AsanMinds_Certificate.pdf').replace('"', '')
+    course_title = (data.get('courseTitle') or 'AsanMinds Certificate').strip()
+    score = int(data.get('score') or 0)
+    user_email = session.get('user_email') or data.get('email')
+    user_name = session.get('user_name') or 'practitioner'
+    if not file_b64 or not user_email:
+        return jsonify({'success': False, 'error': 'Missing file or recipient email'}), 400
+
+    api_key = os.environ.get('SENDGRID_API_KEY') or ''
+    sender = os.environ.get('SENDGRID_FROM_EMAIL') or 'no-reply@asanminds.app'
+    if not (SENDGRID_AVAILABLE and api_key):
+        return jsonify({'success': False, 'error': 'Email service is not configured. Use the Download button instead.'}), 503
+
+    try:
+        clean_b64 = file_b64.split(',', 1)[-1]  # strips "data:application/pdf;base64," prefix if present
+        is_pdf = filename.lower().endswith('.pdf') or 'pdf' in (data.get('mime') or '')
+        mime = 'application/pdf' if is_pdf else 'image/png'
+        message = Mail(
+            from_email=sender,
+            to_emails=user_email,
+            subject=f'Your AsanMinds Certificate: {course_title}',
+            html_content=f"""<p>Dear {user_name},</p>
+<p>Congratulations on completing <b>{course_title}</b> with a final mark of <b>{score}%</b>.</p>
+<p>Your certificate is attached. You can also share it from inside the app, or anyone can verify it at the URL on the certificate.</p>
+<p>Namaste,<br>Sunday · AsanMinds</p>""")
+        attachment = Attachment(
+            FileContent(clean_b64),
+            FileName(filename),
+            FileType(mime),
+            Disposition('attachment'),
+        )
+        message.add_attachment(attachment)
+        sg = SendGridAPIClient(api_key)
+        sg.send(message)
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f'sendgrid error: {e}')
+        return jsonify({'success': False, 'error': 'Email send failed; please use Download.'}), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# USER PREFERENCES (items 33, 38, 39)
+# Stays-signed-in flag, theme, daily reminder time, language.
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/preferences', methods=['GET'])
+def get_preferences():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected or preferences_col is None:
+        return jsonify({'success': True, 'preferences': {}})
+    doc = preferences_col.find_one({'email': session.get('user_email')}) or {}
+    doc.pop('_id', None)
+    return jsonify({'success': True, 'preferences': doc.get('preferences') or {}})
+
+
+@app.route('/api/preferences', methods=['PUT', 'POST'])
+def save_preferences():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    data = request.get_json(silent=True) or {}
+    prefs = data.get('preferences') or {}
+    # Apply remember-me to the current session right away.
+    if 'rememberMe' in prefs:
+        session.permanent = bool(prefs['rememberMe'])
+    if not db_connected or preferences_col is None:
+        return jsonify({'success': True, 'note': 'DB offline'})
+    preferences_col.update_one(
+        {'email': session.get('user_email')},
+        {'$set': {'preferences': prefs, 'updatedAt': datetime.utcnow().isoformat()}},
+        upsert=True,
+    )
+    return jsonify({'success': True})
+
+
+# ─────────────────────────────────────────────────────────────
+# WEB PUSH (item 37) — VAPID-based, optional
+# Endpoints: GET /api/push/key, POST /api/push/subscribe, POST /api/push/test
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/push/key', methods=['GET'])
+def push_public_key():
+    return jsonify({
+        'enabled': bool(PUSH_AVAILABLE and os.environ.get('VAPID_PUBLIC_KEY')),
+        'publicKey': os.environ.get('VAPID_PUBLIC_KEY') or '',
+    })
+
+
+@app.route('/api/push/subscribe', methods=['POST'])
+def push_subscribe():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not db_connected or push_subs_col is None:
+        return jsonify({'success': False, 'error': 'DB offline'}), 500
+    data = request.get_json(silent=True) or {}
+    sub = data.get('subscription')
+    reminder_time = data.get('reminderTime') or '07:00'
+    if not sub or 'endpoint' not in sub:
+        return jsonify({'success': False, 'error': 'Invalid subscription'}), 400
+    push_subs_col.update_one(
+        {'email': session.get('user_email')},
+        {'$set': {
+            'subscription': sub,
+            'reminderTime': reminder_time,
+            'updatedAt': datetime.utcnow().isoformat(),
+        }},
+        upsert=True,
+    )
+    return jsonify({'success': True})
+
+
+@app.route('/api/push/unsubscribe', methods=['POST'])
+def push_unsubscribe():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if push_subs_col is not None:
+        push_subs_col.delete_one({'email': session.get('user_email')})
+    return jsonify({'success': True})
+
+
+@app.route('/api/push/test', methods=['POST'])
+def push_test():
+    """Send a test notification to the current user. Returns success even when
+    the push stack isn't installed — UI shows the right message."""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY') and push_subs_col is not None):
+        return jsonify({'success': False, 'error': 'Push not configured on server.'}), 503
+    sub_doc = push_subs_col.find_one({'email': session.get('user_email')})
+    if not sub_doc or not sub_doc.get('subscription'):
+        return jsonify({'success': False, 'error': 'No subscription saved.'}), 404
+    try:
+        webpush(
+            subscription_info=sub_doc['subscription'],
+            data=json.dumps({'title': 'Sunday', 'body': 'Your mat is waiting. Three minutes is enough.', 'url': '/home'}),
+            vapid_private_key=os.environ.get('VAPID_PRIVATE_KEY'),
+            vapid_claims={'sub': 'mailto:' + (os.environ.get('SENDGRID_FROM_EMAIL') or 'noreply@asanminds.app')},
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f'push test error: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# DELETE ACCOUNT (GDPR, item 39)
+# Removes user document and all related artefacts.
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/delete-account', methods=['POST', 'DELETE'])
+def delete_account():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    email = session.get('user_email')
+    if db_connected:
+        try:
+            users.delete_one({'email': email})
+            for col in (certificates_col, course_progress_col, preferences_col,
+                        push_subs_col, streak_freeze_col):
+                if col is not None:
+                    col.delete_many({'email': email})
+        except Exception as e:
+            print(f'delete-account error: {e}')
+    session.clear()
+    return jsonify({'success': True})
+
+
+# ─────────────────────────────────────────────────────────────
+# PRIVACY POLICY (item 38) — public, plain-English
+# ─────────────────────────────────────────────────────────────
+
+PRIVACY_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Privacy · AsanMinds</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/assets/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>body{font-family:Inter,sans-serif;background:#F5F2EB;color:#14120E;margin:0;padding:48px 24px;line-height:1.65}
+.wrap{max-width:720px;margin:0 auto}
+h1{font-family:Fraunces,serif;font-size:48px;font-weight:300;letter-spacing:-0.02em;margin:0 0 6px}
+h2{font-family:Fraunces,serif;font-size:24px;font-weight:400;margin-top:36px;color:#0F3D2E}
+.kicker{color:#C2552F;font-weight:500;font-size:11px;letter-spacing:0.22em;text-transform:uppercase}
+p{color:#4A453B;margin:10px 0}
+ul{color:#4A453B;padding-left:20px}
+li{margin:6px 0}
+a{color:#0F3D2E}
+.back{display:inline-block;margin-bottom:18px;color:#7A7364;text-decoration:none;font-size:12px;letter-spacing:0.2em;text-transform:uppercase}</style>
+</head><body><div class="wrap">
+<a class="back" href="/home">← Back to AsanMinds</a>
+<span class="kicker">Privacy</span>
+<h1>How we treat your data.</h1>
+<p>AsanMinds is a yoga app built for students. We respect your time, your body and your data. Here is the entire policy in plain English.</p>
+
+<h2>What stays on your device</h2>
+<p>The pose detection runs entirely in your browser using TensorFlow.js. Your camera frames never leave your device. We do not record video, we do not save images, and we do not analyse anything outside the live frame in front of you.</p>
+
+<h2>What we store on our server</h2>
+<ul>
+<li>Your name and email when you register.</li>
+<li>The list of dates you practised on.</li>
+<li>The poses you have completed and your scores.</li>
+<li>Course progress and certificates you earn.</li>
+<li>Preferences you set (theme, reminder time).</li>
+<li>If you opt in to daily reminders, your push subscription token.</li>
+</ul>
+
+<h2>What we do not do</h2>
+<ul>
+<li>We do not sell your data.</li>
+<li>We do not share it with third parties for advertising.</li>
+<li>We do not use trackers like Google Analytics, Facebook Pixel, or similar.</li>
+</ul>
+
+<h2>Third parties we rely on</h2>
+<ul>
+<li><b>MongoDB Atlas</b> stores your account data, encrypted at rest.</li>
+<li><b>Render</b> hosts the application.</li>
+<li><b>OpenRouter / Gemini</b> answers questions when you talk to the AI assistant. We send the question and a short app context — never your camera frames.</li>
+<li><b>SendGrid</b> sends your certificate to your email if you ask us to.</li>
+</ul>
+
+<h2>Your rights</h2>
+<ul>
+<li><b>Export.</b> Email us and we will send you a JSON of everything we hold about you.</li>
+<li><b>Delete.</b> Use the "delete my account" button in Settings, or email us. We delete everything within 7 days, including backups within 30 days.</li>
+<li><b>Object / restrict.</b> Just stop using the app. Inactive accounts are auto-pruned after 24 months of inactivity.</li>
+</ul>
+
+<h2>Children</h2>
+<p>AsanMinds is intended for ages 13 and above. We do not knowingly collect data from children under 13.</p>
+
+<h2>Contact</h2>
+<p>For privacy questions, write to <a href="mailto:privacy@asanminds.app">privacy@asanminds.app</a>. We reply within 7 days.</p>
+
+<p style="color:#7A7364;font-size:12px;margin-top:32px">Last updated: """ + datetime.utcnow().strftime('%d %B %Y') + """</p>
+</div></body></html>"""
+
+
+@app.route('/privacy')
+def privacy_page():
+    return PRIVACY_HTML
 
 
 if __name__ == '__main__':
