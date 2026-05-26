@@ -1542,6 +1542,73 @@ def _verify_html(cert, requested_id, state):
 # Falls back to "no email service" gracefully if SENDGRID_API_KEY isn't set.
 # ─────────────────────────────────────────────────────────────
 
+@app.route('/api/email/test', methods=['GET', 'POST'])
+def email_test():
+    """One-click SendGrid plumbing test.
+
+    Sends a tiny "hello" email from SENDGRID_FROM_EMAIL to the currently
+    signed-in user. No attachments. Returns a clear JSON describing exactly
+    what worked and what didn't, so you can diagnose without hunting logs.
+    """
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    api_key = os.environ.get('SENDGRID_API_KEY') or ''
+    sender = os.environ.get('SENDGRID_FROM_EMAIL') or ''
+    recipient = session.get('user_email') or ''
+    user_name = session.get('user_name') or 'there'
+
+    diagnostics = {
+        'sendgrid_lib_installed': SENDGRID_AVAILABLE,
+        'has_api_key': bool(api_key),
+        'has_from_email': bool(sender),
+        'from_email': sender,
+        'to_email': recipient,
+        'session_email_set': bool(recipient),
+    }
+
+    if not SENDGRID_AVAILABLE:
+        return jsonify({'success': False, 'diagnostics': diagnostics,
+                        'error': 'sendgrid Python package not installed on server.'}), 503
+    if not api_key:
+        return jsonify({'success': False, 'diagnostics': diagnostics,
+                        'error': 'SENDGRID_API_KEY not set on Render.'}), 503
+    if not sender:
+        return jsonify({'success': False, 'diagnostics': diagnostics,
+                        'error': 'SENDGRID_FROM_EMAIL not set on Render.'}), 503
+    if not recipient:
+        return jsonify({'success': False, 'diagnostics': diagnostics,
+                        'error': 'No recipient email in session — sign in with Google first.'}), 400
+
+    try:
+        message = Mail(
+            from_email=sender,
+            to_emails=recipient,
+            subject='AsanMinds — SendGrid test',
+            html_content=f"""<p>Hi {user_name},</p>
+<p>This is a test email from your AsanMinds deployment to confirm SendGrid is wired up correctly.</p>
+<p><b>From:</b> {sender}<br><b>To:</b> {recipient}</p>
+<p>If you got this, the certificate email button will also work.</p>
+<p>Namaste,<br>Sunday · AsanMinds</p>""")
+        sg = SendGridAPIClient(api_key)
+        resp = sg.send(message)
+        diagnostics['sendgrid_status_code'] = getattr(resp, 'status_code', None)
+        return jsonify({'success': True, 'diagnostics': diagnostics,
+                        'message': f'Test email sent. Check the inbox of {recipient}.'})
+    except Exception as e:
+        err_str = str(e)
+        diagnostics['exception'] = err_str[:200]
+        if '403' in err_str or 'Forbidden' in err_str:
+            hint = (f"SendGrid rejected the send (403). The from-email '{sender}' is not a "
+                    "verified sender. Go to SendGrid → Settings → Sender Authentication → "
+                    "Single Sender Verification and click the confirmation link in your inbox.")
+        elif '401' in err_str or 'Unauthorized' in err_str:
+            hint = 'SendGrid rejected the API key (401). Re-create SENDGRID_API_KEY with Full Access.'
+        else:
+            hint = 'See diagnostics.exception for the underlying error.'
+        return jsonify({'success': False, 'diagnostics': diagnostics, 'error': hint}), 500
+
+
 @app.route('/api/certificate/email', methods=['POST'])
 def email_certificate():
     if not session.get('logged_in'):

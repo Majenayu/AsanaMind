@@ -5050,8 +5050,9 @@
                             <span style="font-size:13px;color:#4A453B">Reminder time</span>
                             <input type="time" value="${reminderTime}" onchange="app._savePreferences({reminderTime: this.value})" style="background:#EEE9DE;border:1px solid #D4CCB8;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer">
                         </label>` : ''}
-                        <div style="border-top:1px solid #E0D9C8;padding-top:14px">
+                        <div style="border-top:1px solid #E0D9C8;padding-top:14px;display:flex;flex-direction:column;gap:10px">
                             <a href="/privacy" target="_blank" style="font-size:13px;color:#0F3D2E;text-decoration:underline">Privacy policy</a>
+                            <button onclick="app._sendTestEmail()" class="pressable" style="height:38px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Send me a SendGrid test email</button>
                         </div>
                         <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account & all data</button>
                     </div>
@@ -5114,6 +5115,26 @@
                 const out = new Uint8Array(rawData.length);
                 for (let i = 0; i < rawData.length; i++) out[i] = rawData.charCodeAt(i);
                 return out;
+            },
+
+            async _sendTestEmail() {
+                const btn = event && event.target;
+                const original = btn ? btn.textContent : '';
+                if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+                try {
+                    const r = await fetch('/api/email/test', { method: 'POST', credentials: 'same-origin' });
+                    const j = await r.json();
+                    if (j.success) {
+                        alert('Sent. Check your inbox at ' + (j.diagnostics?.to_email || 'your email') + '. (Look in spam too — first send sometimes lands there.)');
+                    } else {
+                        const msg = (j.error || 'Failed.') + '\n\nDiagnostics:\n' + JSON.stringify(j.diagnostics || {}, null, 2);
+                        alert(msg);
+                    }
+                } catch (e) {
+                    alert('Network error reaching the test endpoint.');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.textContent = original; }
+                }
             },
 
             async _confirmDeleteAccount() {
