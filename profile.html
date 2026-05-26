@@ -292,6 +292,18 @@
         const initial = (data.name || 'A').trim().charAt(0).toUpperCase();
         $('avatar-initial').textContent = initial;
         $('identity-initial').textContent = initial;
+        // Use Google profile picture if available — fills both top-bar and hero avatars.
+        if (data.picture) {
+            ['avatar-initial', 'identity-initial'].forEach(id => {
+                const el = $(id);
+                if (el) {
+                    el.style.backgroundImage = `url(${data.picture})`;
+                    el.style.backgroundSize = 'cover';
+                    el.style.backgroundPosition = 'center';
+                    el.textContent = '';
+                }
+            });
+        }
         $('identity-name').textContent = data.name || 'Practitioner';
         $('identity-email').textContent = data.email || '';
         if (data.created_at) {

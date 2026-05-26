@@ -590,6 +590,8 @@ def profile():
         return jsonify({
             'name': user['name'],
             'email': user['email'],
+            'picture': user.get('picture', ''),
+            'auth_provider': user.get('auth_provider', 'email'),
             'created_at': user['created_at'].isoformat() if 'created_at' in user else None,
             'activity_log': activity_log,
             'completed_asanas': user.get('completed_asanas', {}),

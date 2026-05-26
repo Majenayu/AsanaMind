@@ -679,57 +679,12 @@
 
             // Multi-semester course state.
             // Schema v2: { schemaVersion:2, courses:{ sem3:{poses:[...], ...}, sem4:..., ... } }
-            // Built from static/courses.js (window.CourseUtils + window.SUNDAY_COURSES).
-            // Migration: any legacy schema-v1 single-course progress (the old
-            // 20-pose flat list) is mapped into the new schema by pose name,
-            // so users keep prior completions.
+            // Server is the single source of truth. The IIFE only builds an
+            // empty fresh shell — actual progress is fetched from
+            // /api/course-progress in init() once the user is authenticated.
+            // localStorage is a write-through cache for offline reads only.
             courseProgress: (function () {
-                const fresh = (typeof CourseUtils !== 'undefined') ? CourseUtils.freshProgress() : null;
-                let saved = null;
-                try { saved = JSON.parse(localStorage.getItem('courseProgress') || 'null'); } catch (_) {}
-                if (!saved) return fresh;
-
-                // New schema — pass through (and fill any newly added courses).
-                if (saved.schemaVersion === 2 && fresh) {
-                    for (const id of Object.keys(fresh.courses)) {
-                        if (!saved.courses[id]) saved.courses[id] = fresh.courses[id];
-                    }
-                    return saved;
-                }
-
-                // Legacy schema — migrate by pose-name match.
-                if (saved.poses && Array.isArray(saved.poses) && fresh) {
-                    const oldByName = {};
-                    for (const p of saved.poses) oldByName[p.name] = p;
-                    for (const courseId of Object.keys(fresh.courses)) {
-                        const course = fresh.courses[courseId];
-                        for (const newPose of course.poses) {
-                            const old = oldByName[newPose.name];
-                            if (old && old.completed) {
-                                newPose.completed = true;
-                                newPose.arPassed = true;
-                                newPose.quizPassed = true;
-                                newPose.arBest = Math.round(old.bestAccuracy || 90);
-                                newPose.quizBest = 100;
-                                newPose.finalScore = Math.round(((old.bestAccuracy || 90) + 100) / 2);
-                                newPose.completedAt = Date.now();
-                                newPose.locked = false;
-                            }
-                        }
-                        // Unlock the next pending pose in the course
-                        const idx = course.poses.findIndex(p => !p.completed);
-                        if (idx >= 0) course.poses[idx].locked = false;
-                        if (course.poses.every(p => p.completed)) {
-                            course.completed = true;
-                            course.completedAt = Date.now();
-                            course.certificateEarned = true;
-                            course.finalScore = Math.round(course.poses.reduce((s, p) => s + (p.finalScore || 0), 0) / course.poses.length);
-                        }
-                    }
-                    return fresh;
-                }
-
-                return fresh;
+                return (typeof CourseUtils !== 'undefined') ? CourseUtils.freshProgress() : null;
             })(),
             courseMode: false,
             testActive: false,
@@ -4824,9 +4779,27 @@
                     if (res.ok) {
                         this.userData = await res.json();
                         window.__user_name = this.userData.name || '';
-                        // Update avatar initial
+                        // Update avatar initial — or Google profile photo if available
                         const av = document.getElementById('avatar-btn');
-                        if (av && this.userData.name) av.textContent = (this.userData.name || 'A').trim().charAt(0).toUpperCase();
+                        if (av) {
+                            if (this.userData.picture) {
+                                av.style.backgroundImage = `url(${this.userData.picture})`;
+                                av.style.backgroundSize = 'cover';
+                                av.style.backgroundPosition = 'center';
+                                av.textContent = '';
+                            } else if (this.userData.name) {
+                                av.textContent = (this.userData.name || 'A').trim().charAt(0).toUpperCase();
+                            }
+                        }
+
+                        // ── Course start date from Mongo (server is source of truth) ──
+                        // Falls back to demo date only if user has no created_at.
+                        try {
+                            if (typeof CourseUtils !== 'undefined' && CourseUtils.setCourseStartDate) {
+                                const created = this.userData.created_at;
+                                if (created) CourseUtils.setCourseStartDate(created);
+                            }
+                        } catch (_) {}
 
                         // ── Account-switch protection ──
                         // localStorage is browser-wide, not per-account. If the
@@ -4857,16 +4830,37 @@
                 }
 
                 // ── Hydrate course progress from server (item 1) ──
-                // Server is the source of truth across devices; the local copy
-                // becomes the offline-first cache. Server progress always wins.
+                // Server is the ABSOLUTE source of truth. We always start
+                // from a fresh shell and overlay whatever the server returns.
+                // localStorage is only a write-through offline cache; we never
+                // read state from it for the source of truth.
+                if (typeof CourseUtils !== 'undefined' && CourseUtils.freshProgress) {
+                    this.courseProgress = CourseUtils.freshProgress();
+                }
                 try {
                     const r = await fetch('/api/course-progress', { credentials: 'same-origin' });
                     if (r.ok) {
                         const j = await r.json();
                         if (j.progress && j.progress.schemaVersion === 2) {
+                            // Merge any newly-added courses (e.g. when we
+                            // ship a new semester) so existing users don't
+                            // lose them.
+                            if (this.courseProgress && this.courseProgress.courses) {
+                                for (const id of Object.keys(this.courseProgress.courses)) {
+                                    if (!j.progress.courses[id]) {
+                                        j.progress.courses[id] = this.courseProgress.courses[id];
+                                    }
+                                }
+                            }
                             this.courseProgress = j.progress;
                             try { localStorage.setItem('courseProgress', JSON.stringify(j.progress)); } catch (_) {}
                             console.log('course progress hydrated from server, last updated', j.updatedAt);
+                        } else {
+                            // Server has no progress for this user — keep
+                            // the fresh shell and write it to cache so the
+                            // dashboard renders immediately.
+                            try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
+                            console.log('course progress: server has no record, using fresh shell');
                         }
                     }
                 } catch (_) {}

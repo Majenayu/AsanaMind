@@ -813,22 +813,26 @@
     // ─────────────────────────────────────────────────────────────
     // CourseUtils — date / status helpers
     // ─────────────────────────────────────────────────────────────
-    const COURSE_START_KEY = 'sundayCourseStartDate';
     const DEFAULT_DEMO_START = '2025-01-01T00:00:00.000Z';
 
+    // Single in-memory source of truth for the user's course-start date.
+    // Set by main.html after /api/profile resolves the Mongo created_at.
+    // We deliberately do NOT read localStorage here — that caused stale
+    // cross-account bleed. localStorage is only a write-through cache.
+    let _courseStart = null;
+
     function getCourseStartDate() {
-        let raw = null;
-        try { raw = localStorage.getItem(COURSE_START_KEY); } catch (_) {}
-        if (!raw) {
-            // Demo default: 1 Jan 2025 so timeline windows have already opened.
-            raw = DEFAULT_DEMO_START;
-            try { localStorage.setItem(COURSE_START_KEY, raw); } catch (_) {}
-        }
-        return new Date(raw);
+        if (_courseStart) return new Date(_courseStart);
+        // Fallback when called before profile loads — gives demo dates.
+        return new Date(DEFAULT_DEMO_START);
     }
 
     function setCourseStartDate(date) {
-        try { localStorage.setItem(COURSE_START_KEY, new Date(date).toISOString()); } catch (_) {}
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return;
+        _courseStart = d.toISOString();
+        // Cache for offline reads only (not used as source of truth).
+        try { localStorage.setItem('sundayCourseStartDate', _courseStart); } catch (_) {}
     }
 
     /** Add `months` calendar months to a Date (preserves day-of-month when possible). */
