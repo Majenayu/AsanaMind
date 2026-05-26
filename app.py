@@ -406,23 +406,52 @@ def home():
     with open('main.html', 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Inject API Key and Source URL for production compatibility
+    # Inject API Key, Source URL, and the AUTHENTICATED user's identity so
+    # the page boots with truth from the server session — not from a cached
+    # localStorage left behind by a previous user on this device.
     api_key = os.environ.get('GEMINI_API_KEY', '')
     site_url = request.url_root.rstrip('/')
-    
+    user_email = (session.get('user_email') or '').replace('"', '\\"')
+    user_name = (session.get('user_name') or '').replace('"', '\\"')
+    user_picture = (session.get('picture') or '').replace('"', '\\"')
+
     injection = f"""
     <script>
         window.__gemini_api_key = "{api_key}";
         window.__asana_mind_url = "{site_url}";
+        window.__user_email = "{user_email}";
+        window.__user_name = "{user_name}";
+        window.__user_picture = "{user_picture}";
+        // CRITICAL — wipe stale local state if it belongs to a different user.
+        // Runs BEFORE any application script reads localStorage. This is the
+        // only way to guarantee no cross-account state bleed on the same
+        // browser, regardless of cache state.
+        (function() {{
+            try {{
+                const me = (window.__user_email || '').toLowerCase();
+                const owner = (localStorage.getItem('sunday_user_email') || '').toLowerCase();
+                if (me && owner && me !== owner) {{
+                    console.log('[boot] account switch:', owner, '→', me, '— clearing per-user cache');
+                    ['courseProgress','sundayCourseStartDate','sunday_voice_history','sunday_pose_difficulty','sunday_onboarding_done'].forEach(k => {{
+                        try {{ localStorage.removeItem(k); }} catch(_){{}}
+                    }});
+                }}
+                if (me) localStorage.setItem('sunday_user_email', me);
+            }} catch(_) {{}}
+        }})();
     </script>
     """
-    # Insert before the closing head tag or at the beginning of body
     if '</head>' in content:
         content = content.replace('</head>', f'{injection}</head>')
     else:
         content = injection + content
-        
-    return render_template_string(content)
+
+    response = app.make_response(render_template_string(content))
+    # Never let any proxy / browser keep this page — it's user-specific HTML.
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/profile')
 def profile_page():
@@ -433,8 +462,12 @@ def profile_page():
         
     with open('profile.html', 'r', encoding='utf-8') as f:
         content = f.read()
-        
-    return render_template_string(content)
+
+    response = app.make_response(render_template_string(content))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route('/register', methods=['POST'])
@@ -639,30 +672,39 @@ def complete_pose():
 @app.route('/logout')
 def logout():
     session.clear()
-    # Browser-side cleanup happens via the /logout HTML below — wipes the
-    # user-scoped localStorage caches so the next account on this browser
-    # doesn't inherit the previous user's course progress, history, or quiz
-    # attempts.
-    return """<!DOCTYPE html>
+    # Hard browser-side cleanup. The Clear-Site-Data header is supported by
+    # Chrome / Edge / Firefox and instructs the browser to drop ALL site data
+    # (cookies, localStorage, sessionStorage, indexedDB, cache storage, and
+    # service-worker registrations). This is the only deterministic way to
+    # prevent stale per-user state from leaking into the next account on the
+    # same device.
+    html = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Signing out…</title></head>
 <body style="background:#F5F2EB;font-family:Inter,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#4A453B">
 <div style="text-align:center">
   <p style="font-family:Fraunces,serif;font-size:24px;font-weight:300;color:#14120E;margin:0">Signing you out…</p>
+  <p style="margin:10px 0 0;color:#7A7364;font-size:13px">Cleaning up your device…</p>
 </div>
 <script>
 (function(){
     try {
+        // Belt-and-braces: client-side wipe in case the browser ignores the header.
         const keys = ['courseProgress','sundayCourseStartDate','sunday_voice_history','sunday_pose_difficulty','sunday_onboarding_done','sunday_user_email','sunday_font_size'];
         for (const k of keys) localStorage.removeItem(k);
+        try { sessionStorage.clear(); } catch(_){}
         if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
         }
     } catch(_){}
-    setTimeout(() => window.location.href = '/', 200);
+    setTimeout(() => window.location.replace('/'), 400);
 })();
 </script>
 </body></html>"""
+    response = app.make_response(html)
+    response.headers['Clear-Site-Data'] = '"cache", "cookies", "storage", "executionContexts"'
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 # Serve PWA Static Assets (Manifest & Service Worker)
 @app.route('/manifest.json')
