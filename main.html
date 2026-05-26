@@ -4827,6 +4827,30 @@
                         // Update avatar initial
                         const av = document.getElementById('avatar-btn');
                         if (av && this.userData.name) av.textContent = (this.userData.name || 'A').trim().charAt(0).toUpperCase();
+
+                        // ── Account-switch protection ──
+                        // localStorage is browser-wide, not per-account. If the
+                        // signed-in email differs from the email that owned the
+                        // local cache, wipe the user-scoped keys so we don't
+                        // inherit course progress, quiz attempts, or session
+                        // history from the previous user on this device.
+                        try {
+                            const myEmail = (this.userData.email || '').toLowerCase();
+                            const owner = (localStorage.getItem('sunday_user_email') || '').toLowerCase();
+                            if (myEmail && owner && myEmail !== owner) {
+                                console.log('account switch detected (' + owner + ' → ' + myEmail + '); clearing local cache');
+                                ['courseProgress', 'sundayCourseStartDate', 'sunday_voice_history', 'sunday_pose_difficulty', 'sunday_onboarding_done'].forEach(k => {
+                                    try { localStorage.removeItem(k); } catch (_) {}
+                                });
+                                // Rebuild a fresh progress shell — the next
+                                // /api/course-progress fetch will overwrite if
+                                // the new user has server-side state.
+                                if (typeof CourseUtils !== 'undefined' && CourseUtils.freshProgress) {
+                                    this.courseProgress = CourseUtils.freshProgress();
+                                }
+                            }
+                            if (myEmail) localStorage.setItem('sunday_user_email', myEmail);
+                        } catch (_) {}
                     }
                 } catch (e) {
                     console.warn('profile fetch failed', e);

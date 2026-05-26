@@ -629,7 +629,30 @@ def complete_pose():
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('index'))
+    # Browser-side cleanup happens via the /logout HTML below — wipes the
+    # user-scoped localStorage caches so the next account on this browser
+    # doesn't inherit the previous user's course progress, history, or quiz
+    # attempts.
+    return """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Signing out…</title></head>
+<body style="background:#F5F2EB;font-family:Inter,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#4A453B">
+<div style="text-align:center">
+  <p style="font-family:Fraunces,serif;font-size:24px;font-weight:300;color:#14120E;margin:0">Signing you out…</p>
+</div>
+<script>
+(function(){
+    try {
+        const keys = ['courseProgress','sundayCourseStartDate','sunday_voice_history','sunday_pose_difficulty','sunday_onboarding_done','sunday_user_email','sunday_font_size'];
+        for (const k of keys) localStorage.removeItem(k);
+        if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+        }
+    } catch(_){}
+    setTimeout(() => window.location.href = '/', 200);
+})();
+</script>
+</body></html>"""
 
 # Serve PWA Static Assets (Manifest & Service Worker)
 @app.route('/manifest.json')
