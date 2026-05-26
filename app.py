@@ -538,15 +538,23 @@ def google_auth():
     today = datetime.now().strftime('%Y-%m-%d')
     existing = users.find_one({'email': email})
     if existing:
-        # Backfill google linkage and update activity log.
+        # Backfill Google linkage and update profile fields from Google's
+        # verified data — Google's name and picture always win because they
+        # are user-controlled identity (vs whatever was typed in the old
+        # name+email flow). Activity log is still appended.
         users.update_one(
             {'email': email},
             {
-                '$set': {'name': existing.get('name') or name, 'picture': picture, 'google_sub': google_sub},
+                '$set': {
+                    'name': name,
+                    'picture': picture,
+                    'google_sub': google_sub,
+                    'auth_provider': 'google',
+                },
                 '$addToSet': {'activity_log': today},
             },
         )
-        session_name = existing.get('name') or name
+        session_name = name
     else:
         users.insert_one({
             'name': name,
@@ -565,7 +573,7 @@ def google_auth():
     session['user_email'] = email
     session['user_name'] = session_name
     session['picture'] = picture
-    return jsonify({'success': True, 'name': session_name, 'email': email})
+    return jsonify({'success': True, 'name': session_name, 'email': email, 'picture': picture})
 
 
 @app.route('/auth/google/config', methods=['GET'])

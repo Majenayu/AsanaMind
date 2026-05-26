@@ -4,9 +4,8 @@
  * Caches all static assets so the app works fully offline after first load.
  * Strategy: cache-first for static assets, network-first for API calls.
  */
-// Bumped to v6 — added Web Push notification handler (item 11) and the
-// privacy + verify routes need to bypass the offline cache (always live).
-const CACHE_NAME = 'sunday-v6';
+// Bumped to v7 — server-of-truth course progress + Google profile flow.
+const CACHE_NAME = 'sunday-v7';
 const STATIC_ASSETS = [
     '/',
     '/home',

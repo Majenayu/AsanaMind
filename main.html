@@ -4856,14 +4856,21 @@
                             try { localStorage.setItem('courseProgress', JSON.stringify(j.progress)); } catch (_) {}
                             console.log('course progress hydrated from server, last updated', j.updatedAt);
                         } else {
-                            // Server has no progress for this user — keep
-                            // the fresh shell and write it to cache so the
-                            // dashboard renders immediately.
+                            // Server has no progress for this user — this is
+                            // a brand new account. Force-overwrite any stale
+                            // localStorage that might be lingering from a
+                            // previous user on this browser.
                             try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
-                            console.log('course progress: server has no record, using fresh shell');
+                            console.log('course progress: new account / server has no record, fresh shell installed');
                         }
+                    } else {
+                        // 401 / 5xx — also force-overwrite cache so we don't
+                        // render stale data.
+                        try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
                     }
-                } catch (_) {}
+                } catch (_) {
+                    try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
+                }
 
                 // ── Hydrate user preferences (theme, remember-me, reminder time) ──
                 try {
