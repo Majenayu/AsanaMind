@@ -144,6 +144,26 @@ a{color:var(--primary);text-decoration:none}
 .tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:9999px;padding:4px;margin-bottom:18px;overflow-x:auto}
 .tabs span{padding:8px 16px;border-radius:9999px;font-size:12px;font-weight:500;color:var(--text-3);cursor:pointer;white-space:nowrap}
 .tabs span.active{background:var(--primary);color:var(--bg)}
+
+/* Live indicator dot — shows beside each student. Off = grey, on = green pulse. */
+.live-dot{display:inline-block;width:12px;height:12px;border-radius:9999px;background:#A8A294;cursor:default}
+.live-cell{cursor:default}
+.live-cell.on{cursor:pointer}
+.live-cell.on .live-dot{background:#3E8A52;animation:livePulse 1.6s ease-in-out infinite}
+@keyframes livePulse{
+  0%{box-shadow:0 0 0 0 rgba(62,138,82,0.55)}
+  70%{box-shadow:0 0 0 8px rgba(62,138,82,0)}
+  100%{box-shadow:0 0 0 0 rgba(62,138,82,0)}
+}
+
+/* Live viewer modal */
+.live-viewer-shell{background:#0a100b;border-radius:22px;width:100%;max-width:720px;border:1px solid #1F5A44;color:#F5F2EB;overflow:hidden}
+.live-viewer-shell .head{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;background:#15201A;border-bottom:1px solid #1F5A44}
+.live-viewer-shell .head h3{font-family:Fraunces,serif;font-weight:400;font-size:18px;margin:0;color:#F5F2EB}
+.live-viewer-shell .meta{font-size:11px;color:#6FA089;letter-spacing:0.18em;text-transform:uppercase}
+.live-viewer-shell img{display:block;width:100%;background:#000}
+.live-viewer-shell .stats{padding:14px 18px;display:flex;gap:14px;font-size:12px;color:#C7DBCE;flex-wrap:wrap}
+.live-viewer-shell .pill{background:#1F5A44;padding:4px 10px;border-radius:9999px;font-weight:500;color:#F5F2EB}
 </style>
 </head>
 <body>
@@ -394,13 +414,15 @@ function renderStudentsTable(rows) {
                 <th>Sems</th>
                 <th>Progress</th>
                 <th>Master</th>
+                <th title="Double-click to view">Live</th>
                 <th></th>
             </tr></thead>
             <tbody>
             ${rows.map(s => {
                 const pct = Math.round(((s.sems_completed || 0) / 6) * 100);
+                const safeEm = s.email.replace(/'/g,"\\'");
                 return `
-                <tr class="row" onclick="if(!event.target.closest('.row-act'))location.hash='#students/${encodeURIComponent(s.email)}'">
+                <tr class="row" onclick="if(!event.target.closest('.row-act') && !event.target.closest('.live-cell'))location.hash='#students/${encodeURIComponent(s.email)}'">
                     <td>
                         <div class="cell-name">
                             <div class="av" ${s.picture ? `style="background-image:url(${s.picture})"` : ''}>${s.picture ? '' : initials(s.name)}</div>
@@ -422,9 +444,12 @@ function renderStudentsTable(rows) {
                         </div>
                     </td>
                     <td>${s.has_master ? '<span class="badge badge-master">★</span>' : '—'}</td>
+                    <td class="live-cell" data-email="${s.email}" ondblclick="openLiveViewer('${safeEm}')" title="Double-click to watch when active">
+                        <span class="live-dot live-off"></span>
+                    </td>
                     <td class="row-act" style="white-space:nowrap">
-                        <button class="btn btn-sm" onclick="openEditModal('${s.email.replace(/'/g,"\\'")}', '${(s.name || '').replace(/'/g,"\\'")}', '${(s.picture || '').replace(/'/g,"\\'")}', '${s.auth_provider || 'email'}')" title="Edit">✎</button>
-                        <button class="btn btn-sm btn-danger" onclick="confirmDelete('${s.email.replace(/'/g,"\\'")}')" title="Delete permanently">🗑</button>
+                        <button class="btn btn-sm" onclick="openEditModal('${safeEm}', '${(s.name || '').replace(/'/g,"\\'")}', '${(s.picture || '').replace(/'/g,"\\'")}', '${s.auth_provider || 'email'}')" title="Edit">✎</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDelete('${safeEm}')" title="Delete permanently">🗑</button>
                     </td>
                 </tr>`;
             }).join('')}
@@ -856,10 +881,168 @@ async function confirmDelete(email) {
     } catch (e) { alert('Network error.'); }
 }
 
+// ─────────────────────────────────────────────────
+// LIVE STUDENT FEED — hidden coach view
+// ─────────────────────────────────────────────────
+let _livePollTimer = null;
+let _liveStatusCache = {};
+
+async function refreshLiveStatus() {
+    try {
+        const r = await fetchJSON('/api/admin/live/status');
+        _liveStatusCache = r.live || {};
+        // Update every visible live-cell.
+        $$('.live-cell').forEach(td => {
+            const em = (td.dataset.email || '').toLowerCase();
+            const live = _liveStatusCache[em];
+            if (live) {
+                td.classList.add('on');
+                td.title = `LIVE · ${live.pose || 'no pose'} · ${live.score}% · double-click to view`;
+            } else {
+                td.classList.remove('on');
+                td.title = 'Not in a live session';
+            }
+        });
+    } catch (_) {}
+}
+
+function startLivePolling() {
+    if (_livePollTimer) return;
+    refreshLiveStatus();
+    _livePollTimer = setInterval(refreshLiveStatus, 3000);
+}
+
+function stopLivePolling() {
+    if (_livePollTimer) { clearInterval(_livePollTimer); _livePollTimer = null; }
+}
+
+let _liveViewerTimer = null;
+let _liveViewerEmail = null;
+
+function openLiveViewer(email) {
+    // First check if the student is actually live — no point asking for the
+    // password otherwise.
+    const status = _liveStatusCache[email.toLowerCase()];
+    if (!status) {
+        alert('That student is not in a live session right now.');
+        return;
+    }
+    // Password modal — password is verified server-side and stored only
+    // in an httpOnly cookie scoped to /api/admin/live/. Never exposed to
+    // any other JS or stored in localStorage.
+    showModal(`
+        <div class="modal-h"><h3>Restricted view</h3></div>
+        <div class="modal-b">
+            <p style="color:#7A7364;font-size:13px;margin:0 0 14px">Enter the live-view password to watch this student's session.</p>
+            <input class="input" id="live-pw" type="password" style="width:100%" placeholder="••••••" autofocus>
+            <p id="live-err" style="color:#C2552F;font-size:12px;margin:10px 0 0;display:none"></p>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-accent" onclick="submitLivePass('${email.replace(/'/g,"\\'")}')">Watch</button>
+            </div>
+        </div>
+    `);
+    setTimeout(() => $('#live-pw')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitLivePass(email);
+    }), 50);
+}
+
+async function submitLivePass(email) {
+    const pw = $('#live-pw').value;
+    if (!pw) return;
+    try {
+        const r = await fetch('/api/admin/live/check', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pw }),
+        });
+        if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            $('#live-err').style.display = 'block';
+            $('#live-err').textContent = j.error || 'Wrong password.';
+            return;
+        }
+        startLiveViewer(email);
+    } catch (e) {
+        $('#live-err').style.display = 'block';
+        $('#live-err').textContent = 'Network error.';
+    }
+}
+
+function startLiveViewer(email) {
+    _liveViewerEmail = email;
+    showModal(`
+        <div class="live-viewer-shell">
+            <div class="head">
+                <div>
+                    <span class="meta">Live coach view</span>
+                    <h3 id="lv-name">${email}</h3>
+                </div>
+                <button class="btn btn-sm" style="background:#1F5A44;color:#F5F2EB;border-color:#1F5A44" onclick="stopLiveViewer()">Close</button>
+            </div>
+            <div style="position:relative">
+                <img id="lv-img" alt="Live frame" style="min-height:240px;background:#000">
+                <div id="lv-overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#6FA089;font-size:13px">Connecting…</div>
+            </div>
+            <div class="stats">
+                <span class="pill"><span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#3E8A52;margin-right:6px;animation:livePulse 1.6s ease-in-out infinite"></span><span id="lv-pose">—</span></span>
+                <span class="pill" id="lv-score">—%</span>
+                <span class="pill" id="lv-age">just now</span>
+            </div>
+        </div>
+    `);
+    // Override modal default styles so the dark viewer fits.
+    const modalEl = $('#modal');
+    if (modalEl) { modalEl.style.maxWidth = '760px'; modalEl.style.background = 'transparent'; modalEl.style.border = 'none'; }
+
+    if (_liveViewerTimer) clearInterval(_liveViewerTimer);
+    const tick = async () => {
+        if (!_liveViewerEmail) return;
+        const cacheBuster = Date.now();
+        const url = `/api/admin/live/frame/${encodeURIComponent(_liveViewerEmail)}?t=${cacheBuster}`;
+        try {
+            const r = await fetch(url, { credentials: 'same-origin' });
+            if (!r.ok) {
+                $('#lv-overlay') && ($('#lv-overlay').textContent = 'Student is not active right now.');
+                return;
+            }
+            const blob = await r.blob();
+            const objUrl = URL.createObjectURL(blob);
+            const img = $('#lv-img');
+            if (img) {
+                img.src = objUrl;
+                if ($('#lv-overlay')) $('#lv-overlay').style.display = 'none';
+            }
+            // Update meta from cached status (refreshed by main poll).
+            const st = _liveStatusCache[_liveViewerEmail.toLowerCase()];
+            if (st) {
+                $('#lv-pose') && ($('#lv-pose').textContent = st.pose || '—');
+                $('#lv-score') && ($('#lv-score').textContent = (st.score || 0) + '%');
+                $('#lv-age') && ($('#lv-age').textContent = `${st.age}s ago`);
+            }
+        } catch (e) {
+            $('#lv-overlay') && ($('#lv-overlay').textContent = 'Connection lost.');
+        }
+    };
+    tick();
+    _liveViewerTimer = setInterval(tick, 1500);
+}
+
+function stopLiveViewer() {
+    if (_liveViewerTimer) { clearInterval(_liveViewerTimer); _liveViewerTimer = null; }
+    _liveViewerEmail = null;
+    closeModal();
+    // Restore default modal styles for next opener.
+    const modalEl = $('#modal');
+    if (modalEl) { modalEl.style.maxWidth = ''; modalEl.style.background = ''; modalEl.style.border = ''; }
+}
+
 // Boot
 (async function() {
     await bootProfile();
     renderRoute();
+    startLivePolling();
 })();
 </script>
 </body>

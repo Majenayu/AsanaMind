@@ -46,6 +46,20 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get('ADMIN_EMAILS', 'pgayushrai@gmail.com').split(',') if e.strip()}
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'majen')
 
+# Live-view password — protects the camera-snapshot stream from the
+# student's AR session. Stored ONLY on the server (env var), never sent to
+# the browser. Validated with constant-time comparison.
+LIVE_VIEW_PASSWORD = os.environ.get('LIVE_VIEW_PASSWORD', 'm@1')
+
+# In-memory store for the latest live snapshot per student. Each entry is
+# {'frame': bytes (JPEG), 'ts': float, 'pose': str, 'score': int}. Entries
+# older than LIVE_FRAME_TTL seconds are considered dead. Size is bounded by
+# the number of currently-practising students × 1 frame each.
+import threading
+LIVE_FRAMES = {}
+LIVE_FRAMES_LOCK = threading.Lock()
+LIVE_FRAME_TTL = 8.0  # seconds — if no fresh frame, the student is "offline"
+
 app = Flask(__name__)
 # Use environment variable for secret key, fallback ONLY for local dev
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-this-in-render')
@@ -2654,6 +2668,152 @@ def admin_delete_user(email):
             counts[label] = res.deleted_count
     _audit('delete_user_hard', email, counts)
     return jsonify({'success': True, 'deleted': counts, 'note': 'User permanently removed from all collections.'})
+
+
+# ─────────────────────────────────────────────────
+# LIVE STUDENT CAMERA — snapshot relay
+# ─────────────────────────────────────────────────
+# A student in an active AR session POSTs a JPEG frame every ~1.5s to
+# /api/live/upload. The latest frame per student lives in memory only and
+# expires after 8s of inactivity (so the moment the student stops, they're
+# instantly offline from the admin's POV).
+#
+# Reading the frames requires both the admin session AND a separate live-view
+# password sent in the X-Live-Pass header. The password is checked with
+# constant-time comparison and is never sent to any client.
+
+import hmac as _hmac
+import time as _time
+import base64 as _b64stream
+
+
+def _live_pass_ok():
+    """Constant-time compare of the live-view password from request header."""
+    if not LIVE_VIEW_PASSWORD:
+        return False
+    supplied = request.headers.get('X-Live-Pass') or request.cookies.get('live_pass') or ''
+    return _hmac.compare_digest(supplied, LIVE_VIEW_PASSWORD)
+
+
+@app.route('/api/live/upload', methods=['POST'])
+def live_upload_frame():
+    """Student-side: pushes the latest camera frame.
+
+    Body: { email, frame: 'data:image/jpeg;base64,...', pose, score }.
+    No admin auth required — the student is uploading their own frame.
+    Email is taken from the session, not the body, to prevent spoofing.
+    """
+    if not session.get('logged_in'):
+        return jsonify({'success': False}), 401
+    email = (session.get('user_email') or '').lower()
+    if not email:
+        return jsonify({'success': False}), 401
+    data = request.get_json(silent=True) or {}
+    frame_str = data.get('frame') or ''
+    pose = (data.get('pose') or '')[:60]
+    try:
+        score = int(data.get('score') or 0)
+    except Exception:
+        score = 0
+    if not frame_str.startswith('data:image/jpeg;base64,'):
+        return jsonify({'success': False, 'error': 'invalid frame'}), 400
+    try:
+        raw = _b64stream.b64decode(frame_str.split(',', 1)[1])
+    except Exception:
+        return jsonify({'success': False, 'error': 'bad base64'}), 400
+    # Reject frames over 200 KB to bound memory.
+    if len(raw) > 200 * 1024:
+        return jsonify({'success': False, 'error': 'frame too large'}), 413
+    with LIVE_FRAMES_LOCK:
+        LIVE_FRAMES[email] = {'frame': raw, 'ts': _time.time(), 'pose': pose, 'score': score}
+        # Opportunistically prune dead entries.
+        cutoff = _time.time() - LIVE_FRAME_TTL
+        for k in list(LIVE_FRAMES.keys()):
+            if LIVE_FRAMES[k]['ts'] < cutoff:
+                LIVE_FRAMES.pop(k, None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/live/stop', methods=['POST'])
+def live_stop():
+    """Student-side: explicit signal that the AR session has ended."""
+    if not session.get('logged_in'):
+        return jsonify({'success': False}), 401
+    email = (session.get('user_email') or '').lower()
+    with LIVE_FRAMES_LOCK:
+        LIVE_FRAMES.pop(email, None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/live/status')
+@admin_api_required
+def admin_live_status():
+    """Returns which students currently have a live frame available."""
+    cutoff = _time.time() - LIVE_FRAME_TTL
+    out = {}
+    with LIVE_FRAMES_LOCK:
+        for em, entry in LIVE_FRAMES.items():
+            if entry['ts'] >= cutoff:
+                out[em] = {
+                    'pose': entry.get('pose', ''),
+                    'score': entry.get('score', 0),
+                    'age': round(_time.time() - entry['ts'], 1),
+                }
+    return jsonify({'live': out})
+
+
+@app.route('/api/admin/live/check', methods=['POST'])
+@admin_api_required
+def admin_live_check():
+    """Validates the live-view password. Sets a short-lived cookie on success
+    so the admin's browser can fetch frames without re-typing the password.
+    The password itself is never returned to the client.
+    """
+    data = request.get_json(silent=True) or {}
+    pw = (data.get('password') or '').strip()
+    if not LIVE_VIEW_PASSWORD or not _hmac.compare_digest(pw, LIVE_VIEW_PASSWORD):
+        _audit('live_password_fail', '', {'len': len(pw)})
+        return jsonify({'success': False, 'error': 'Wrong password'}), 401
+    response = jsonify({'success': True})
+    # Cookie scoped to /api/admin/live/ paths, expires in 30 min, http-only
+    # so JS can't read it back, secure in production.
+    response.set_cookie(
+        'live_pass',
+        pw,
+        max_age=30 * 60,
+        path='/api/admin/live/',
+        httponly=True,
+        secure=bool(os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production'),
+        samesite='Lax',
+    )
+    return response
+
+
+@app.route('/api/admin/live/frame/<path:email>')
+@admin_api_required
+def admin_live_frame(email):
+    """Returns the latest JPEG for a given student.
+
+    Requires admin session + live-view password (header or cookie).
+    Audited on first fetch per session.
+    """
+    if not _live_pass_ok():
+        return jsonify({'error': 'Live-view password required'}), 401
+    email = (email or '').lower().strip()
+    cutoff = _time.time() - LIVE_FRAME_TTL
+    with LIVE_FRAMES_LOCK:
+        entry = LIVE_FRAMES.get(email)
+        fresh = entry and entry['ts'] >= cutoff
+    if not fresh:
+        return jsonify({'error': 'No active session'}), 404
+    # Audit only the first frame of a viewing session (avoid spam).
+    if not session.get('live_audit_for_' + email):
+        session['live_audit_for_' + email] = _time.time()
+        _audit('live_view_start', email, {'pose': entry.get('pose', '')})
+    response = app.make_response(entry['frame'])
+    response.headers['Content-Type'] = 'image/jpeg'
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @app.route('/admin/export/<kind>.csv')

