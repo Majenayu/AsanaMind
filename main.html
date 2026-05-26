@@ -18,6 +18,7 @@
     <script src="/static/pose-cues.js"></script>
     <script src="/static/practice-flow.js"></script>
     <script src="/static/pose-notes.js"></script>
+    <script src="/static/courses.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -494,6 +495,27 @@
         </div>
     </div>
 
+    <!-- Course Quiz Modal -->
+    <style>
+        #quiz-modal-backdrop {
+            position: fixed; inset: 0; background: rgba(20,18,14,0.72); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            z-index: 65; padding: 16px;
+        }
+        #quiz-modal-backdrop.active { opacity: 1; pointer-events: auto; }
+        #quiz-modal-content {
+            transform: scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        #quiz-modal-backdrop.active #quiz-modal-content { transform: scale(1); }
+    </style>
+    <div id="quiz-modal-backdrop" onclick="if(event.target === this) app.closeQuiz()">
+        <div id="quiz-modal-content" class="relative overflow-hidden" style="background:#F5F2EB; width:100%; max-width:720px; max-height:92vh; border-radius:28px; border:1px solid #D4CCB8; box-shadow:0 16px 40px 0 rgba(20,18,14,0.24); overflow-y:auto">
+            <button onclick="app.closeQuiz()" aria-label="Close" class="absolute pressable flex items-center justify-center" style="top:14px; right:14px; width:36px; height:36px; border-radius:9999px; background:#EEE9DE; color:#4A453B; border:0; cursor:pointer; z-index:10; font-size:18px">×</button>
+            <div id="quiz-modal-body"></div>
+        </div>
+    </div>
+
 
 
     <script>
@@ -594,20 +616,59 @@
             ttsEnabled: false,
             isSpeaking: false,
 
-            // Course State — generated from the full 20-pose ASANA_LIBRARY
-            courseProgress: (function(){
-                const saved = localStorage.getItem('courseProgress');
-                if (saved) { try { return JSON.parse(saved); } catch(e){} }
-                const lib = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY : [];
-                const poses = lib.map((a, i) => ({
-                    name: a.name,
-                    completed: false,
-                    locked: i !== 0,
-                    timeHeld: 0,
-                    bestAccuracy: 0,
-                    attemptsRemaining: 3,
-                }));
-                return { poses, certificateEarned: false };
+            // Multi-semester course state.
+            // Schema v2: { schemaVersion:2, courses:{ sem3:{poses:[...], ...}, sem4:..., ... } }
+            // Built from static/courses.js (window.CourseUtils + window.SUNDAY_COURSES).
+            // Migration: any legacy schema-v1 single-course progress (the old
+            // 20-pose flat list) is mapped into the new schema by pose name,
+            // so users keep prior completions.
+            courseProgress: (function () {
+                const fresh = (typeof CourseUtils !== 'undefined') ? CourseUtils.freshProgress() : null;
+                let saved = null;
+                try { saved = JSON.parse(localStorage.getItem('courseProgress') || 'null'); } catch (_) {}
+                if (!saved) return fresh;
+
+                // New schema — pass through (and fill any newly added courses).
+                if (saved.schemaVersion === 2 && fresh) {
+                    for (const id of Object.keys(fresh.courses)) {
+                        if (!saved.courses[id]) saved.courses[id] = fresh.courses[id];
+                    }
+                    return saved;
+                }
+
+                // Legacy schema — migrate by pose-name match.
+                if (saved.poses && Array.isArray(saved.poses) && fresh) {
+                    const oldByName = {};
+                    for (const p of saved.poses) oldByName[p.name] = p;
+                    for (const courseId of Object.keys(fresh.courses)) {
+                        const course = fresh.courses[courseId];
+                        for (const newPose of course.poses) {
+                            const old = oldByName[newPose.name];
+                            if (old && old.completed) {
+                                newPose.completed = true;
+                                newPose.arPassed = true;
+                                newPose.quizPassed = true;
+                                newPose.arBest = Math.round(old.bestAccuracy || 90);
+                                newPose.quizBest = 100;
+                                newPose.finalScore = Math.round(((old.bestAccuracy || 90) + 100) / 2);
+                                newPose.completedAt = Date.now();
+                                newPose.locked = false;
+                            }
+                        }
+                        // Unlock the next pending pose in the course
+                        const idx = course.poses.findIndex(p => !p.completed);
+                        if (idx >= 0) course.poses[idx].locked = false;
+                        if (course.poses.every(p => p.completed)) {
+                            course.completed = true;
+                            course.completedAt = Date.now();
+                            course.certificateEarned = true;
+                            course.finalScore = Math.round(course.poses.reduce((s, p) => s + (p.finalScore || 0), 0) / course.poses.length);
+                        }
+                    }
+                    return fresh;
+                }
+
+                return fresh;
             })(),
             courseMode: false,
             testActive: false,
@@ -616,6 +677,13 @@
             courseStartTime: null,
             courseHoldTime: 0,
             courseHoldTimer: null,
+            // Track which course detail page is open (null = course dashboard).
+            activeCourseId: null,
+            activeCourseDetail: null,
+            // Quiz modal state.
+            activeQuiz: null,
+            activeQuizPose: null,
+            activeQuizCourseId: null,
 
             /**
              * Calls the OpenRouter API for the Virtual Assistant feature.
@@ -726,9 +794,11 @@
                     }
                 }
                 if (this.currentView === 'course' && this.courseProgress) {
-                    const done = (this.courseProgress.poses || []).filter(p => p.completed).length;
+                    // New schema: flatten all course poses for the AI snapshot.
+                    const allPoses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES.flatMap(c => this.courseProgress.courses[c.id]?.poses || []) : [];
+                    const done = allPoses.filter(p => p.completed).length;
                     ctx.courseCompleted = done;
-                    ctx.courseTotal = (this.courseProgress.poses || []).length;
+                    ctx.courseTotal = allPoses.length;
                 }
                 return ctx;
             },
@@ -1219,6 +1289,15 @@
 
                 // Mic persistence: DO NOT stop recognition here. 
                 // Let it continue across views unless manually toggled.
+
+                // When navigating to the course tab from the side nav, drop any
+                // open detail page so the user always sees the dashboard first.
+                // Internal calls (after a test completes) set activeCourseDetail
+                // first, which we preserve.
+                if (viewKey === 'course' && this.currentView !== 'course') {
+                    if (!this._preserveCourseDetail) this.activeCourseDetail = null;
+                }
+                this._preserveCourseDetail = false;
 
                 this.currentView = viewKey;
                 this.renderNav();
@@ -1714,9 +1793,11 @@
                         }
                         break;
                     case 'course':
-                        const done = this.courseProgress ? this.courseProgress.poses.filter(p => p.completed).length : 0;
-                        const total = this.courseProgress ? this.courseProgress.poses.length : 0;
-                        msg = 'You are in the course. ' + done + ' of ' + total + ' poses complete. Hold each pose at ninety percent for ten seconds to pass.';
+                        const ccp = this.courseProgress?.courses || {};
+                        const allCourses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                        const doneSems = allCourses.filter(c => ccp[c.id]?.completed).length;
+                        const totalSems = allCourses.length;
+                        msg = 'You are in the course view. ' + doneSems + ' of ' + totalSems + ' semesters complete. Each pose needs an AR test and a quiz to pass.';
                         break;
                     default:
                         msg = 'You are in Sunday. Ask me to open home, library, practice, course, or profile.';
@@ -2897,7 +2978,8 @@
                 const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
                 const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-                const todaysPose = (this.courseProgress?.poses || []).find(p => !p.completed && !p.locked);
+                const allCoursesPoses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES.flatMap(c => this.courseProgress?.courses?.[c.id]?.poses || []) : [];
+                const todaysPose = allCoursesPoses.find(p => !p.completed && !p.locked);
                 const todayName = todaysPose?.name || 'Tadasana';
                 const todayAsana = asanaData.find(a => a.name === todayName) || asanaData[0];
 
@@ -2905,14 +2987,14 @@
                 const totalSessions = Object.values(completedAsanas).reduce((a,b)=>a+(Number(b)||0),0);
                 const activeDays = this.userData?.total_active_days || 0;
                 const meanAccuracy = (function(){
-                    const poses = (this.courseProgress?.poses || []);
-                    const withAcc = poses.filter(p => p.bestAccuracy > 0);
+                    const poses = allCoursesPoses;
+                    const withAcc = poses.filter(p => (p.arBest || 0) > 0);
                     if (!withAcc.length) return '—';
-                    return Math.round(withAcc.reduce((a,p)=>a+p.bestAccuracy,0) / withAcc.length) + '%';
+                    return Math.round(withAcc.reduce((a,p)=>a+(p.arBest||0),0) / withAcc.length) + '%';
                 }).call(this);
                 const level = activeDays >= 60 ? 'III' : activeDays >= 14 ? 'II' : 'I';
 
-                const continueList = (this.courseProgress?.poses || []).slice(0, 3);
+                const continueList = allCoursesPoses.filter(p => !p.locked).slice(0, 3);
 
                 return `
                 <div class="view-fade-in">
@@ -2979,7 +3061,7 @@
                             <div class="flex flex-col" style="gap:10px">
                                 ${continueList.map(p => {
                                     const a = asanaData.find(x => x.name === p.name);
-                                    const pct = Math.round(p.bestAccuracy || 0);
+                                    const pct = Math.round(p.arBest || p.bestAccuracy || 0);
                                     return `
                                     <button onclick="app.showAsanaDetails('${p.name}')" class="pressable flex items-center" style="width:100%; background:#F5F2EB; border:0; border-radius:18px; padding:12px 16px; gap:14px; text-align:left; cursor:pointer">
                                         <div style="width:52px; height:52px; border-radius:12px; background:#E0D9C8; overflow:hidden; flex-shrink:0">
@@ -3257,7 +3339,15 @@
             renderARCorrection() {
                 const isCourseMode = this.courseMode;
                 const shortLevel = (l) => l === 'Beginner' ? 'BEGIN' : l === 'Intermediate' ? 'INTER' : 'ADV';
-                const poseProgress = this.currentPose ? this.courseProgress.poses.find(p => p.name === this.currentPose) : null;
+                const poseProgress = this.currentPose ? (function(self){
+                    const cs = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                    for (const c of cs) {
+                        const cp = self.courseProgress?.courses?.[c.id];
+                        const p = cp?.poses?.find(x => x.name === self.currentPose);
+                        if (p) return { name: p.name, attemptsRemaining: Math.max(0, 3 - (p.arAttempts || 0)) };
+                    }
+                    return null;
+                })(this) : null;
 
                 return `
                 <div class="view-fade-in">
@@ -3403,93 +3493,150 @@
 
 
             renderCourse() {
-                const completedCount = this.courseProgress.poses.filter(p => p.completed).length;
-                const totalPoses = this.courseProgress.poses.length;
-                const pct = totalPoses ? Math.round((completedCount / totalPoses) * 100) : 0;
+                // Course view router — dashboard (all 6) or detail (one course).
+                if (this.activeCourseDetail) {
+                    return this.renderCourseDetail(this.activeCourseDetail);
+                }
+                return this.renderCourseDashboard();
+            },
+
+            renderCourseDashboard() {
+                const courses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                const progress = this.courseProgress;
+                if (!progress || !progress.courses) return '<p>Course system loading…</p>';
+
+                const totalPoses = courses.reduce((s, c) => s + c.poses.length, 0);
+                const donePoses = courses.reduce((s, c) => {
+                    const cp = progress.courses[c.id];
+                    return s + (cp ? cp.poses.filter(p => p.completed).length : 0);
+                }, 0);
+                const masterDone = courses.every(c => progress.courses[c.id]?.completed);
+                const overallPct = totalPoses ? Math.round((donePoses / totalPoses) * 100) : 0;
+                const masterScore = (typeof CourseUtils !== 'undefined') ? CourseUtils.masterMark(progress) : 0;
+
+                const startDate = (typeof CourseUtils !== 'undefined') ? CourseUtils.getCourseStartDate() : new Date();
+                const fmtDate = (d) => d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                const statusColor = {
+                    'completed': { bg: '#0F3D2E', fg: '#E0A23F', label: 'Completed' },
+                    'in-progress': { bg: '#C2552F', fg: '#F5F2EB', label: 'In progress' },
+                    'available': { bg: '#1F5A44', fg: '#F5F2EB', label: 'Available now' },
+                    'locked-date': { bg: '#D4CCB8', fg: '#7A7364', label: 'Opens soon' },
+                    'locked-sequence': { bg: '#E0D9C8', fg: '#7A7364', label: 'Awaiting prior course' },
+                };
 
                 return `
                 <div class="view-fade-in">
-                    <span class="kicker" style="color:#C2552F">The course</span>
-                    <h1 class="font-display" style="font-size:clamp(36px, 5vw, 60px); font-weight:300; color:#14120E; letter-spacing:-0.02em; margin:6px 0 0">Practice, tested.</h1>
-                    <p style="color:#4A453B; max-width:720px; margin-top:14px; line-height:1.6; font-size:15px">
-                        Hold each asana at 90% accuracy for ten continuous seconds. Three attempts per pose.
-                        Complete all ${totalPoses} to earn your certificate.
+                    <span class="kicker" style="color:#C2552F">The 3-year journey</span>
+                    <h1 class="font-display" style="font-size:clamp(36px, 5vw, 60px); font-weight:300; color:#14120E; letter-spacing:-0.02em; margin:6px 0 0">Six semesters, one practice.</h1>
+                    <p style="color:#4A453B; max-width:760px; margin-top:14px; line-height:1.65; font-size:15px">
+                        Every semester opens a new course. Each course is a 6-month window built for student life — exams, labs, breaks. Pass each pose with both an AR test and a quiz; finish all six to earn the master certificate.
                     </p>
 
-                    <!-- Progress -->
-                    <div style="background:#0F3D2E; color:#F5F2EB; border-radius:22px; padding:24px; margin-top:28px; display:flex; flex-direction:column; justify-content:space-between; gap:16px">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <span class="kicker" style="color:#E0A23F">Progress</span>
-                                <div class="font-display" style="font-size:32px; font-weight:300; margin-top:4px">${completedCount} of ${totalPoses}</div>
+                    <!-- Top progress card -->
+                    <div class="grid lg:grid-cols-[1.5fr_1fr]" style="gap:20px; margin-top:28px">
+                        <div style="background:#0F3D2E; color:#F5F2EB; border-radius:24px; padding:28px; display:flex; flex-direction:column; gap:18px; position:relative; overflow:hidden">
+                            <div class="blob" style="width:300px; height:300px; top:-120px; right:-100px; background:rgba(224,162,63,0.30)"></div>
+                            <div style="position:relative">
+                                <span class="kicker" style="color:#E0A23F">Overall progress</span>
+                                <div class="font-display" style="font-size:44px; font-weight:300; line-height:1.05; margin-top:4px">${donePoses} of ${totalPoses} poses</div>
+                                <p style="color:#C7DBCE; font-size:13px; margin:6px 0 0">${overallPct}% complete · ${courses.filter(c => progress.courses[c.id]?.completed).length} of 6 semesters earned</p>
                             </div>
-                            <span class="kicker" style="color:#6FA089">${pct}% done</span>
+                            <div style="position:relative; height:6px; background:rgba(255,255,255,0.12); border-radius:3px">
+                                <div style="width:${overallPct}%; height:100%; background:#E0A23F; border-radius:3px"></div>
+                            </div>
+                            <div class="flex flex-wrap" style="gap:12px; position:relative">
+                                ${courses.map(c => {
+                                    const cp = progress.courses[c.id];
+                                    const isDone = cp?.completed;
+                                    return `<span class="kicker" style="background:${isDone ? '#E0A23F' : 'rgba(255,255,255,0.08)'}; color:${isDone ? '#0F3D2E' : '#C7DBCE'}; padding:5px 11px; border-radius:9999px; font-size:10px">Sem ${c.semesterNumber}${isDone ? ' ✓' : ''}</span>`;
+                                }).join('')}
+                            </div>
                         </div>
-                        <div style="height:4px; background:#1F5A44; border-radius:2px">
-                            <div style="width:${pct}%; height:100%; background:#E0A23F; border-radius:2px"></div>
+                        <div style="background:#EEE9DE; border-radius:24px; padding:24px; display:flex; flex-direction:column; gap:16px">
+                            <div>
+                                <span class="kicker" style="color:#7A7364">Course journey starts</span>
+                                <p style="font-family:'Fraunces',serif; font-size:22px; font-weight:400; color:#14120E; margin:6px 0 0">${fmtDate(startDate)}</p>
+                            </div>
+                            ${masterDone ? `
+                                <div style="background:#C2552F; color:#F5F2EB; border-radius:18px; padding:18px">
+                                    <span class="kicker" style="color:#F6DACB">Master certificate</span>
+                                    <p style="font-family:'Fraunces',serif; font-size:20px; margin:6px 0 0">Yoga Master · ${masterScore}%</p>
+                                    <button onclick="app.downloadMasterCertificate()" class="btn btn-cream pressable" style="width:100%; margin-top:14px">Download master certificate →</button>
+                                </div>
+                            ` : `
+                                <div>
+                                    <span class="kicker" style="color:#7A7364">Master certificate</span>
+                                    <p style="font-family:'Fraunces',serif; font-size:18px; color:#7A7364; line-height:1.4; margin:6px 0 0">Earned after all 6 semesters pass.</p>
+                                </div>
+                            `}
+                            <button onclick="app.resetCourseStartDate()" class="kicker" style="background:transparent; border:1px solid #D4CCB8; color:#7A7364; padding:8px 12px; border-radius:9999px; font-size:10px; cursor:pointer; align-self:flex-start">Reset start date</button>
                         </div>
                     </div>
 
-                    <!-- Pose rows -->
-                    <div class="flex flex-col" style="gap:8px; margin-top:28px">
-                        ${this.courseProgress.poses.map((pose, i) => {
-                            const a = asanaData.find(x => x.name === pose.name);
-                            const num = String(i + 1).padStart(2, '0');
-                            const isDone = pose.completed;
-                            const isLocked = pose.locked;
-                            const isActive = !isDone && !isLocked;
-                            const bg = isDone ? '#0F3D2E' : isActive ? '#EEE9DE' : '#E0D9C8';
-                            const fg = isDone ? '#F5F2EB' : isActive ? '#14120E' : '#7A7364';
-                            const numColor = isDone ? '#E0A23F' : '#14120E';
-                            const subColor = isDone ? '#6FA089' : isActive ? '#C2552F' : '#A8A294';
-                            const pillBg = isDone ? '#1F5A44' : isActive ? '#7A7364' : '#D4CCB8';
-                            const pillFg = isDone ? '#E0A23F' : isActive ? '#F5F2EB' : '#7A7364';
+                    <!-- Course cards -->
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3" style="gap:18px; margin-top:28px">
+                        ${courses.map((c, idx) => {
+                            const cp = progress.courses[c.id];
+                            const status = (typeof CourseUtils !== 'undefined') ? CourseUtils.getCourseStatus(c.id, progress) : 'locked-date';
+                            const window_ = (typeof CourseUtils !== 'undefined') ? CourseUtils.getCourseWindow(c.id) : null;
+                            const opens = window_ ? fmtDate(window_.opensAt) : '';
+                            const closes = window_ ? fmtDate(window_.closesAt) : '';
+                            const stStyle = statusColor[status];
+                            const passedPoses = cp ? cp.poses.filter(p => p.completed).length : 0;
+                            const totalP = c.poses.length;
+                            const pct = totalP ? Math.round((passedPoses / totalP) * 100) : 0;
+                            const score = cp ? CourseUtils.courseMark(cp) : 0;
+                            const clickable = status === 'available' || status === 'in-progress' || status === 'completed';
+                            const cursor = clickable ? 'pointer' : 'not-allowed';
+                            const opacity = (status === 'locked-date' || status === 'locked-sequence') ? 0.78 : 1;
+
                             return `
-                            <div class="flex items-center" style="background:${bg}; color:${fg}; border-radius:16px; min-height:68px; padding:12px 20px; gap:14px; opacity:${isLocked ? 0.9 : 1}">
-                                <span class="font-display" style="font-size:26px; font-weight:400; color:${numColor}; opacity:${isLocked ? 0.35 : 1}; width:42px; flex-shrink:0">${num}</span>
-                                <div style="flex:1; min-width:0">
-                                    <span class="kicker" style="color:${subColor}; font-size:10px">${a?.sanskrit || pose.name}</span>
-                                    <div class="font-display truncate" style="font-size:17px; font-weight:400; opacity:${isLocked ? 0.55 : 1}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${pose.name}</div>
+                            <div onclick="${clickable ? `app.openCourseDetail('${c.id}')` : ''}" class="${clickable ? 'pressable' : ''}" style="background:#FFFFFF; border:1px solid #D4CCB8; border-radius:22px; padding:22px; display:flex; flex-direction:column; gap:14px; cursor:${cursor}; opacity:${opacity}; min-height:260px; position:relative; overflow:hidden">
+                                <div style="position:absolute; top:18px; right:18px">
+                                    <span class="kicker" style="background:${stStyle.bg}; color:${stStyle.fg}; padding:5px 10px; border-radius:9999px; font-size:10px">${stStyle.label}</span>
                                 </div>
-                                <span class="kicker hidden sm:inline" style="background:${pillBg}; color:${pillFg}; padding:3px 10px; border-radius:9999px; font-size:10px; flex-shrink:0">${a?.view || ''}</span>
-                                ${isDone ? `
-                                    <span class="kicker" style="color:#6FA089; width:50px; text-align:right; font-size:10px">Done</span>
-                                    <span style="color:#E0A23F; font-size:18px; width:22px; text-align:center">★</span>
-                                ` : isActive ? `
-                                    <span class="kicker" style="color:#7A7364; width:44px; text-align:right; font-size:10px">${pose.attemptsRemaining}/3</span>
-                                    <button onclick="event.stopPropagation(); app.startCourseTest('${pose.name}')" class="btn btn-accent btn-sm pressable">Test</button>
-                                ` : `
-                                    <span class="kicker" style="color:#A8A294; width:50px; text-align:right; font-size:10px">Locked</span>
-                                    <span style="opacity:0.4; width:22px; text-align:center">🔒</span>
-                                `}
+                                <div style="font-size:32px; line-height:1">${c.icon}</div>
+                                <div>
+                                    <span class="kicker" style="color:#7A7364">Semester ${c.semesterNumber}</span>
+                                    <h3 class="font-display" style="font-size:24px; font-weight:400; color:#14120E; line-height:1.15; margin:4px 0 0">${c.name}</h3>
+                                    <p style="font-family:'Fraunces',serif; font-style:italic; color:#4A453B; font-size:13px; margin:6px 0 0">${c.tagline}</p>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto">
+                                    <div style="display:flex; justify-content:space-between; align-items:center">
+                                        <span class="kicker" style="color:#7A7364; font-size:9px">Window</span>
+                                        <span style="font-size:11px; color:#4A453B">${opens} → ${closes}</span>
+                                    </div>
+                                    <div style="height:4px; background:#EEE9DE; border-radius:2px">
+                                        <div style="width:${pct}%; height:100%; background:${c.color}; border-radius:2px"></div>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#4A453B">
+                                        <span>${passedPoses}/${totalP} poses${cp?.completed ? '' : ''}</span>
+                                        <span style="color:${cp?.completed ? '#0F3D2E' : '#7A7364'}; font-weight:600">${cp?.completed ? `${score}% earned` : pct + '%'}</span>
+                                    </div>
+                                </div>
                             </div>`;
                         }).join('')}
                     </div>
 
-                    ${this.courseProgress.certificateEarned ? `
-                        <div style="background:#C2552F; color:#F5F2EB; border-radius:24px; padding:40px; text-align:center; margin-top:32px">
-                            <span class="kicker" style="color:#F6DACB">Congratulations</span>
-                            <h2 class="font-display" style="font-size:clamp(32px, 4vw, 52px); font-weight:300; line-height:1.05; margin:10px 0">All ${totalPoses} poses, well held.</h2>
-                            <p style="color:#F6DACB; margin-bottom:18px">Your Sunday certificate is ready.</p>
-                            <button onclick="app.downloadCertificate()" class="btn btn-cream pressable">Download  →</button>
-                        </div>
-                    ` : ''}
-
+                    <!-- Test protocols -->
                     <details style="background:#EEE9DE; border-radius:22px; padding:24px; margin-top:28px">
                         <summary class="flex items-center justify-between" style="cursor:pointer; list-style:none">
                             <div>
                                 <span class="kicker" style="color:#C2552F">Test protocols</span>
-                                <h3 class="font-display" style="font-size:22px; font-weight:600; margin:4px 0 0">Quiet, strict, fair</h3>
+                                <h3 class="font-display" style="font-size:22px; font-weight:600; margin:4px 0 0">How each pose is tested</h3>
                             </div>
                             <span style="color:#4A453B">↓</span>
                         </summary>
                         <div class="flex flex-col" style="gap:10px; margin-top:16px">
                             ${[
-                                'Hold each asana at 90% accuracy for 10 continuous seconds.',
-                                'Three attempts allowed per pose, per session.',
-                                'Front and side cameras must match the listed view badge.',
-                                'No coaching during a test attempt — only feedback after.',
-                                'Certificate is awarded once all ' + totalPoses + ' poses pass at least once.',
+                                'Each pose has two parts: an AR test and a 3-question quiz.',
+                                'AR test — hold the pose at 90% accuracy for 10 continuous seconds in front of your camera.',
+                                'Best of 3 attempts is recorded as the AR mark for that pose.',
+                                'Quiz — three questions drawn from the library notes, ≥2 correct to pass.',
+                                'Pose final mark = average of AR mark and quiz mark; pose passes only when both pass.',
+                                'Course mark = average of all pose marks; appears on the certificate.',
+                                'A new semester opens once its date arrives AND the previous semester is fully passed.',
                             ].map((t, i) => `
                                 <div class="flex items-start" style="gap:14px">
                                     <span class="kicker" style="color:#C2552F; padding-top:3px; flex-shrink:0">${String(i+1).padStart(2,'0')}</span>
@@ -3501,29 +3648,197 @@
                 </div>`;
             },
 
+            renderCourseDetail(courseId) {
+                const courses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                const c = courses.find(x => x.id === courseId);
+                const cp = this.courseProgress.courses[courseId];
+                if (!c || !cp) {
+                    this.activeCourseDetail = null;
+                    return this.renderCourseDashboard();
+                }
 
-            startCourseTest(poseName) {
-                const poseProgress = this.courseProgress.poses.find(p => p.name === poseName);
-                if (!poseProgress || poseProgress.attemptsRemaining <= 0) {
-                    alert("No attempts remaining for this pose.");
+                const status = (typeof CourseUtils !== 'undefined') ? CourseUtils.getCourseStatus(courseId, this.courseProgress) : 'locked-date';
+                const window_ = (typeof CourseUtils !== 'undefined') ? CourseUtils.getCourseWindow(courseId) : null;
+                const fmtDate = (d) => d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                const passedPoses = cp.poses.filter(p => p.completed).length;
+                const totalP = c.poses.length;
+                const pct = totalP ? Math.round((passedPoses / totalP) * 100) : 0;
+                const score = CourseUtils.courseMark(cp);
+
+                const isLocked = status === 'locked-date' || status === 'locked-sequence';
+
+                return `
+                <div class="view-fade-in">
+                    <button onclick="app.activeCourseDetail=null; app.renderContent()" class="kicker pressable" style="background:transparent; border:0; color:#7A7364; padding:0; font-size:11px; cursor:pointer; margin-bottom:8px">← All semesters</button>
+
+                    <!-- Hero -->
+                    <div style="background:${c.color}; color:#F5F2EB; border-radius:28px; padding:32px; display:flex; flex-direction:column; gap:14px; position:relative; overflow:hidden">
+                        <div class="blob" style="width:420px; height:420px; top:-160px; right:-140px; background:${c.accent}33"></div>
+                        <div class="blob" style="width:300px; height:300px; bottom:-120px; left:-100px; background:rgba(245,242,235,0.06)"></div>
+                        <div style="position:relative; display:flex; flex-direction:column; gap:14px">
+                            <div class="flex items-center" style="gap:12px">
+                                <span style="font-size:36px; line-height:1">${c.icon}</span>
+                                <div>
+                                    <span class="kicker" style="color:${c.accent}">Semester ${c.semesterNumber}</span>
+                                    <h1 class="font-display" style="font-size:clamp(34px, 5vw, 54px); font-weight:300; line-height:1.05; letter-spacing:-0.02em; margin:4px 0 0">${c.name}</h1>
+                                </div>
+                            </div>
+                            <p style="font-family:'Fraunces',serif; font-style:italic; color:${c.accent}; font-size:18px; margin:0">${c.tagline}</p>
+                            <p style="color:#C7DBCE; font-size:14px; line-height:1.6; max-width:680px; margin:0">${c.description}</p>
+                            <div class="flex flex-wrap" style="gap:18px; margin-top:8px">
+                                <div>
+                                    <span class="kicker" style="color:${c.accent}; font-size:9px">Window</span>
+                                    <p style="font-size:13px; margin:4px 0 0">${window_ ? fmtDate(window_.opensAt) + ' → ' + fmtDate(window_.closesAt) : '—'}</p>
+                                </div>
+                                <div>
+                                    <span class="kicker" style="color:${c.accent}; font-size:9px">Poses</span>
+                                    <p style="font-size:13px; margin:4px 0 0">${passedPoses}/${totalP} passed</p>
+                                </div>
+                                <div>
+                                    <span class="kicker" style="color:${c.accent}; font-size:9px">Course mark</span>
+                                    <p style="font-size:13px; margin:4px 0 0">${score > 0 ? score + '%' : '—'}</p>
+                                </div>
+                            </div>
+                            <div style="height:6px; background:rgba(255,255,255,0.12); border-radius:3px; margin-top:6px">
+                                <div style="width:${pct}%; height:100%; background:${c.accent}; border-radius:3px"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${isLocked ? `
+                        <div style="background:#F6DACB; border:1px solid #C2552F; color:#14120E; border-radius:18px; padding:18px 22px; margin-top:24px">
+                            <span class="kicker" style="color:#C2552F">Locked</span>
+                            <p style="font-family:'Fraunces',serif; font-size:18px; line-height:1.45; margin:6px 0 0">${status === 'locked-date' ? `This course opens on ${fmtDate(window_.opensAt)}.` : `Finish Semester ${c.semesterNumber - 1} first to unlock this one.`}</p>
+                        </div>
+                    ` : ''}
+
+                    <!-- Pose list -->
+                    <div class="flex flex-col" style="gap:10px; margin-top:24px">
+                        ${cp.poses.map((pose, i) => {
+                            const a = (typeof asanaData !== 'undefined') ? asanaData.find(x => x.name === pose.name) : null;
+                            const num = String(i + 1).padStart(2, '0');
+                            const isDone = pose.completed;
+                            const isUnlocked = !pose.locked && !isLocked;
+                            const arDone = pose.arPassed;
+                            const quizDone = pose.quizPassed;
+                            const arAttemptsLeft = Math.max(0, 3 - (pose.arAttempts || 0));
+                            const arBest = Math.round(pose.arBest || 0);
+                            const quizBest = Math.round(pose.quizBest || 0);
+
+                            const bg = isDone ? c.color : isUnlocked ? '#FFFFFF' : '#EEE9DE';
+                            const fg = isDone ? '#F5F2EB' : '#14120E';
+                            const numColor = isDone ? c.accent : '#14120E';
+                            const subColor = isDone ? c.accent : '#C2552F';
+
+                            return `
+                            <div style="background:${bg}; color:${fg}; border:1px solid ${isDone ? 'transparent' : '#D4CCB8'}; border-radius:18px; padding:18px 22px; opacity:${(!isUnlocked && !isDone) ? 0.55 : 1}">
+                                <div class="flex items-center" style="gap:14px">
+                                    <span class="font-display" style="font-size:24px; font-weight:400; color:${numColor}; width:42px; flex-shrink:0">${num}</span>
+                                    <div style="flex:1; min-width:0">
+                                        <span class="kicker" style="color:${subColor}; font-size:10px">${a?.sanskrit || pose.name}</span>
+                                        <div class="font-display truncate" style="font-size:18px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${pose.name}</div>
+                                    </div>
+                                    ${isDone ? `
+                                        <span class="kicker" style="background:${c.accent}; color:${c.color}; padding:5px 10px; border-radius:9999px; font-size:10px">${pose.finalScore || CourseUtils.poseMark(pose)}%</span>
+                                        <span style="color:${c.accent}; font-size:18px; width:22px; text-align:center">★</span>
+                                    ` : !isUnlocked ? `
+                                        <span class="kicker" style="color:#A8A294; font-size:10px">Locked</span>
+                                        <span style="opacity:0.4; width:22px; text-align:center">🔒</span>
+                                    ` : ''}
+                                </div>
+                                ${(!isDone && isUnlocked) ? `
+                                <div class="grid sm:grid-cols-2" style="gap:10px; margin-top:14px">
+                                    <div style="background:#EEE9DE; border-radius:14px; padding:12px 14px">
+                                        <div class="flex items-center justify-between">
+                                            <span class="kicker" style="color:#7A7364; font-size:9px">AR test</span>
+                                            <span class="kicker" style="color:${arDone ? '#0F3D2E' : '#C2552F'}; font-size:9px">${arDone ? `Passed ${arBest}%` : `${arAttemptsLeft} of 3 left`}</span>
+                                        </div>
+                                        <div class="flex items-center justify-between" style="margin-top:8px; gap:8px">
+                                            <span style="font-size:12px; color:#4A453B; line-height:1.35">${arDone ? 'Best of 3 attempts recorded' : 'Hold ≥90% for 10s'}</span>
+                                            <button onclick="event.stopPropagation(); app.tryStartPoseTest('${courseId}','${pose.name.replace(/'/g, "\\'")}')" class="btn btn-accent btn-sm pressable" ${arAttemptsLeft <= 0 && !arDone ? 'disabled style="opacity:0.5; cursor:not-allowed"' : ''}>${arDone ? 'Retake' : (arAttemptsLeft <= 0 ? 'No attempts' : 'Start AR')}</button>
+                                        </div>
+                                    </div>
+                                    <div style="background:#EEE9DE; border-radius:14px; padding:12px 14px">
+                                        <div class="flex items-center justify-between">
+                                            <span class="kicker" style="color:#7A7364; font-size:9px">Quiz</span>
+                                            <span class="kicker" style="color:${quizDone ? '#0F3D2E' : '#C2552F'}; font-size:9px">${quizDone ? `Passed ${quizBest}%` : (pose.quizAttempts > 0 ? `Best ${quizBest}%` : '3 questions')}</span>
+                                        </div>
+                                        <div class="flex items-center justify-between" style="margin-top:8px; gap:8px">
+                                            <span style="font-size:12px; color:#4A453B; line-height:1.35">${quizDone ? 'Best score recorded' : '≥2/3 correct to pass'}</span>
+                                            <button onclick="event.stopPropagation(); app.startQuiz('${courseId}','${pose.name.replace(/'/g, "\\'")}')" class="btn btn-accent btn-sm pressable">${quizDone ? 'Retake' : (pose.quizAttempts > 0 ? 'Try again' : 'Take quiz')}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+
+                    ${cp.completed ? `
+                        <div style="background:${c.color}; color:#F5F2EB; border-radius:28px; padding:36px; text-align:center; margin-top:28px; position:relative; overflow:hidden">
+                            <div class="blob" style="width:380px; height:380px; top:-140px; right:-130px; background:${c.accent}33"></div>
+                            <div style="position:relative">
+                                <span class="kicker" style="color:${c.accent}">Semester certificate earned</span>
+                                <h2 class="font-display" style="font-size:clamp(30px, 4vw, 48px); font-weight:300; line-height:1.05; margin:10px 0">${score}% — ${c.name}, well held.</h2>
+                                <p style="color:#C7DBCE; margin-bottom:20px; font-size:14px">Your Semester ${c.semesterNumber} certificate is ready.</p>
+                                <button onclick="app.downloadCourseCertificate('${courseId}')" class="btn btn-accent pressable">Download certificate →</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>`;
+            },
+
+            openCourseDetail(courseId) {
+                this.activeCourseDetail = courseId;
+                this.activeCourseId = courseId;
+                this.renderContent();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+
+            resetCourseStartDate() {
+                if (typeof CourseUtils === 'undefined') return;
+                const ok = confirm('Reset the course-journey start date to today? This will not erase your progress, but it will shift the unlock dates of any locked semesters.');
+                if (!ok) return;
+                CourseUtils.setCourseStartDate(new Date());
+                this.renderContent();
+            },
+
+            // ─────────────────────────────────────────────────
+            // AR TEST FLOW (per pose, within a course)
+            // ─────────────────────────────────────────────────
+            tryStartPoseTest(courseId, poseName) {
+                const cp = this.courseProgress.courses[courseId];
+                if (!cp) return;
+                const pose = cp.poses.find(p => p.name === poseName);
+                if (!pose) return;
+                if (pose.locked) return;
+                if (pose.arPassed) {
+                    const ok = confirm('You already passed the AR test for ' + poseName + ' (' + Math.round(pose.arBest) + '%). Retake?');
+                    if (!ok) return;
+                    // Retake doesn\u2019t consume a new attempt slot once passed.
+                }
+                const arAttempts = pose.arAttempts || 0;
+                if (!pose.arPassed && arAttempts >= 3) {
+                    alert('No AR attempts remaining for ' + poseName + '. Best score so far is ' + Math.round(pose.arBest || 0) + '%.');
                     return;
                 }
+                this.activeCourseId = courseId;
+                this.startCourseTest(poseName);
+            },
 
-                // Request fullscreen for focus
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
-                    });
-                }
-
+            startCourseTest(poseName) {
                 this.courseMode = true;
-                this.testActive = false; // Phase 1: Waiting for initial match
+                this.testActive = false;
                 this.currentPose = poseName;
                 this.courseTimer = 0;
                 this.courseHoldTime = 0;
                 this.courseStartTime = Date.now();
-
                 this.ttsEnabled = false;
+
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(err => console.warn(err.message));
+                }
 
                 this.navigate('ar_correction');
 
@@ -3531,69 +3846,44 @@
                     this.startARAssessment();
 
                     this.courseTimerInterval = setInterval(() => {
-                        if (!this.testActive) return; // Don't start 60s timer until test is active
-
+                        if (!this.testActive) return;
                         this.courseTimer++;
                         const timeLeft = 60 - this.courseTimer;
-
                         const timerEl = document.getElementById('course-timer-display');
-                        if (timerEl) {
-                            timerEl.textContent = `Time Left: ${timeLeft}s`;
-                        }
-
-                        if (this.courseTimer >= 60) {
-                            this.endCourseTest(false, 'Time limit of 60s exceeded');
-                        }
+                        if (timerEl) timerEl.textContent = `Time Left: ${timeLeft}s`;
+                        if (this.courseTimer >= 60) this.endCourseTest(false, 'Time limit of 60s exceeded.');
                     }, 1000);
 
                     const feedbackText = document.getElementById('current-feedback-text');
-                    if (feedbackText) {
-                        feedbackText.textContent = `WAITING FOR INITIAL MATCH: Match ${poseName} at 90% accuracy to start the 60s test timer.`;
-                    }
+                    if (feedbackText) feedbackText.textContent = `Match ${poseName} at 90% to start the 60s test timer.`;
                 }, 500);
             },
 
             checkCourseProgress(currentScore) {
                 if (!this.courseMode) return;
-
                 const feedbackText = document.getElementById('current-feedback-text');
                 const holdEl = document.getElementById('course-hold-display');
 
-                // PHASE 1: Waiting for initial match
                 if (!this.testActive) {
                     if (currentScore >= 90) {
                         this.testActive = true;
-                        this.courseTimer = 0; // Reset timer to 0 for the 60s test
-                        if (feedbackText) feedbackText.textContent = "TEST STARTED! Hold for 10s. Do not drop below 90%!";
-                        if (feedbackText) feedbackText.classList.replace('text-gray-400', 'text-primary');
+                        this.courseTimer = 0;
+                        if (feedbackText) feedbackText.textContent = 'Test started! Hold above 90% for 10 seconds.';
                     }
                     return;
                 }
 
-                // PHASE 2: Test is active, 60s timer is running
                 if (currentScore >= 90) {
-                    if (!this.courseHoldTimer) {
-                        this.courseHoldTimer = Date.now();
-                    }
-
+                    if (!this.courseHoldTimer) this.courseHoldTimer = Date.now();
                     const holdDuration = (Date.now() - this.courseHoldTimer) / 1000;
-
-                    if (holdEl) {
-                        holdEl.textContent = `${Math.floor(holdDuration)}s / 10s`;
-                    }
-
+                    if (holdEl) holdEl.textContent = `${Math.floor(holdDuration)}s / 10s`;
                     if (holdDuration >= 10) {
-                        this.endCourseTest(true, 'Pose Mastered! High Accuracy held for 10s.');
+                        this.endCourseTest(true, 'Pose held for 10 seconds at 90%+');
                     }
                 } else {
-                    // STRICTURE: Any drop below 90% resets the 10s hold timer immediately
                     this.courseHoldTimer = null;
-                    if (holdEl) {
-                        holdEl.textContent = '0s / 10s';
-                    }
-                    if (feedbackText && this.testActive) {
-                        feedbackText.textContent = "ACCURACY DROPPED! Hold progress reset. Get back above 90%!";
-                    }
+                    if (holdEl) holdEl.textContent = '0s / 10s';
+                    if (feedbackText && this.testActive) feedbackText.textContent = 'Dropped below 90%. Hold reset — recover the pose.';
                 }
             },
 
@@ -3602,17 +3892,31 @@
                     clearInterval(this.courseTimerInterval);
                     this.courseTimerInterval = null;
                 }
-
-                // Exit fullscreen
                 if (document.fullscreenElement) {
                     document.exitFullscreen().catch(err => console.warn(err));
                 }
 
-                const poseProgress = this.courseProgress.poses.find(p => p.name === this.currentPose);
+                const courseId = this.activeCourseId;
+                const cp = courseId ? this.courseProgress.courses[courseId] : null;
+                const poseProg = cp ? cp.poses.find(p => p.name === this.currentPose) : null;
+                const finalScore = Math.round(this._lastPoseScore || 0);
 
-                if (!success && this.courseMode && poseProgress) {
-                    poseProgress.attemptsRemaining--;
-                    localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress));
+                if (poseProg) {
+                    if (!poseProg.arPassed) poseProg.arAttempts = (poseProg.arAttempts || 0) + 1;
+                    if (success) {
+                        poseProg.arPassed = true;
+                        poseProg.arBest = Math.max(poseProg.arBest || 0, Math.max(finalScore, 90));
+                    } else {
+                        poseProg.arBest = Math.max(poseProg.arBest || 0, finalScore);
+                        // After 3 attempts, the best of the three counts as the AR mark
+                        // and the AR test is considered "passed" regardless of the hold —
+                        // the score itself becomes the truth, not the strict 10s rule.
+                        if (!poseProg.arPassed && (poseProg.arAttempts || 0) >= 3) {
+                            poseProg.arPassed = true;
+                        }
+                    }
+                    if (!cp.startedAt) cp.startedAt = Date.now();
+                    this._afterTestUpdate(courseId, poseProg);
                 }
 
                 this.courseMode = false;
@@ -3623,52 +3927,366 @@
                     cancelAnimationFrame(this.animationFrameId);
                     this.animationFrameId = null;
                 }
-
                 if (this.videoStream) {
-                    this.videoStream.getTracks().forEach(track => track.stop());
+                    this.videoStream.getTracks().forEach(t => t.stop());
                 }
 
+                // Sync server (best-effort).
                 if (success) {
-                    // EXISTING LOCAL UPDATE
-                    const poseIdx = this.courseProgress.poses.findIndex(p => p.name === this.currentPose);
-                    if (poseIdx !== -1) {
-                        this.courseProgress.poses[poseIdx].completed = true;
-                        this.courseProgress.poses[poseIdx].timeHeld = Math.max(this.courseProgress.poses[poseIdx].timeHeld, 10);
-                        this.courseProgress.poses[poseIdx].bestAccuracy = Math.max(this.courseProgress.poses[poseIdx].bestAccuracy, poseScore);  // Assume poseScore is in scope or pass it
-
-                        if (poseIdx + 1 < this.courseProgress.poses.length) {
-                            this.courseProgress.poses[poseIdx + 1].locked = false;
-                        }
-
-                        const allCompleted = this.courseProgress.poses.every(p => p.completed);
-                        if (allCompleted) {
-                            this.courseProgress.certificateEarned = true;
-                        }
-
-                        localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress));
-                    }
-
-                    // NEW: Sync to Backend (use this.currentPose, estimate accuracy/time)
                     fetch('/api/complete_pose', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            pose_name: this.currentPose,  // e.g., 'Tadasana'
-                            accuracy: 95,  // Or use actual from detection (e.g., currentScore)
-                            time_held: 10  // Min successful hold
-                        })
-                    }).then(res => res.json()).then(data => {
-                        console.log('DB Update:', data);  // DEBUG: Check Network tab
-                        if (data.success) {
-                            alert(`${data.message} Logged to profile!`);  // Optional feedback
-                        } else {
-                            console.error('DB sync failed:', data);
-                        }
-                    }).catch(err => console.error('API error:', err));
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ pose_name: this.currentPose, accuracy: finalScore || 90, time_held: 10 }),
+                    }).catch(() => {});
                 }
 
-                alert(message);
+                let endMsg = success ? '✅ ' + message : '❌ ' + message;
+                if (poseProg && !success && poseProg.arPassed && (poseProg.arAttempts || 0) >= 3) {
+                    endMsg = `⚠️ ${message}\n\nYou've used all 3 attempts. Best AR score recorded: ${Math.round(poseProg.arBest)}%.`;
+                }
+                alert(endMsg);
+
+                // Return to the course detail page.
+                if (courseId) {
+                    this.activeCourseDetail = courseId;
+                    this._preserveCourseDetail = true;
+                }
                 this.navigate('course');
+            },
+
+            // ─────────────────────────────────────────────────
+            // QUIZ FLOW (per pose, within a course)
+            // ─────────────────────────────────────────────────
+            startQuiz(courseId, poseName) {
+                const bank = (typeof QUIZ_BANK !== 'undefined') ? QUIZ_BANK[poseName] : null;
+                if (!bank || !bank.length) {
+                    alert('Quiz for ' + poseName + ' is being prepared. Try again soon.');
+                    return;
+                }
+                this.activeQuizCourseId = courseId;
+                this.activeQuizPose = poseName;
+                this.activeQuiz = {
+                    questions: bank.map(q => ({ ...q })),
+                    answers: bank.map(() => null),
+                    submitted: false,
+                };
+                this.renderQuizModal();
+            },
+
+            renderQuizModal() {
+                const modal = document.getElementById('quiz-modal-backdrop');
+                const body = document.getElementById('quiz-modal-body');
+                if (!modal || !body || !this.activeQuiz) return;
+
+                const a = (typeof asanaData !== 'undefined') ? asanaData.find(x => x.name === this.activeQuizPose) : null;
+                const sanskrit = a?.sanskrit || '';
+                const submitted = this.activeQuiz.submitted;
+
+                const correctCount = submitted ? this.activeQuiz.questions.reduce((s, q, i) => s + (this.activeQuiz.answers[i] === q.correct ? 1 : 0), 0) : 0;
+                const total = this.activeQuiz.questions.length;
+                const pct = total ? Math.round((correctCount / total) * 100) : 0;
+                const passed = pct >= 67;
+
+                body.innerHTML = `
+                    <div style="padding:28px 24px 0">
+                        <span class="kicker" style="color:#C2552F">Quiz · ${sanskrit}</span>
+                        <h2 class="font-display" style="font-size:clamp(28px, 4vw, 36px); font-weight:300; color:#14120E; line-height:1.1; margin:6px 0 0">${this.activeQuizPose}</h2>
+                        <p style="color:#4A453B; font-size:13px; margin:8px 0 0">${submitted ? `You scored ${correctCount} of ${total} (${pct}%) — ${passed ? 'passed.' : 'try again to pass.'}` : '3 questions, ≥2 correct to pass. Read carefully.'}</p>
+                    </div>
+                    <div style="padding:24px; display:flex; flex-direction:column; gap:18px">
+                        ${this.activeQuiz.questions.map((q, qi) => {
+                            const userAns = this.activeQuiz.answers[qi];
+                            const isCorrect = submitted && userAns === q.correct;
+                            const isWrong = submitted && userAns != null && userAns !== q.correct;
+                            return `
+                            <div style="background:#FFFFFF; border:1px solid ${isCorrect ? '#0F3D2E' : isWrong ? '#C2552F' : '#D4CCB8'}; border-radius:16px; padding:18px">
+                                <div class="flex items-start" style="gap:10px; margin-bottom:12px">
+                                    <span class="kicker" style="color:#C2552F; padding-top:3px">${String(qi + 1).padStart(2,'0')}</span>
+                                    <p style="font-size:15px; color:#14120E; line-height:1.5; margin:0; flex:1">${q.q}</p>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:8px">
+                                    ${q.options.map((opt, oi) => {
+                                        const isSel = userAns === oi;
+                                        const isAnswer = submitted && oi === q.correct;
+                                        const isWrongPick = submitted && isSel && oi !== q.correct;
+                                        let bg = '#EEE9DE', fg = '#14120E', border = 'transparent';
+                                        if (isAnswer) { bg = '#0F3D2E'; fg = '#F5F2EB'; }
+                                        else if (isWrongPick) { bg = '#F6DACB'; fg = '#14120E'; border = '#C2552F'; }
+                                        else if (isSel && !submitted) { bg = '#E0A23F'; fg = '#0F3D2E'; }
+                                        return `
+                                        <button onclick="${submitted ? '' : `app.selectQuizAnswer(${qi},${oi})`}" class="${submitted ? '' : 'pressable'}" ${submitted ? 'disabled' : ''} style="background:${bg}; color:${fg}; border:1px solid ${border}; border-radius:10px; padding:10px 14px; text-align:left; font-size:13px; cursor:${submitted ? 'default' : 'pointer'}; line-height:1.4">
+                                            <span class="kicker" style="color:${fg}; opacity:0.6; font-size:9px; margin-right:8px">${String.fromCharCode(65 + oi)}</span>${opt}${isAnswer ? ' ✓' : isWrongPick ? ' ✗' : ''}
+                                        </button>`;
+                                    }).join('')}
+                                </div>
+                                ${submitted ? `
+                                    <p style="margin:10px 0 0; padding:10px 12px; background:#EEE9DE; border-radius:10px; font-size:12px; color:#4A453B; line-height:1.5; font-style:italic">${q.why}</p>
+                                ` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                    <div style="padding:0 24px 24px; display:flex; gap:10px; flex-wrap:wrap">
+                        ${!submitted ? `
+                            <button onclick="app.submitQuiz()" class="btn btn-accent pressable" style="flex:1; min-width:160px" ${this.activeQuiz.answers.some(a => a == null) ? 'disabled style="opacity:0.55; cursor:not-allowed"' : ''}>Submit answers</button>
+                            <button onclick="app.closeQuiz()" class="kicker pressable" style="background:transparent; border:1px solid #D4CCB8; color:#4A453B; padding:10px 18px; border-radius:9999px; font-size:11px; cursor:pointer">Cancel</button>
+                        ` : `
+                            <button onclick="app.closeQuiz(); app.renderContent()" class="btn btn-accent pressable" style="flex:1; min-width:160px">Done</button>
+                            ${!passed ? `<button onclick="app.startQuiz('${this.activeQuizCourseId}','${this.activeQuizPose.replace(/'/g, "\\'")}')" class="kicker pressable" style="background:transparent; border:1px solid #D4CCB8; color:#4A453B; padding:10px 18px; border-radius:9999px; font-size:11px; cursor:pointer">Try again</button>` : ''}
+                        `}
+                    </div>
+                `;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            },
+
+            selectQuizAnswer(qi, oi) {
+                if (!this.activeQuiz || this.activeQuiz.submitted) return;
+                this.activeQuiz.answers[qi] = oi;
+                this.renderQuizModal();
+            },
+
+            submitQuiz() {
+                if (!this.activeQuiz) return;
+                if (this.activeQuiz.answers.some(a => a == null)) return;
+                this.activeQuiz.submitted = true;
+                const correct = this.activeQuiz.questions.reduce((s, q, i) => s + (this.activeQuiz.answers[i] === q.correct ? 1 : 0), 0);
+                const total = this.activeQuiz.questions.length;
+                const pct = total ? Math.round((correct / total) * 100) : 0;
+
+                const cp = this.courseProgress.courses[this.activeQuizCourseId];
+                const pose = cp ? cp.poses.find(p => p.name === this.activeQuizPose) : null;
+                if (pose) {
+                    pose.quizAttempts = (pose.quizAttempts || 0) + 1;
+                    pose.quizBest = Math.max(pose.quizBest || 0, pct);
+                    if (pct >= 67) pose.quizPassed = true;
+                    if (!cp.startedAt) cp.startedAt = Date.now();
+                    this._afterTestUpdate(this.activeQuizCourseId, pose);
+                }
+                this.renderQuizModal();
+            },
+
+            closeQuiz() {
+                this.activeQuiz = null;
+                this.activeQuizPose = null;
+                this.activeQuizCourseId = null;
+                const modal = document.getElementById('quiz-modal-backdrop');
+                if (modal) modal.classList.remove('active');
+                document.body.style.overflow = '';
+            },
+
+            // After any AR or quiz submission, recompute pose / course completion
+            // and persist progress.
+            _afterTestUpdate(courseId, pose) {
+                const cp = this.courseProgress.courses[courseId];
+                if (!cp || !pose) return;
+
+                if (pose.arPassed && pose.quizPassed && !pose.completed) {
+                    pose.completed = true;
+                    pose.completedAt = Date.now();
+                    pose.finalScore = (typeof CourseUtils !== 'undefined') ? CourseUtils.poseMark(pose) : Math.round((pose.arBest + pose.quizBest) / 2);
+
+                    // Unlock next pose in this course.
+                    const idx = cp.poses.findIndex(p => p.name === pose.name);
+                    if (idx >= 0 && idx + 1 < cp.poses.length) cp.poses[idx + 1].locked = false;
+                }
+
+                // Course completion check.
+                if (cp.poses.every(p => p.completed) && !cp.completed) {
+                    cp.completed = true;
+                    cp.completedAt = Date.now();
+                    cp.certificateEarned = true;
+                    cp.finalScore = (typeof CourseUtils !== 'undefined') ? CourseUtils.courseMark(cp) : 0;
+                }
+
+                try { localStorage.setItem('courseProgress', JSON.stringify(this.courseProgress)); } catch (_) {}
+            },
+
+            // ─────────────────────────────────────────────────
+            // CERTIFICATES (per-course + master)
+            // ─────────────────────────────────────────────────
+            downloadCourseCertificate(courseId) {
+                const c = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES.find(x => x.id === courseId) : null;
+                const cp = this.courseProgress.courses[courseId];
+                if (!c || !cp) return;
+                const userName = (this.userData?.name) || (window.__user_name) || 'Yoga Practitioner';
+                const score = cp.finalScore || (typeof CourseUtils !== 'undefined' ? CourseUtils.courseMark(cp) : 0);
+                const dateStr = new Date(cp.completedAt || Date.now()).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                this._renderCertificate({
+                    headline: 'Certificate of Completion',
+                    subheading: `Semester ${c.semesterNumber} — ${c.name}`,
+                    name: userName,
+                    body: `has successfully completed ${c.title}, demonstrating mastery of ${c.poses.length} asanas through AR alignment testing and theory examination.`,
+                    score,
+                    poses: cp.poses.map(p => ({ name: p.name, mark: p.finalScore || (CourseUtils.poseMark(p)) })),
+                    dateStr,
+                    bg: c.color,
+                    accent: c.accent,
+                    fileName: `Sunday_Certificate_Sem${c.semesterNumber}_${c.name.replace(/\s/g, '_')}.png`,
+                });
+            },
+
+            downloadMasterCertificate() {
+                const courses = (typeof SUNDAY_COURSES !== 'undefined') ? SUNDAY_COURSES : [];
+                const allDone = courses.every(c => this.courseProgress.courses[c.id]?.completed);
+                if (!allDone) {
+                    alert('Master certificate unlocks once all 6 semesters are passed.');
+                    return;
+                }
+                const userName = (this.userData?.name) || (window.__user_name) || 'Yoga Practitioner';
+                const score = (typeof CourseUtils !== 'undefined') ? CourseUtils.masterMark(this.courseProgress) : 0;
+                const dateStr = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+                const courseRows = courses.map(c => ({ name: c.title, mark: this.courseProgress.courses[c.id].finalScore || CourseUtils.courseMark(this.courseProgress.courses[c.id]) }));
+
+                this._renderCertificate({
+                    headline: 'Master Certificate',
+                    subheading: 'AsanMinds 3-Year Yoga Programme',
+                    name: userName,
+                    body: 'has completed all six semesters of the AsanMinds yoga programme, mastering 20 asanas across foundation, grounding, restoration, strength, lateral body and advanced balance through both AR alignment testing and written examination.',
+                    score,
+                    poses: courseRows,
+                    dateStr,
+                    bg: '#0F3D2E',
+                    accent: '#E0A23F',
+                    fileName: `Sunday_Master_Certificate_${userName.replace(/\s/g, '_')}.png`,
+                    isMaster: true,
+                });
+            },
+
+            _renderCertificate(opts) {
+                const W = 1280, H = 900;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+
+                // Cream paper background.
+                ctx.fillStyle = '#F5F2EB';
+                ctx.fillRect(0, 0, W, H);
+
+                // Outer frame band.
+                ctx.fillStyle = opts.bg;
+                ctx.fillRect(0, 0, W, 28);
+                ctx.fillRect(0, H - 28, W, 28);
+                ctx.fillRect(0, 0, 28, H);
+                ctx.fillRect(W - 28, 0, 28, H);
+
+                // Inner gold border.
+                ctx.strokeStyle = opts.accent;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(60, 60, W - 120, H - 120);
+
+                // Ornament — corner triangles.
+                ctx.fillStyle = opts.accent;
+                [[60, 60], [W - 60, 60], [60, H - 60], [W - 60, H - 60]].forEach(([x, y]) => {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Brand kicker.
+                ctx.fillStyle = '#7A7364';
+                ctx.font = '600 14px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('S U N D A Y  ·  A S A N M I N D S', W / 2, 130);
+
+                // Headline.
+                ctx.fillStyle = opts.bg;
+                ctx.font = '300 56px "Fraunces", serif';
+                ctx.fillText(opts.headline, W / 2, 200);
+
+                // Subheading.
+                ctx.fillStyle = opts.accent;
+                ctx.font = 'italic 400 26px "Fraunces", serif';
+                ctx.fillText(opts.subheading, W / 2, 240);
+
+                // Awarded to.
+                ctx.fillStyle = '#7A7364';
+                ctx.font = '500 14px Inter, sans-serif';
+                ctx.fillText('A W A R D E D   T O', W / 2, 310);
+
+                // Name.
+                ctx.fillStyle = '#14120E';
+                ctx.font = '300 64px "Fraunces", serif';
+                ctx.fillText(opts.name, W / 2, 370);
+
+                // Body — wrap to lines.
+                ctx.fillStyle = '#4A453B';
+                ctx.font = '400 18px Inter, sans-serif';
+                this._wrapText(ctx, opts.body, W / 2, 420, W - 220, 28);
+
+                // Score block.
+                const scoreY = 540;
+                ctx.fillStyle = opts.bg;
+                ctx.fillRect(W / 2 - 220, scoreY - 30, 440, 80);
+                ctx.fillStyle = opts.accent;
+                ctx.font = '500 12px Inter, sans-serif';
+                ctx.fillText('F I N A L   M A R K', W / 2, scoreY - 8);
+                ctx.fillStyle = '#F5F2EB';
+                ctx.font = '300 56px "Fraunces", serif';
+                ctx.fillText(opts.score + '%', W / 2, scoreY + 38);
+
+                // Marks list (per-pose or per-course).
+                ctx.fillStyle = '#7A7364';
+                ctx.font = '500 11px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                const listX = 110;
+                let listY = 660;
+                ctx.fillText(opts.isMaster ? 'S E M E S T E R   M A R K S' : 'P O S E   M A R K S', listX, listY);
+                listY += 22;
+                ctx.font = '400 13px Inter, sans-serif';
+                ctx.fillStyle = '#14120E';
+                const cols = 2;
+                const colW = (W - 220) / cols;
+                opts.poses.forEach((row, i) => {
+                    const col = i % cols;
+                    const r = Math.floor(i / cols);
+                    const x = listX + col * colW;
+                    const y = listY + r * 22;
+                    const label = row.name + ' '.repeat(2) + '·';
+                    ctx.fillStyle = '#14120E';
+                    ctx.fillText(row.name, x, y);
+                    ctx.fillStyle = opts.bg;
+                    ctx.fillText(row.mark + '%', x + colW - 60, y);
+                });
+
+                // Date + signature.
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#7A7364';
+                ctx.font = '500 12px Inter, sans-serif';
+                ctx.fillText('I S S U E D   ' + opts.dateStr.toUpperCase(), W / 2, H - 130);
+
+                ctx.strokeStyle = '#A8A294';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(W / 2 - 140, H - 95);
+                ctx.lineTo(W / 2 + 140, H - 95);
+                ctx.stroke();
+                ctx.fillStyle = '#14120E';
+                ctx.font = 'italic 18px "Fraunces", serif';
+                ctx.fillText('Sunday  ·  AsanMinds', W / 2, H - 70);
+
+                const link = document.createElement('a');
+                link.download = opts.fileName;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            },
+
+            _wrapText(ctx, text, cx, y, maxWidth, lineHeight) {
+                const words = (text || '').split(' ');
+                let line = '';
+                const lines = [];
+                for (const w of words) {
+                    const test = line + (line ? ' ' : '') + w;
+                    if (ctx.measureText(test).width > maxWidth && line) {
+                        lines.push(line);
+                        line = w;
+                    } else {
+                        line = test;
+                    }
+                }
+                if (line) lines.push(line);
+                lines.forEach((l, i) => ctx.fillText(l, cx, y + i * lineHeight));
             },
 
             // --- Initialization ---

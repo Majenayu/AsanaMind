@@ -4,8 +4,8 @@
  * Caches all static assets so the app works fully offline after first load.
  * Strategy: cache-first for static assets, network-first for API calls.
  */
-// Bumped from v3 to v4 because the offline asset list changed (item 36).
-const CACHE_NAME = 'sunday-v4';
+// Bumped from v4 to v5 because static/courses.js was added (item 36).
+const CACHE_NAME = 'sunday-v5';
 const STATIC_ASSETS = [
     '/',
     '/home',
@@ -15,6 +15,7 @@ const STATIC_ASSETS = [
     '/static/pose-cues.js',
     '/static/practice-flow.js',
     '/static/pose-notes.js',
+    '/static/courses.js',
     '/manifest.json',
     '/assets/logo.png',
     '/assets/poses/tadasana.jpg',
