@@ -680,6 +680,7 @@ def google_config():
     })
 
 
+@app.route('/api/profile')
 def profile():
     if not session.get('logged_in'):
         return jsonify({'error': 'Not authenticated'}), 401
