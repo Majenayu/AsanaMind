@@ -69,24 +69,81 @@ db_connected = False
 # Priority: ENV variable for Render/Production
 mongodb_uri = os.environ.get('MONGO_URI', "mongodb+srv://anv:anv@anv.thrp6za.mongodb.net/?appName=anv")
 
+# We use TWO databases:
+#   • face_auth         — legacy DB for the old name+email login flow
+#   • google_auth       — new DB exclusively for Google-Sign-In users
+# Keeping them separate eliminates any chance of cross-contamination
+# (stale completed_asanas / activity from the old flow leaking into a
+# new Google account that happens to share the same email).
+LEGACY_DB_NAME = 'face_auth'
+GOOGLE_DB_NAME = 'google_auth'
+
 try:
     client = pymongo.MongoClient(mongodb_uri)
-    # Ensure the correct database name is used
-    db = client.get_database("face_auth")
+
+    # Legacy collections — unchanged for backward compatibility.
+    db = client.get_database(LEGACY_DB_NAME)
     users = db.users
     certificates_col = db.certificates
     course_progress_col = db.course_progress
     preferences_col = db.preferences
     push_subs_col = db.push_subscriptions
     streak_freeze_col = db.streak_freezes
+
+    # Google-Sign-In dedicated DB — same collection layout, separate
+    # storage so a user's Google account is genuinely a clean slate.
+    gdb = client.get_database(GOOGLE_DB_NAME)
+    g_users = gdb.users
+    g_certificates_col = gdb.certificates
+    g_course_progress_col = gdb.course_progress
+    g_preferences_col = gdb.preferences
+    g_push_subs_col = gdb.push_subscriptions
+    g_streak_freeze_col = gdb.streak_freezes
+
     client.admin.command('ping')
-    print("✓ MongoDB connected successfully")
+    print(f"✓ MongoDB connected — legacy='{LEGACY_DB_NAME}', google='{GOOGLE_DB_NAME}'")
     db_connected = True
 except Exception as e:
     print(f"✗ MongoDB connection failed: {e}")
     print("App will run without DB (profile features disabled)")
     certificates_col = course_progress_col = preferences_col = None
     push_subs_col = streak_freeze_col = None
+    g_users = g_certificates_col = g_course_progress_col = None
+    g_preferences_col = g_push_subs_col = g_streak_freeze_col = None
+
+
+# ─────────────────────────────────────────────────────────────
+# Per-request collection routing — Google users go to google_auth,
+# everyone else goes to face_auth. The session flag is set in the
+# /auth/google handler, so this works automatically once the user
+# has signed in via Google.
+# ─────────────────────────────────────────────────────────────
+def _is_google_session():
+    return session.get('auth_provider') == 'google'
+
+
+def get_users_col():
+    return g_users if _is_google_session() else users
+
+
+def get_certificates_col():
+    return g_certificates_col if _is_google_session() else certificates_col
+
+
+def get_course_progress_col():
+    return g_course_progress_col if _is_google_session() else course_progress_col
+
+
+def get_preferences_col():
+    return g_preferences_col if _is_google_session() else preferences_col
+
+
+def get_push_subs_col():
+    return g_push_subs_col if _is_google_session() else push_subs_col
+
+
+def get_streak_freeze_col():
+    return g_streak_freeze_col if _is_google_session() else streak_freeze_col
 
 # Updated INDEX_HTML (with /home redirects)
 INDEX_HTML = """
@@ -569,13 +626,15 @@ def google_auth():
     google_sub = info.get('sub')
 
     today = datetime.now().strftime('%Y-%m-%d')
-    existing = users.find_one({'email': email})
+    # Google users live in the dedicated google_auth DB so they're truly
+    # isolated from the legacy face_auth records.
+    existing = g_users.find_one({'email': email})
     if existing:
         # Backfill Google linkage and update profile fields from Google's
         # verified data — Google's name and picture always win because they
         # are user-controlled identity (vs whatever was typed in the old
         # name+email flow). Activity log is still appended.
-        users.update_one(
+        g_users.update_one(
             {'email': email},
             {
                 '$set': {
@@ -589,7 +648,7 @@ def google_auth():
         )
         session_name = name
     else:
-        users.insert_one({
+        g_users.insert_one({
             'name': name,
             'email': email,
             'picture': picture,
@@ -602,10 +661,13 @@ def google_auth():
         session_name = name
 
     session.permanent = True
+    session.clear()  # remove any stale legacy-flow keys
+    session.permanent = True
     session['logged_in'] = True
     session['user_email'] = email
     session['user_name'] = session_name
     session['picture'] = picture
+    session['auth_provider'] = 'google'  # routes all DB lookups to google_auth
     return jsonify({'success': True, 'name': session_name, 'email': email, 'picture': picture})
 
 
@@ -621,9 +683,10 @@ def google_config():
 def profile():
     if not session.get('logged_in'):
         return jsonify({'error': 'Not authenticated'}), 401
-    
+
     email = session['user_email']
-    user = users.find_one({'email': email})
+    users_col = get_users_col()
+    user = users_col.find_one({'email': email})
     if user:
         # Sort activity_log for frontend
         activity_log = sorted(user.get('activity_log', []))
@@ -658,9 +721,9 @@ def complete_pose():
     
     email = session['user_email']
     today = datetime.now().strftime('%Y-%m-%d')
-    
+
     # Update: Inc count and add date
-    users.update_one(
+    get_users_col().update_one(
         {'email': email},
         {
             '$inc': {f'completed_asanas.{pose_name}': 1},
@@ -1121,9 +1184,9 @@ def sync_history():
     sessions = data.get('sessions') or []
     if not sessions:
         return jsonify({'success': True, 'synced': 0})
-    email = session.get('email', '')
+    email = session.get('user_email', '')
     try:
-        db.users.update_one(
+        get_users_col().update_one(
             {'email': email},
             {'$push': {'session_history': {'$each': sessions[-60:]}}},
             upsert=True
@@ -1142,10 +1205,11 @@ def sync_history():
 def get_course_progress():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not db_connected or course_progress_col is None:
+    col = get_course_progress_col()
+    if not db_connected or col is None:
         return jsonify({'success': True, 'progress': None, 'note': 'DB offline'})
     email = session.get('user_email')
-    doc = course_progress_col.find_one({'email': email})
+    doc = col.find_one({'email': email})
     if not doc:
         return jsonify({'success': True, 'progress': None})
     doc.pop('_id', None)
@@ -1156,14 +1220,15 @@ def get_course_progress():
 def save_course_progress():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not db_connected or course_progress_col is None:
+    col = get_course_progress_col()
+    if not db_connected or col is None:
         return jsonify({'success': True, 'note': 'DB offline'})
     data = request.get_json(silent=True) or {}
     progress = data.get('progress')
     if not progress:
         return jsonify({'success': False, 'error': 'Empty progress'}), 400
     email = session.get('user_email')
-    course_progress_col.update_one(
+    col.update_one(
         {'email': email},
         {'$set': {'progress': progress, 'updatedAt': datetime.utcnow().isoformat()}},
         upsert=True,
@@ -1183,12 +1248,13 @@ def _iso_week_key(dt):
 
 
 def _ensure_streak_freezes_doc(email):
-    if streak_freeze_col is None:
+    col = get_streak_freeze_col()
+    if col is None:
         return None
-    doc = streak_freeze_col.find_one({'email': email})
+    doc = col.find_one({'email': email})
     if not doc:
         doc = {'email': email, 'usedWeeks': [], 'autoApplied': []}
-        streak_freeze_col.insert_one(doc)
+        col.insert_one(doc)
     return doc
 
 
@@ -1199,13 +1265,15 @@ def get_streak():
     if not db_connected:
         return jsonify({'success': True, 'streak': 0, 'best': 0, 'freezeAvailable': False})
     email = session.get('user_email')
-    user = users.find_one({'email': email})
+    users_col = get_users_col()
+    streak_col = get_streak_freeze_col()
+    user = users_col.find_one({'email': email})
     activity = sorted(user.get('activity_log', [])) if user else []
 
     # Compute streak — number of consecutive days up to today, with freeze tokens
     # auto-applied to bridge a single missed day per ISO week.
     today = datetime.utcnow().date()
-    freeze_doc = _ensure_streak_freezes_doc(email) if streak_freeze_col is not None else None
+    freeze_doc = _ensure_streak_freezes_doc(email) if streak_col is not None else None
     auto_applied = list((freeze_doc or {}).get('autoApplied', []))
     used_weeks = set((freeze_doc or {}).get('usedWeeks', []))
     activity_set = set(activity)
@@ -1226,8 +1294,8 @@ def get_streak():
             if prev_active:
                 used_weeks.add(wk)
                 auto_applied.append(key)
-                if streak_freeze_col is not None:
-                    streak_freeze_col.update_one(
+                if streak_col is not None:
+                    streak_col.update_one(
                         {'email': email},
                         {'$addToSet': {'usedWeeks': wk, 'autoApplied': key}},
                     )
@@ -1267,7 +1335,8 @@ def get_streak():
 def use_streak_freeze():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not db_connected or streak_freeze_col is None:
+    streak_col = get_streak_freeze_col()
+    if not db_connected or streak_col is None:
         return jsonify({'success': False, 'error': 'DB offline'}), 500
     email = session.get('user_email')
     today = datetime.utcnow().date()
@@ -1275,12 +1344,12 @@ def use_streak_freeze():
     doc = _ensure_streak_freezes_doc(email)
     if wk in doc.get('usedWeeks', []):
         return jsonify({'success': False, 'error': 'Freeze already used this week'}), 400
-    streak_freeze_col.update_one(
+    streak_col.update_one(
         {'email': email},
         {'$addToSet': {'usedWeeks': wk, 'autoApplied': today.isoformat()}},
     )
     # Add to activity_log so dashboard reflects it.
-    users.update_one({'email': email}, {'$addToSet': {'activity_log': today.isoformat()}})
+    get_users_col().update_one({'email': email}, {'$addToSet': {'activity_log': today.isoformat()}})
     return jsonify({'success': True, 'usedFor': today.isoformat()})
 
 
@@ -1319,18 +1388,20 @@ def issue_certificate():
         'issuedAt': datetime.utcnow().isoformat(),
     }
 
-    if db_connected and certificates_col is not None:
-        try:
-            certificates_col.update_one(
-                {'email': record['email'], 'courseId': record['courseId']},
-                {'$setOnInsert': record},
-                upsert=True,
-            )
-            existing = certificates_col.find_one({'email': record['email'], 'courseId': record['courseId']})
-            if existing and 'certId' in existing:
-                cert_id = existing['certId']
-        except Exception as e:
-            print(f'certificate save error: {e}')
+    if db_connected:
+        cert_col = get_certificates_col()
+        if cert_col is not None:
+            try:
+                cert_col.update_one(
+                    {'email': record['email'], 'courseId': record['courseId']},
+                    {'$setOnInsert': record},
+                    upsert=True,
+                )
+                existing = cert_col.find_one({'email': record['email'], 'courseId': record['courseId']})
+                if existing and 'certId' in existing:
+                    cert_id = existing['certId']
+            except Exception as e:
+                print(f'certificate save error: {e}')
 
     return jsonify({
         'success': True,
@@ -1343,9 +1414,10 @@ def issue_certificate():
 def list_certificates():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not db_connected or certificates_col is None:
+    cert_col = get_certificates_col()
+    if not db_connected or cert_col is None:
         return jsonify({'success': True, 'certificates': []})
-    docs = list(certificates_col.find({'email': session.get('user_email')}))
+    docs = list(cert_col.find({'email': session.get('user_email')}))
     out = []
     for d in docs:
         d.pop('_id', None)
@@ -1355,10 +1427,20 @@ def list_certificates():
 
 @app.route('/verify/<cert_id>')
 def verify_certificate(cert_id):
-    """Public verification page — anyone with the URL can confirm authenticity."""
-    if not db_connected or certificates_col is None:
+    """Public verification page — anyone with the URL can confirm authenticity.
+
+    Searches BOTH legacy and Google certificate collections so a verifier
+    URL always works regardless of which login flow issued it.
+    """
+    if not db_connected:
         return _verify_html(None, cert_id, 'database-offline')
-    cert = certificates_col.find_one({'certId': (cert_id or '').upper()})
+    upper_id = (cert_id or '').upper()
+    cert = None
+    for col in (certificates_col, g_certificates_col):
+        if col is not None:
+            cert = col.find_one({'certId': upper_id})
+            if cert:
+                break
     if not cert:
         return _verify_html(None, cert_id, 'not-found')
     return _verify_html(cert, cert_id, 'ok')
@@ -1504,9 +1586,10 @@ def email_certificate():
 def get_preferences():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not db_connected or preferences_col is None:
+    pref_col = get_preferences_col()
+    if not db_connected or pref_col is None:
         return jsonify({'success': True, 'preferences': {}})
-    doc = preferences_col.find_one({'email': session.get('user_email')}) or {}
+    doc = pref_col.find_one({'email': session.get('user_email')}) or {}
     doc.pop('_id', None)
     return jsonify({'success': True, 'preferences': doc.get('preferences') or {}})
 
@@ -1520,9 +1603,10 @@ def save_preferences():
     # Apply remember-me to the current session right away.
     if 'rememberMe' in prefs:
         session.permanent = bool(prefs['rememberMe'])
-    if not db_connected or preferences_col is None:
+    pref_col = get_preferences_col()
+    if not db_connected or pref_col is None:
         return jsonify({'success': True, 'note': 'DB offline'})
-    preferences_col.update_one(
+    pref_col.update_one(
         {'email': session.get('user_email')},
         {'$set': {'preferences': prefs, 'updatedAt': datetime.utcnow().isoformat()}},
         upsert=True,
@@ -1547,14 +1631,15 @@ def push_public_key():
 def push_subscribe():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not db_connected or push_subs_col is None:
+    push_col = get_push_subs_col()
+    if not db_connected or push_col is None:
         return jsonify({'success': False, 'error': 'DB offline'}), 500
     data = request.get_json(silent=True) or {}
     sub = data.get('subscription')
     reminder_time = data.get('reminderTime') or '07:00'
     if not sub or 'endpoint' not in sub:
         return jsonify({'success': False, 'error': 'Invalid subscription'}), 400
-    push_subs_col.update_one(
+    push_col.update_one(
         {'email': session.get('user_email')},
         {'$set': {
             'subscription': sub,
@@ -1570,8 +1655,9 @@ def push_subscribe():
 def push_unsubscribe():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if push_subs_col is not None:
-        push_subs_col.delete_one({'email': session.get('user_email')})
+    push_col = get_push_subs_col()
+    if push_col is not None:
+        push_col.delete_one({'email': session.get('user_email')})
     return jsonify({'success': True})
 
 
@@ -1581,9 +1667,10 @@ def push_test():
     the push stack isn't installed — UI shows the right message."""
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-    if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY') and push_subs_col is not None):
+    push_col = get_push_subs_col()
+    if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY') and push_col is not None):
         return jsonify({'success': False, 'error': 'Push not configured on server.'}), 503
-    sub_doc = push_subs_col.find_one({'email': session.get('user_email')})
+    sub_doc = push_col.find_one({'email': session.get('user_email')})
     if not sub_doc or not sub_doc.get('subscription'):
         return jsonify({'success': False, 'error': 'No subscription saved.'}), 404
     try:
@@ -1611,9 +1698,17 @@ def delete_account():
     email = session.get('user_email')
     if db_connected:
         try:
-            users.delete_one({'email': email})
-            for col in (certificates_col, course_progress_col, preferences_col,
-                        push_subs_col, streak_freeze_col):
+            # Wipe from BOTH databases — the user wants to be forgotten,
+            # not just from one.
+            for col in (users, get_users_col()):
+                if col is not None:
+                    col.delete_one({'email': email})
+            for col in (
+                certificates_col, course_progress_col, preferences_col,
+                push_subs_col, streak_freeze_col,
+                g_certificates_col, g_course_progress_col, g_preferences_col,
+                g_push_subs_col, g_streak_freeze_col,
+            ):
                 if col is not None:
                     col.delete_many({'email': email})
         except Exception as e:
