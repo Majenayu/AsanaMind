@@ -392,11 +392,15 @@ function renderStudentsTable(rows) {
                 <th>Streak</th>
                 <th>Sessions</th>
                 <th>Sems</th>
+                <th>Progress</th>
                 <th>Master</th>
+                <th></th>
             </tr></thead>
             <tbody>
-            ${rows.map(s => `
-                <tr class="row" onclick="location.hash='#students/${encodeURIComponent(s.email)}'">
+            ${rows.map(s => {
+                const pct = Math.round(((s.sems_completed || 0) / 6) * 100);
+                return `
+                <tr class="row" onclick="if(!event.target.closest('.row-act'))location.hash='#students/${encodeURIComponent(s.email)}'">
                     <td>
                         <div class="cell-name">
                             <div class="av" ${s.picture ? `style="background-image:url(${s.picture})"` : ''}>${s.picture ? '' : initials(s.name)}</div>
@@ -409,9 +413,21 @@ function renderStudentsTable(rows) {
                     <td>${s.best_streak || 0}d</td>
                     <td>${s.total_sessions || 0}</td>
                     <td>${s.sems_completed || 0}/6</td>
+                    <td style="min-width:120px">
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <div style="flex:1;height:6px;background:#E0D9C8;border-radius:3px;overflow:hidden;min-width:60px">
+                                <div style="height:100%;width:${pct}%;background:${pct >= 100 ? '#E0A23F' : '#0F3D2E'};border-radius:3px"></div>
+                            </div>
+                            <span class="mono" style="font-size:11px;color:#7A7364;min-width:30px;text-align:right">${pct}%</span>
+                        </div>
+                    </td>
                     <td>${s.has_master ? '<span class="badge badge-master">★</span>' : '—'}</td>
-                </tr>
-            `).join('')}
+                    <td class="row-act" style="white-space:nowrap">
+                        <button class="btn btn-sm" onclick="openEditModal('${s.email.replace(/'/g,"\\'")}', '${(s.name || '').replace(/'/g,"\\'")}', '${(s.picture || '').replace(/'/g,"\\'")}', '${s.auth_provider || 'email'}')" title="Edit">✎</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDelete('${s.email.replace(/'/g,"\\'")}')" title="Delete permanently">🗑</button>
+                    </td>
+                </tr>`;
+            }).join('')}
             </tbody>
         </table>
         </div>
@@ -441,9 +457,10 @@ async function renderStudentDeep(email) {
                     <div class="meta">${u.email}</div>
                 </div>
                 <div class="actions">
+                    <button class="btn" onclick="openEditModal('${u.email.replace(/'/g,"\\'")}', '${(u.name || '').replace(/'/g,"\\'")}', '${(u.picture || '').replace(/'/g,"\\'")}', '${u.auth_provider || 'email'}')">✎ Edit</button>
                     <button class="btn" onclick="openNotifyModal('${u.email}')">🔔 Send push</button>
                     <button class="btn btn-danger" onclick="confirmReset('${u.email}')">Reset progress</button>
-                    <button class="btn btn-danger" onclick="confirmDelete('${u.email}')">Delete</button>
+                    <button class="btn btn-danger" onclick="confirmDelete('${u.email}')">🗑 Delete</button>
                 </div>
             </div>
         </div>
@@ -460,11 +477,29 @@ async function renderStudentDeep(email) {
             <div class="sem-grid">
                 ${(data.courses || []).map(c => {
                     const cls = c.completed ? 'sem done' : c.locked ? 'sem locked' : 'sem';
+                    const status = c.completed ? `${c.finalScore || 0}% Final`
+                        : c.locked ? 'Locked'
+                        : `${c.donePoses || 0} / ${c.totalPoses || 0} poses`;
+                    const pct = c.completed ? 100 : (c.pct || 0);
+                    const trackBg = c.completed ? 'rgba(245,242,235,0.25)' : '#E0D9C8';
+                    const fillBg = c.completed ? '#E0A23F' : c.locked ? '#A8A294' : '#0F3D2E';
                     return `
                     <div class="${cls}">
                         <div class="s">Sem ${c.semesterNumber}</div>
                         <div class="t">${c.name}</div>
-                        <div class="mark">${c.completed ? (c.finalScore || 0) + '%' : (c.locked ? 'Locked' : 'In progress')}</div>
+                        <div style="margin-top:10px;height:6px;background:${trackBg};border-radius:3px;overflow:hidden">
+                            <div style="height:100%;width:${pct}%;background:${fillBg};border-radius:3px;transition:width .4s"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;opacity:.85">
+                            <span>${status}</span>
+                            <span>${pct}%</span>
+                        </div>
+                        ${!c.locked && !c.completed && c.totalPoses ? `
+                        <div style="display:flex;gap:8px;margin-top:8px;font-size:10px;opacity:.75;letter-spacing:0.04em">
+                            <span>AR ${c.arDone}/${c.totalPoses}</span>
+                            <span>·</span>
+                            <span>Quiz ${c.quizDone}/${c.totalPoses}</span>
+                        </div>` : ''}
                     </div>`;
                 }).join('')}
             </div>
@@ -683,6 +718,50 @@ async function renderAnalytics() {
 // ─────────────────────────────────────────────────
 // ACTIONS
 // ─────────────────────────────────────────────────
+function openEditModal(email, name, picture, provider) {
+    showModal(`
+        <div class="modal-h"><h3>Edit student</h3></div>
+        <div class="modal-b">
+            <p style="color:#7A7364;font-size:12px;margin:0 0 4px">Email cannot be changed (it's the primary key).</p>
+            <p style="margin:0;color:#14120E;font-weight:500;font-size:13px">${email}</p>
+            <label>Name</label>
+            <input class="input" id="ed-name" style="width:100%" value="${name || ''}" maxlength="120">
+            <label>Profile picture URL <span style="color:#A8A294;font-weight:400;letter-spacing:0">(optional)</span></label>
+            <input class="input" id="ed-pic" style="width:100%" value="${picture || ''}" placeholder="https://…">
+            <label>Auth provider</label>
+            <select class="input" id="ed-prov" style="width:100%">
+                <option value="google" ${provider === 'google' ? 'selected' : ''}>Google</option>
+                <option value="email" ${provider !== 'google' ? 'selected' : ''}>Email (legacy)</option>
+            </select>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveEdit('${email.replace(/'/g,"\\'")}')">Save changes</button>
+            </div>
+        </div>
+    `);
+}
+
+async function saveEdit(email) {
+    const payload = {
+        name: $('#ed-name').value.trim(),
+        picture: $('#ed-pic').value.trim(),
+        auth_provider: $('#ed-prov').value,
+    };
+    if (!payload.name) { alert('Name cannot be empty.'); return; }
+    try {
+        const r = await fetch('/api/admin/edit/' + encodeURIComponent(email), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!j.success) { alert(j.error || 'Update failed.'); return; }
+        closeModal();
+        renderStudentDeep(email);
+    } catch (e) { alert('Network error.'); }
+}
+
 function openBroadcastModal() {
     showModal(`
         <div class="modal-h"><h3>Broadcast push notification</h3></div>
@@ -743,19 +822,38 @@ async function sendNotify(email) {
 }
 
 async function confirmReset(email) {
-    if (!confirm(`Reset all course progress for ${email}? Their certificates remain.`)) return;
+    if (!confirm(`Reset all course progress for ${email}? Their certificates and account will remain.`)) return;
     const r = await fetch('/api/admin/reset/' + encodeURIComponent(email), { method: 'POST', credentials: 'same-origin' });
     const j = await r.json();
     alert(j.success ? 'Progress reset.' : (j.error || 'Failed.'));
     if (j.success) renderStudentDeep(email);
 }
+
 async function confirmDelete(email) {
-    if (!confirm(`Permanently delete account ${email}? This cannot be undone.`)) return;
-    if (!confirm('Are you absolutely sure? All data will be erased.')) return;
-    const r = await fetch('/api/admin/delete/' + encodeURIComponent(email), { method: 'POST', credentials: 'same-origin' });
-    const j = await r.json();
-    alert(j.success ? 'Deleted.' : (j.error || 'Failed.'));
-    if (j.success) location.hash = '#students';
+    const typed = prompt(
+        `⚠ Permanently delete ${email}?\n\n` +
+        'This will erase the user document, course progress, certificates, ' +
+        'preferences, push subscriptions, streak freezes, and all feedback. ' +
+        'It cannot be undone.\n\n' +
+        'Type DELETE (uppercase) to confirm.'
+    );
+    if (typed !== 'DELETE') {
+        if (typed !== null) alert('Cancelled — you didn\'t type DELETE.');
+        return;
+    }
+    try {
+        const r = await fetch('/api/admin/delete/' + encodeURIComponent(email), { method: 'POST', credentials: 'same-origin' });
+        const j = await r.json();
+        if (j.success) {
+            const counts = j.deleted || {};
+            const total = Object.values(counts).reduce((s, n) => s + (n || 0), 0);
+            alert(`Done. Removed ${total} record(s) across ${Object.keys(counts).length} collections.\n\n` +
+                  Object.entries(counts).filter(([,n]) => n > 0).map(([k,n]) => `• ${k}: ${n}`).join('\n'));
+            location.hash = '#students';
+        } else {
+            alert(j.error || 'Failed.');
+        }
+    } catch (e) { alert('Network error.'); }
 }
 
 // Boot

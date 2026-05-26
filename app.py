@@ -2284,13 +2284,38 @@ def admin_student_deep(email):
         progress = (cp_doc.get('progress') or {}).get('courses') or {}
     for sm in sem_meta:
         c = progress.get(sm['id']) or {}
+        poses = c.get('poses') or []
+        total_poses = len(poses)
+        done_poses = sum(1 for p in poses if p.get('completed'))
+        ar_done = sum(1 for p in poses if p.get('arPassed'))
+        quiz_done = sum(1 for p in poses if p.get('quizPassed'))
+        pct = round(done_poses / total_poses * 100) if total_poses else 0
         courses_out.append({
             'id': sm['id'],
             'semesterNumber': sm['n'],
             'name': sm['name'],
             'completed': bool(c.get('completed')),
-            'locked': not c.get('poses') or all(p.get('locked', True) for p in c.get('poses', [])),
+            'locked': not poses or all(p.get('locked', True) for p in poses),
             'finalScore': c.get('finalScore'),
+            'totalPoses': total_poses,
+            'donePoses': done_poses,
+            'arDone': ar_done,
+            'quizDone': quiz_done,
+            'pct': pct,
+            'poses': [
+                {
+                    'name': p.get('name'),
+                    'sanskrit': p.get('sanskrit', ''),
+                    'completed': bool(p.get('completed')),
+                    'arPassed': bool(p.get('arPassed')),
+                    'quizPassed': bool(p.get('quizPassed')),
+                    'arBest': p.get('arBest', 0),
+                    'quizBest': p.get('quizBest', 0),
+                    'finalScore': p.get('finalScore', 0),
+                    'locked': bool(p.get('locked', True)),
+                }
+                for p in poses
+            ],
         })
 
     # Certificates.
@@ -2538,15 +2563,52 @@ def admin_broadcast():
     return jsonify({'success': True, 'attempted': attempted, 'delivered': delivered, 'failures': failures[:20]})
 
 
+@app.route('/api/admin/edit/<path:email>', methods=['POST', 'PUT'])
+@admin_api_required
+def admin_edit_user(email):
+    """Edit a student's mutable fields (name, picture). Email is the
+    primary key so it cannot be changed — that would require migrating
+    every related collection. If you need to change an email, delete and
+    let the user sign up again with the new one.
+    """
+    email = email.lower().strip()
+    data = request.get_json(silent=True) or {}
+    update = {}
+    if 'name' in data:
+        update['name'] = (data.get('name') or '').strip()[:120]
+    if 'picture' in data:
+        update['picture'] = (data.get('picture') or '').strip()[:500]
+    if 'auth_provider' in data and data['auth_provider'] in ('google', 'email'):
+        update['auth_provider'] = data['auth_provider']
+    if not update:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    matched = 0
+    for col in (g_users, users):
+        if col is None:
+            continue
+        res = col.update_one({'email': email}, {'$set': update})
+        matched += res.matched_count
+    if not matched:
+        return jsonify({'success': False, 'error': 'User not found.'}), 404
+    _audit('edit_user', email, update)
+    return jsonify({'success': True, 'updated': update})
+
+
 @app.route('/api/admin/reset/<path:email>', methods=['POST'])
 @admin_api_required
 def admin_reset_progress(email):
     """Wipe a user's course progress (keep their certificates and account)."""
+    email = email.lower().strip()
     deleted = 0
     for col in (course_progress_col, g_course_progress_col):
         if col is not None:
             res = col.delete_one({'email': email})
             deleted += res.deleted_count
+    # Also reset their per-pose AR scores in the user doc itself.
+    for col in (g_users, users):
+        if col is not None:
+            col.update_one({'email': email}, {'$set': {'completed_asanas': {}, 'session_history': []}})
     _audit('reset_progress', email)
     return jsonify({'success': True, 'deleted': deleted})
 
@@ -2554,19 +2616,44 @@ def admin_reset_progress(email):
 @app.route('/api/admin/delete/<path:email>', methods=['POST', 'DELETE'])
 @admin_api_required
 def admin_delete_user(email):
-    """Hard-delete a user from both DBs."""
-    for col in (users, g_users):
+    """Permanently delete a user — wipes EVERY trace from BOTH databases.
+
+    Removes:
+      • user document (users + g_users)
+      • course progress
+      • certificates
+      • preferences
+      • push subscriptions
+      • streak freezes
+      • feedback submissions
+      • audit log entries targeting this user (if --hard)
+    """
+    email = email.lower().strip()
+    counts = {}
+    # User documents.
+    for label, col in [('users', users), ('g_users', g_users)]:
         if col is not None:
-            col.delete_one({'email': email})
-    for col in (
-        certificates_col, course_progress_col, preferences_col, push_subs_col, streak_freeze_col,
-        g_certificates_col, g_course_progress_col, g_preferences_col, g_push_subs_col, g_streak_freeze_col,
-        feedback_col,
-    ):
+            res = col.delete_one({'email': email})
+            counts[label] = res.deleted_count
+    # All related collections.
+    for label, col in [
+        ('certificates_col', certificates_col),
+        ('course_progress_col', course_progress_col),
+        ('preferences_col', preferences_col),
+        ('push_subs_col', push_subs_col),
+        ('streak_freeze_col', streak_freeze_col),
+        ('g_certificates_col', g_certificates_col),
+        ('g_course_progress_col', g_course_progress_col),
+        ('g_preferences_col', g_preferences_col),
+        ('g_push_subs_col', g_push_subs_col),
+        ('g_streak_freeze_col', g_streak_freeze_col),
+        ('feedback_col', feedback_col),
+    ]:
         if col is not None:
-            col.delete_many({'email': email})
-    _audit('delete_user', email)
-    return jsonify({'success': True})
+            res = col.delete_many({'email': email})
+            counts[label] = res.deleted_count
+    _audit('delete_user_hard', email, counts)
+    return jsonify({'success': True, 'deleted': counts, 'note': 'User permanently removed from all collections.'})
 
 
 @app.route('/admin/export/<kind>.csv')
