@@ -685,24 +685,55 @@ def profile():
     if not session.get('logged_in'):
         return jsonify({'error': 'Not authenticated'}), 401
 
-    email = session['user_email']
+    email = session.get('user_email')
+    if not email:
+        return jsonify({'error': 'No email in session'}), 401
+
     users_col = get_users_col()
-    user = users_col.find_one({'email': email})
-    if user:
-        # Sort activity_log for frontend
-        activity_log = sorted(user.get('activity_log', []))
-        total_active_days = len(activity_log)
+    if users_col is None:
+        # Fall back to session-only data so the UI still renders something.
         return jsonify({
-            'name': user['name'],
-            'email': user['email'],
-            'picture': user.get('picture', ''),
-            'auth_provider': user.get('auth_provider', 'email'),
-            'created_at': user['created_at'].isoformat() if 'created_at' in user else None,
-            'activity_log': activity_log,
-            'completed_asanas': user.get('completed_asanas', {}),
-            'total_active_days': total_active_days
+            'name': session.get('user_name') or 'Practitioner',
+            'email': email,
+            'picture': session.get('picture', ''),
+            'auth_provider': session.get('auth_provider', 'email'),
+            'created_at': None,
+            'activity_log': [],
+            'completed_asanas': {},
+            'total_active_days': 0,
         })
-    return jsonify({'error': 'User not found'}), 404
+
+    try:
+        user = users_col.find_one({'email': email})
+    except Exception as e:
+        print(f'profile DB error: {e}')
+        user = None
+
+    if user:
+        activity_log = sorted(user.get('activity_log', []) or [])
+        created_at = user.get('created_at')
+        return jsonify({
+            'name': user.get('name') or session.get('user_name') or 'Practitioner',
+            'email': user.get('email') or email,
+            'picture': user.get('picture') or session.get('picture', ''),
+            'auth_provider': user.get('auth_provider', 'email'),
+            'created_at': created_at.isoformat() if hasattr(created_at, 'isoformat') else (created_at or None),
+            'activity_log': activity_log,
+            'completed_asanas': user.get('completed_asanas', {}) or {},
+            'total_active_days': len(activity_log),
+        })
+
+    # User not found in DB — return session info so UI doesn't break.
+    return jsonify({
+        'name': session.get('user_name') or 'Practitioner',
+        'email': email,
+        'picture': session.get('picture', ''),
+        'auth_provider': session.get('auth_provider', 'email'),
+        'created_at': None,
+        'activity_log': [],
+        'completed_asanas': {},
+        'total_active_days': 0,
+    })
 
 @app.route('/api/complete_pose', methods=['POST'])
 def complete_pose():
@@ -1574,8 +1605,20 @@ def email_certificate():
         sg.send(message)
         return jsonify({'success': True})
     except Exception as e:
-        print(f'sendgrid error: {e}')
-        return jsonify({'success': False, 'error': 'Email send failed; please use Download. (' + str(e)[:80] + ')'}), 500
+        err_str = str(e)
+        print(f'sendgrid error: {err_str}')
+        # Give a specific, actionable message so the user knows what to fix.
+        if '403' in err_str or 'Forbidden' in err_str:
+            msg = ('SendGrid rejected the send (403). Your SENDGRID_FROM_EMAIL is not verified '
+                   'as a sender. Go to SendGrid → Settings → Sender Authentication → Single Sender '
+                   'Verification → click the confirmation link in your inbox.')
+        elif '401' in err_str or 'Unauthorized' in err_str:
+            msg = 'SendGrid rejected the API key (401). Re-create the SENDGRID_API_KEY in Render with Full Access permissions.'
+        elif '413' in err_str:
+            msg = 'Certificate file is too large for email. Use the Download button instead.'
+        else:
+            msg = 'Email send failed; please use Download. (' + err_str[:80] + ')'
+        return jsonify({'success': False, 'error': msg}), 500
 
 
 # ─────────────────────────────────────────────────────────────
