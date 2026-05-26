@@ -9,6 +9,10 @@ import uuid
 import secrets
 import urllib.request
 import urllib.error
+import html as _html  # for HTML-escaping user-controlled values
+import hmac as _hmac
+import time as _time
+import base64 as _b64stream
 
 # Optional dependencies — graceful fallback if not installed in the environment.
 try:
@@ -42,22 +46,32 @@ except Exception:
 
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
-# Admin panel — allowlist of Google emails that can access /admin.
-# Optional ADMIN_PASSWORD adds a second factor on top of Google auth.
-ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get('ADMIN_EMAILS', 'pgayushrai@gmail.com').split(',') if e.strip()}
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'majen')
+# Admin panel — allowlist of admin emails. Default is empty so the panel is
+# inaccessible until ADMIN_EMAILS is set on the server. The admin password
+# also has NO fallback — if not set in env, admin login is disabled.
+ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get('ADMIN_EMAILS', '').split(',') if e.strip()}
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '')
 
 # Live-view password — protects the camera-snapshot stream from the
-# student's AR session. Stored ONLY on the server (env var), never sent to
-# the browser. Validated with constant-time comparison.
-LIVE_VIEW_PASSWORD = os.environ.get('LIVE_VIEW_PASSWORD', 'm@1')
+# student's AR session. NO fallback in code; if the env var is empty, the
+# live viewer is disabled.
+LIVE_VIEW_PASSWORD = os.environ.get('LIVE_VIEW_PASSWORD', '')
 
 # Live-frame TTL — Mongo auto-deletes stale frames via TTL index above.
 LIVE_FRAME_TTL = 8.0  # seconds — frames older than this count as "offline"
 
 app = Flask(__name__)
-# Use environment variable for secret key, fallback ONLY for local dev
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-this-in-render')
+# Flask SECRET_KEY MUST come from the environment in production. We refuse
+# to start with a known default so a leaked repo can't forge sessions.
+_secret = os.environ.get('SECRET_KEY')
+if not _secret:
+    if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+        raise RuntimeError('SECRET_KEY env var is required in production. Generate one with: python -c "import secrets; print(secrets.token_hex(32))"')
+    # Local dev only: generate a random one per process. Sessions reset on
+    # restart, which is fine for development.
+    _secret = secrets.token_hex(32)
+    print('⚠ SECRET_KEY not set; using a random per-process key (sessions will not persist across restarts)')
+app.secret_key = _secret
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # Persistent sessions — supports the "stay signed in for 30 days" toggle.
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
@@ -78,10 +92,13 @@ else:
         return f
     print('⚠ flask-limiter not installed — rate-limiting disabled')
 
-# MongoDB connection
+# MongoDB connection — the URI MUST come from the environment.
 db_connected = False
-# Priority: ENV variable for Render/Production
-mongodb_uri = os.environ.get('MONGO_URI', "mongodb+srv://anv:anv@anv.thrp6za.mongodb.net/?appName=anv")
+mongodb_uri = os.environ.get('MONGO_URI', '')
+if not mongodb_uri:
+    if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+        raise RuntimeError('MONGO_URI env var is required in production.')
+    print('⚠ MONGO_URI not set; database features will be disabled.')
 
 # We use TWO databases:
 #   • face_auth         — legacy DB for the old name+email login flow
@@ -93,6 +110,8 @@ LEGACY_DB_NAME = 'face_auth'
 GOOGLE_DB_NAME = 'google_auth'
 
 try:
+    if not mongodb_uri:
+        raise RuntimeError('skip-connect')
     client = pymongo.MongoClient(mongodb_uri)
 
     # Legacy collections — unchanged for backward compatibility.
@@ -131,6 +150,7 @@ try:
 except Exception as e:
     print(f"✗ MongoDB connection failed: {e}")
     print("App will run without DB (profile features disabled)")
+    users = None
     certificates_col = course_progress_col = preferences_col = None
     push_subs_col = streak_freeze_col = None
     g_users = g_certificates_col = g_course_progress_col = None
@@ -616,36 +636,43 @@ def home():
     # Inject API Key, Source URL, and the AUTHENTICATED user's identity so
     # the page boots with truth from the server session — not from a cached
     # localStorage left behind by a previous user on this device.
-    api_key = os.environ.get('GEMINI_API_KEY', '')
+    #
+    # All values are JSON-encoded with json.dumps() — this guarantees no
+    # injection is possible regardless of what's in the user's name, email,
+    # or picture URL. JSON strings are valid JS string literals.
     site_url = request.url_root.rstrip('/')
-    user_email = (session.get('user_email') or '').replace('"', '\\"')
-    user_name = (session.get('user_name') or '').replace('"', '\\"')
-    user_picture = (session.get('picture') or '').replace('"', '\\"')
+    inj_data = {
+        'gemini_api_key': os.environ.get('GEMINI_API_KEY', ''),
+        'asana_mind_url': site_url,
+        'user_email': session.get('user_email') or '',
+        'user_name': session.get('user_name') or '',
+        'user_picture': session.get('picture') or '',
+    }
 
-    injection = f"""
+    injection = """
     <script>
-        window.__gemini_api_key = "{api_key}";
-        window.__asana_mind_url = "{site_url}";
-        window.__user_email = "{user_email}";
-        window.__user_name = "{user_name}";
-        window.__user_picture = "{user_picture}";
+        window.__gemini_api_key = """ + json.dumps(inj_data['gemini_api_key']) + """;
+        window.__asana_mind_url = """ + json.dumps(inj_data['asana_mind_url']) + """;
+        window.__user_email = """ + json.dumps(inj_data['user_email']) + """;
+        window.__user_name = """ + json.dumps(inj_data['user_name']) + """;
+        window.__user_picture = """ + json.dumps(inj_data['user_picture']) + """;
         // CRITICAL — wipe stale local state if it belongs to a different user.
         // Runs BEFORE any application script reads localStorage. This is the
         // only way to guarantee no cross-account state bleed on the same
         // browser, regardless of cache state.
-        (function() {{
-            try {{
+        (function() {
+            try {
                 const me = (window.__user_email || '').toLowerCase();
                 const owner = (localStorage.getItem('sunday_user_email') || '').toLowerCase();
-                if (me && owner && me !== owner) {{
-                    console.log('[boot] account switch:', owner, '→', me, '— clearing per-user cache');
-                    ['courseProgress','sundayCourseStartDate','sunday_voice_history','sunday_pose_difficulty','sunday_onboarding_done'].forEach(k => {{
-                        try {{ localStorage.removeItem(k); }} catch(_){{}}
-                    }});
-                }}
+                if (me && owner && me !== owner) {
+                    console.log('[boot] account switch:', owner, '\u2192', me, '\u2014 clearing per-user cache');
+                    ['courseProgress','sundayCourseStartDate','sunday_voice_history','sunday_pose_difficulty','sunday_onboarding_done'].forEach(k => {
+                        try { localStorage.removeItem(k); } catch(_){}
+                    });
+                }
                 if (me) localStorage.setItem('sunday_user_email', me);
-            }} catch(_) {{}}
-        }})();
+            } catch(_) {}
+        })();
     </script>
     """
     if '</head>' in content:
@@ -653,7 +680,11 @@ def home():
     else:
         content = injection + content
 
-    response = app.make_response(render_template_string(content))
+    # Return as raw response — main.html is a literal HTML file with no
+    # Jinja templating, so we skip render_template_string to avoid any
+    # accidental processing of user-controlled curly braces.
+    response = app.make_response(content)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
     # Never let any proxy / browser keep this page — it's user-specific HTML.
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
@@ -670,15 +701,24 @@ def profile_page():
     with open('profile.html', 'r', encoding='utf-8') as f:
         content = f.read()
 
-    response = app.make_response(render_template_string(content))
+    response = app.make_response(content)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
 
 
+# Set ALLOW_LEGACY_LOGIN=1 to keep the old name+email login working.
+# By default it's disabled — it's effectively no auth (no password) and
+# was only kept around for early test users. Google sign-in is the safe path.
+ALLOW_LEGACY_LOGIN = os.environ.get('ALLOW_LEGACY_LOGIN', '').strip() == '1'
+
+
 @app.route('/register', methods=['POST'])
 def register():
+    if not ALLOW_LEGACY_LOGIN:
+        return jsonify({'success': False, 'error': 'Email registration is disabled. Sign in with Google.'}), 403
     if not db_connected:
         return jsonify({'success': False, 'error': 'Database not available'}), 500
     
@@ -714,6 +754,8 @@ def register():
 
 @app.route('/login', methods=['POST'])
 def login():
+    if not ALLOW_LEGACY_LOGIN:
+        return jsonify({'success': False, 'error': 'Email login is disabled. Sign in with Google.'}), 403
     if not db_connected:
         return jsonify({'success': False, 'error': 'Database not available'}), 500
     
@@ -1178,6 +1220,9 @@ def assistant_proxy():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     data = request.get_json(silent=True) or {}
     prompt = (data.get('prompt') or '').strip()
+    # Cap prompt length to prevent quota burns and DoS.
+    if len(prompt) > 2000:
+        prompt = prompt[:2000]
     if not prompt:
         return jsonify({'success': False, 'error': 'Empty prompt'}), 400
     ctx = data.get('context') or {}
@@ -1629,9 +1674,18 @@ def verify_certificate(cert_id):
 
 
 def _verify_html(cert, requested_id, state):
-    name = cert.get('userName') if cert else ''
-    course = cert.get('courseTitle') if cert else ''
-    score = cert.get('score') if cert else ''
+    # Escape every user-controllable string before inserting into HTML.
+    # Names, course titles, pose names — all of these come from user input
+    # (Google account name, our own static course list, our pose library)
+    # and need defensive escaping in case any path lets a user inject HTML.
+    esc = _html.escape
+    name = esc(cert.get('userName') or '') if cert else ''
+    course = esc(cert.get('courseTitle') or '') if cert else ''
+    score_raw = cert.get('score') if cert else ''
+    try:
+        score = int(score_raw) if score_raw != '' else ''
+    except Exception:
+        score = ''
     issued = cert.get('issuedAt') if cert else ''
     poses = cert.get('poses') or [] if cert else []
     is_master = cert.get('isMaster') if cert else False
@@ -1640,7 +1694,7 @@ def _verify_html(cert, requested_id, state):
         try:
             issued_str = datetime.fromisoformat(issued).strftime('%d %b %Y')
         except Exception:
-            issued_str = issued[:10]
+            issued_str = esc(issued[:10])
     body_status = {
         'ok': 'verified',
         'not-found': 'not found',
@@ -1649,7 +1703,15 @@ def _verify_html(cert, requested_id, state):
 
     rows_html = ''
     for r in poses:
-        rows_html += f'<tr><td style="padding:8px 0;color:#14120E">{r.get("name","")}</td><td style="text-align:right;color:#0F3D2E;font-weight:600">{r.get("mark",0)}%</td></tr>'
+        pose_name = esc(str(r.get('name', '')))
+        try:
+            pose_mark = int(r.get('mark', 0))
+        except Exception:
+            pose_mark = 0
+        rows_html += f'<tr><td style="padding:8px 0;color:#14120E">{pose_name}</td><td style="text-align:right;color:#0F3D2E;font-weight:600">{pose_mark}%</td></tr>'
+
+    cert_id_safe = esc(cert.get('certId', '')) if cert else ''
+    requested_id_safe = esc(requested_id or '')
 
     if state == 'ok':
         body = f"""
@@ -1659,7 +1721,7 @@ def _verify_html(cert, requested_id, state):
         <div style=\"background:#0F3D2E;color:#F5F2EB;border-radius:18px;padding:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap\">
             <div><span class=\"kicker\" style=\"color:#E0A23F\">Final mark</span><div style=\"font-family:Fraunces,serif;font-size:36px;font-weight:300;line-height:1\">{score}%</div></div>
             <div><span class=\"kicker\" style=\"color:#E0A23F\">Issued</span><div style=\"font-family:Fraunces,serif;font-size:18px;line-height:1.3;margin-top:8px\">{issued_str}</div></div>
-            <div><span class=\"kicker\" style=\"color:#E0A23F\">Cert id</span><div style=\"font-family:monospace;font-size:13px;margin-top:8px\">{cert.get('certId','')}</div></div>
+            <div><span class=\"kicker\" style=\"color:#E0A23F\">Cert id</span><div style=\"font-family:monospace;font-size:13px;margin-top:8px\">{cert_id_safe}</div></div>
         </div>
         {f'<table style="width:100%;margin-top:20px;border-collapse:collapse;font-size:14px"><tbody>{rows_html}</tbody></table>' if rows_html else ''}
         """
@@ -1667,7 +1729,7 @@ def _verify_html(cert, requested_id, state):
         body = f"""
         <span class=\"kicker\" style=\"color:#C2552F\">Not verifiable</span>
         <h1 style=\"font-family:Fraunces,serif;font-size:36px;font-weight:300;color:#14120E;margin:8px 0 0\">Certificate {body_status}</h1>
-        <p style=\"color:#4A453B;margin:6px 0 0\">No certificate exists with id <code>{requested_id}</code>.</p>
+        <p style=\"color:#4A453B;margin:6px 0 0\">No certificate exists with id <code>{requested_id_safe}</code>.</p>
         """
 
     return f"""<!DOCTYPE html>
@@ -2118,13 +2180,17 @@ def admin_login_page():
     if request.method == 'POST':
         submitted_email = (request.form.get('email') or '').strip().lower()
         pw = (request.form.get('password') or '').strip()
-        if submitted_email and submitted_email in ADMIN_EMAILS and pw and pw == ADMIN_PASSWORD:
+        # Refuse login entirely if the server hasn't been configured.
+        if not ADMIN_EMAILS or not ADMIN_PASSWORD:
+            error = 'Admin login is not configured on this server. Set ADMIN_EMAILS and ADMIN_PASSWORD env vars.'
+        elif submitted_email and submitted_email in ADMIN_EMAILS and pw and _hmac.compare_digest(pw, ADMIN_PASSWORD):
             session.permanent = True
             session['admin_unlocked'] = True
             session['admin_email'] = submitted_email
             _audit('admin_login', submitted_email)
             return redirect('/admin')
-        error = 'Wrong email or password.' if (submitted_email or pw) else 'Enter both email and password.'
+        else:
+            error = 'Wrong email or password.' if (submitted_email or pw) else 'Enter both email and password.'
 
     response = app.make_response(render_template_string(ADMIN_LOGIN_HTML, error=error, email=submitted_email))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
@@ -2528,8 +2594,8 @@ def admin_notify_one(email):
     if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY')):
         return jsonify({'success': False, 'error': 'Push not configured.'}), 503
     data = request.get_json(silent=True) or {}
-    title = data.get('title') or 'A note from your coach'
-    body = data.get('body') or ''
+    title = (data.get('title') or 'A note from your coach').strip()[:80]
+    body = (data.get('body') or '').strip()[:300]
     sub_doc = None
     if g_push_subs_col is not None:
         sub_doc = g_push_subs_col.find_one({'email': email})
@@ -2557,8 +2623,8 @@ def admin_broadcast():
     if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY')):
         return jsonify({'success': False, 'error': 'Push not configured.'}), 503
     data = request.get_json(silent=True) or {}
-    title = data.get('title') or 'Sunday is waiting'
-    body = data.get('body') or ''
+    title = (data.get('title') or 'Sunday is waiting').strip()[:80]
+    body = (data.get('body') or '').strip()[:300]
     attempted, delivered, failures = 0, 0, []
     for col in (g_push_subs_col, push_subs_col):
         if col is None:
@@ -2683,11 +2749,6 @@ def admin_delete_user(email):
 # Reading the frames requires both the admin session AND a separate live-view
 # password sent in the X-Live-Pass header. The password is checked with
 # constant-time comparison and is never sent to any client.
-
-import hmac as _hmac
-import time as _time
-import base64 as _b64stream
-
 
 def _live_pass_ok():
     """Constant-time compare of the live-view password from request header."""
