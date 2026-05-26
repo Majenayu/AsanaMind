@@ -2236,6 +2236,23 @@ button:hover{background:#1F5A44}
 </body></html>"""
 
 
+@app.route('/admin/login/diag')
+def admin_login_diag():
+    """Public diagnostic so the operator can see WHY admin login is rejecting.
+    Tells you which env var is missing or empty WITHOUT leaking the values."""
+    return jsonify({
+        'admin_emails_set': bool(ADMIN_EMAILS),
+        'admin_emails_count': len(ADMIN_EMAILS),
+        'admin_password_set': bool(ADMIN_PASSWORD),
+        'admin_password_length': len(ADMIN_PASSWORD) if ADMIN_PASSWORD else 0,
+        'note': (
+            'Both must be true. If admin_emails_count is 0, set ADMIN_EMAILS '
+            'on Render (comma-separated). If admin_password_set is false, set '
+            'ADMIN_PASSWORD on Render. Restart/redeploy after changes.'
+        ),
+    })
+
+
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login_page():
     """Standalone admin login — independent of Google or the student email flow.

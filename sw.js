@@ -1,11 +1,16 @@
 /*
- * Sunday · AsanaMind — Service Worker (item 36)
+ * Sunday · AsanaMind — Service Worker
  *
  * Caches all static assets so the app works fully offline after first load.
- * Strategy: cache-first for static assets, network-first for API calls.
+ * Strategy: cache-first for static GET assets, network-first for API + HTML.
+ *
+ * IMPORTANT: Cache Storage API only supports GET requests. Every cache.put()
+ * branch below MUST verify request.method === 'GET' before storing the
+ * response, otherwise the browser throws "Request method 'POST' is
+ * unsupported".
  */
-// Bumped to v7 — server-of-truth course progress + Google profile flow.
-const CACHE_NAME = 'sunday-v7';
+// Bumped to v8 — fixed Cache.put() crash on POST requests.
+const CACHE_NAME = 'sunday-v8';
 const STATIC_ASSETS = [
     '/',
     '/home',
@@ -65,8 +70,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // API calls: network-first, fallback to cache.
+    // API calls: network-first, fallback to cache (only for GETs).
     if (url.pathname.startsWith('/api/')) {
+        if (event.request.method !== 'GET') {
+            // POST/PUT/DELETE — never cache. Just pass through.
+            return;
+        }
         event.respondWith(
             fetch(event.request).catch(() => caches.match(event.request))
         );
@@ -74,13 +83,14 @@ self.addEventListener('fetch', (event) => {
     }
 
     // HTML pages (/, /home, /profile): network-first so deploys land
-    // immediately without waiting for SW update.
+    // immediately without waiting for SW update. Only cache GETs.
     if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+        if (event.request.method !== 'GET') return;
         event.respondWith(
             fetch(event.request).then(response => {
                 if (response.ok) {
                     const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone)).catch(() => {});
                 }
                 return response;
             }).catch(() => caches.match(event.request))
@@ -89,13 +99,14 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Static assets (JS, CSS, images): cache-first, fallback to network.
+    if (event.request.method !== 'GET') return;
     event.respondWith(
         caches.match(event.request).then(cached => {
             if (cached) return cached;
             return fetch(event.request).then(response => {
-                if (response.ok && event.request.method === 'GET') {
+                if (response.ok) {
                     const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone)).catch(() => {});
                 }
                 return response;
             });
