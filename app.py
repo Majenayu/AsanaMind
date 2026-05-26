@@ -1358,23 +1358,44 @@ def email_certificate():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     data = request.get_json(silent=True) or {}
-    file_b64 = data.get('fileBase64') or ''
-    filename = (data.get('fileName') or 'AsanMinds_Certificate.pdf').replace('"', '')
+
+    # Accept either {fileBase64, fileName} or {pdfDataUrl, pngDataUrl} —
+    # the frontend currently sends the latter pair.
+    pdf_url = data.get('pdfDataUrl') or ''
+    png_url = data.get('pngDataUrl') or ''
+    file_b64 = data.get('fileBase64') or pdf_url or png_url
+
     course_title = (data.get('courseTitle') or 'AsanMinds Certificate').strip()
+    cert_id = (data.get('certId') or '').strip()
+
+    if pdf_url:
+        filename = data.get('fileName') or f'AsanMinds_Certificate_{cert_id or "cert"}.pdf'
+        is_pdf = True
+    elif png_url:
+        filename = data.get('fileName') or f'AsanMinds_Certificate_{cert_id or "cert"}.png'
+        is_pdf = False
+    else:
+        filename = (data.get('fileName') or 'AsanMinds_Certificate.pdf')
+        is_pdf = filename.lower().endswith('.pdf')
+    filename = filename.replace('"', '')
+
     score = int(data.get('score') or 0)
     user_email = session.get('user_email') or data.get('email')
     user_name = session.get('user_name') or 'practitioner'
-    if not file_b64 or not user_email:
-        return jsonify({'success': False, 'error': 'Missing file or recipient email'}), 400
+
+    if not file_b64:
+        return jsonify({'success': False, 'error': 'No certificate file received. Please reopen the certificate and try again.'}), 400
+    if not user_email:
+        return jsonify({'success': False, 'error': 'No recipient email on this account. Sign in with Google to fix this.'}), 400
 
     api_key = os.environ.get('SENDGRID_API_KEY') or ''
     sender = os.environ.get('SENDGRID_FROM_EMAIL') or 'no-reply@asanminds.app'
     if not (SENDGRID_AVAILABLE and api_key):
-        return jsonify({'success': False, 'error': 'Email service is not configured. Use the Download button instead.'}), 503
+        return jsonify({'success': False, 'error': 'Email service is not configured on the server. Use the Download button instead.'}), 503
 
     try:
-        clean_b64 = file_b64.split(',', 1)[-1]  # strips "data:application/pdf;base64," prefix if present
-        is_pdf = filename.lower().endswith('.pdf') or 'pdf' in (data.get('mime') or '')
+        # Strip "data:application/pdf;base64," prefix if present.
+        clean_b64 = file_b64.split(',', 1)[-1]
         mime = 'application/pdf' if is_pdf else 'image/png'
         message = Mail(
             from_email=sender,
@@ -1396,7 +1417,7 @@ def email_certificate():
         return jsonify({'success': True})
     except Exception as e:
         print(f'sendgrid error: {e}')
-        return jsonify({'success': False, 'error': 'Email send failed; please use Download.'}), 500
+        return jsonify({'success': False, 'error': 'Email send failed; please use Download. (' + str(e)[:80] + ')'}), 500
 
 
 # ─────────────────────────────────────────────────────────────
