@@ -706,7 +706,7 @@ def register_org_routes(app, deps):
           <tr>
             <td style="padding:24px 8px; color:#A8A294; font-size:11px; text-align:center;">
               Sent by <b style="color:#7A7364;">Sunday · AsanMinds</b> on behalf of {org_name} ·
-              <a href="https://asanaminds.onrender.com/privacy" style="color:#7A7364; text-decoration:underline;">Privacy</a>
+              <a href="mailto:pgayushrai@gmail.com" style="color:#7A7364; text-decoration:underline;">Contact</a>
             </td>
           </tr>
         </table>
@@ -776,7 +776,7 @@ def register_org_routes(app, deps):
                 </tr>
               </table>
               <p style="margin:24px 0 0; color:#A8A294; font-size:11px;">
-                Need help? Reach your organization admin or write to <a href="mailto:hello@asanminds.app" style="color:#7A7364;">hello@asanminds.app</a>.
+                Need help? Reach your organization admin or write to <a href="mailto:pgayushrai@gmail.com" style="color:#7A7364;">pgayushrai@gmail.com</a>.
               </p>
             </td>
           </tr>

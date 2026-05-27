@@ -564,19 +564,6 @@
         </div>
     </div>
 
-    <!-- Onboarding Tour Overlay -->
-    <style>
-        #onboard-overlay {
-            position: fixed; inset: 0; background: rgba(20,18,14,0.86); backdrop-filter: blur(8px);
-            display: none; align-items: center; justify-content: center; z-index: 80; padding: 24px;
-        }
-        #onboard-overlay.active { display: flex; }
-        #onboard-card { background:#F5F2EB; max-width:480px; width:100%; border-radius:24px; padding:32px 28px; text-align:center; }
-    </style>
-    <div id="onboard-overlay">
-        <div id="onboard-card"></div>
-    </div>
-
     <!-- Feedback modal (shown after a course completes; or via Settings) -->
     <style>
         #feedback-overlay { position:fixed; inset:0; background:rgba(20,18,14,0.78); backdrop-filter:blur(12px); display:none; align-items:center; justify-content:center; z-index:75; padding:16px; }
@@ -5034,11 +5021,10 @@
                     }
                 } catch(_){}
 
-                // ── Onboarding tour (first-run, item 4) ──
-                try {
-                    const seen = localStorage.getItem('sunday_onboarding_done');
-                    if (!seen) setTimeout(() => this._startOnboardingTour(), 1200);
-                } catch(_){}
+                // Onboarding tour removed — straight-to-app redirect feels
+                // more professional. Stamp the seen flag so any older code
+                // path can't resurrect it.
+                try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
 
                 // ── Web push registration if user opted in (item 11) ──
                 try {
@@ -5049,54 +5035,13 @@
             },
 
             // ─────────────────────────────────────────────────
-            // ONBOARDING TOUR (item 4)
+            // ONBOARDING TOUR — disabled; kept as no-op stubs so any
+            // stale references in the DOM don't throw.
             // ─────────────────────────────────────────────────
-            _startOnboardingTour() {
-                this._tourStep = 0;
-                this._renderOnboardStep();
-            },
-
-            _renderOnboardStep() {
-                const steps = [
-                    { title: 'Welcome to Sunday', body: 'Your personal AI yoga instructor. Let\'s take a quick tour.', emoji: '🧘' },
-                    { title: 'Your dashboard', body: 'Today shows your streak, recommended pose, and quick start. Everything begins here.', emoji: '🏠' },
-                    { title: 'Pose library', body: 'Browse 20 asanas with detailed notes, alignment cues, and contraindications.', emoji: '📚' },
-                    { title: 'Practice with AR', body: 'Real-time pose correction using your camera. Just say "start tree pose" to begin.', emoji: '📷' },
-                    { title: 'Earn certificates', body: '6 semester courses + 1 master certificate. Pass AR + quiz tests to graduate.', emoji: '🏆' },
-                ];
-                const overlay = document.getElementById('onboard-overlay');
-                const card = document.getElementById('onboard-card');
-                if (!overlay || !card) return;
-                const i = this._tourStep;
-                if (i >= steps.length) {
-                    overlay.classList.remove('active');
-                    try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
-                    return;
-                }
-                const s = steps[i];
-                const dots = steps.map((_, j) => `<span style="width:6px;height:6px;border-radius:9999px;background:${j === i ? '#0F3D2E' : '#D4CCB8'}"></span>`).join('');
-                card.innerHTML = `
-                    <div style="font-size:48px;margin-bottom:8px">${s.emoji}</div>
-                    <h2 style="font-family:'Fraunces',serif;font-size:30px;font-weight:300;color:#14120E;margin:0 0 10px;letter-spacing:-0.02em">${s.title}</h2>
-                    <p style="color:#4A453B;font-size:15px;margin:0 0 24px;line-height:1.55">${s.body}</p>
-                    <div style="display:flex;justify-content:center;gap:6px;margin-bottom:18px">${dots}</div>
-                    <div style="display:flex;gap:10px;justify-content:center">
-                        <button onclick="app._skipOnboarding()" class="pressable" style="background:transparent;border:1px solid #D4CCB8;color:#7A7364;padding:10px 18px;border-radius:9999px;font-size:13px;cursor:pointer">Skip</button>
-                        <button onclick="app._nextOnboardingStep()" class="btn btn-accent pressable" style="padding:11px 28px">${i === steps.length - 1 ? 'Get started' : 'Next'}</button>
-                    </div>
-                `;
-                overlay.classList.add('active');
-            },
-
-            _nextOnboardingStep() {
-                this._tourStep = (this._tourStep || 0) + 1;
-                this._renderOnboardStep();
-            },
-
-            _skipOnboarding() {
-                document.getElementById('onboard-overlay')?.classList.remove('active');
-                try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
-            },
+            _startOnboardingTour() { /* intentionally a no-op */ },
+            _renderOnboardStep()   { /* intentionally a no-op */ },
+            _nextOnboardingStep()  { /* intentionally a no-op */ },
+            _skipOnboarding()      { /* intentionally a no-op */ },
 
             // ─────────────────────────────────────────────────
             // SETTINGS MODAL (theme, remember-me, push, delete)

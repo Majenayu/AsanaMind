@@ -849,13 +849,21 @@ INDEX_HTML = """
         .modal .help { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); line-height: 1.5; }
         .modal .err { margin-top: 16px; padding: 12px 14px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 14px; font-size: 13px; color: var(--text-1); display: none; }
 
-        /* Tiny loader */
+        /* Full-screen redirect curtain — covers the cream→white flash
+           between sign-in and /home so the transition feels instant. */
         .loader-back {
-            position: fixed; inset: 0; z-index: 200; background: rgba(245,242,235,0.94);
-            display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+            position: fixed; inset: 0; z-index: 200;
+            background: var(--primary);
+            display: none; align-items: center; justify-content: center;
+            flex-direction: column; gap: 18px;
+            opacity: 0; transition: opacity .25s ease;
         }
-        .loader-back.on { display: flex; }
-        .spinner { width: 36px; height: 36px; border-radius: 9999px; border: 3px solid var(--surface-3); border-top-color: var(--primary); animation: spin 0.9s linear infinite; }
+        .loader-back.on { display: flex; opacity: 1; }
+        .loader-back .brand-row { display: flex; align-items: center; gap: 12px; opacity: .92; }
+        .loader-back .brand-row .mark { width: 36px; height: 36px; border-radius: 9999px; background: var(--bg); color: var(--primary); font-family: 'Fraunces', serif; font-size: 19px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+        .loader-back .brand-row .name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 400; color: var(--bg); letter-spacing: -0.01em; }
+        .spinner { width: 32px; height: 32px; border-radius: 9999px; border: 3px solid rgba(245,242,235,0.18); border-top-color: var(--gold); animation: spin 0.8s linear infinite; }
+        .loader-back .label { font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
@@ -871,7 +879,6 @@ INDEX_HTML = """
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
       <a href="#institutions">For institutions</a>
-      <a href="#pricing">Pricing</a>
     </nav>
     <div style="display:flex; gap:10px; align-items:center;">
       <button class="btn btn-ghost btn-sm" data-open-signin>Sign in</button>
@@ -1020,7 +1027,7 @@ INDEX_HTML = """
           <li>Excel template for batch + branch + section onboarding</li>
         </ul>
         <div style="margin-top:32px; display:flex; gap:14px; flex-wrap:wrap;">
-          <a class="btn btn-accent" href="mailto:hello@asanminds.app?subject=AsanMinds%20for%20our%20institution">Talk to our team →</a>
+          <a class="btn btn-accent" href="mailto:pgayushrai@gmail.com?subject=AsanMinds%20for%20our%20institution">Talk to our team →</a>
           <button class="btn btn-outline" style="color:var(--bg); border-color:var(--bg);" data-open-signin>Sub-admin sign in</button>
         </div>
       </div>
@@ -1030,22 +1037,22 @@ INDEX_HTML = """
           <div><div class="num">1,000</div><p>seats provisioned per semester</p></div>
           <div><div class="num">6×</div><p>semester progression supported</p></div>
           <div><div class="num">≤2 wk</div><p>typical onboarding to first cohort</p></div>
-          <div><div class="num">₹999</div><p>per student per semester</p></div>
+          <div><div class="num">20</div><p>asanas across foundation to advanced</p></div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- PRICING / FINAL CTA -->
-<section class="final-cta" id="pricing">
+<!-- FINAL CTA -->
+<section class="final-cta" id="get-started">
   <div class="wrap">
-    <span class="kicker">Two paths in</span>
+    <span class="kicker">Get started</span>
     <h2>Whether you're <em>one</em> mat or <em>a thousand</em>.</h2>
-    <p>Individuals can begin a free practice with their Google account. Institutions get a custom rollout with admin tooling and analytics. Either way, the AR coach is the same.</p>
+    <p>Individuals begin a guided practice with their Google account. Institutions get a custom rollout with admin tooling and cohort analytics. The AR coach is the same in both.</p>
     <div class="cta-row">
       <button class="btn btn-primary btn-lg" data-open-signin>Begin your practice →</button>
-      <a class="btn btn-outline btn-lg" href="mailto:hello@asanminds.app?subject=AsanMinds%20for%20our%20institution">Bring it to my college</a>
+      <a class="btn btn-outline btn-lg" href="mailto:pgayushrai@gmail.com?subject=AsanMinds%20for%20our%20institution">Bring it to my college</a>
     </div>
   </div>
 </section>
@@ -1066,14 +1073,14 @@ INDEX_HTML = """
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
         <a href="#institutions">For institutions</a>
-        <a href="#pricing">Pricing</a>
+        <a href="#get-started">Get started</a>
       </div>
       <div>
         <h5>Account</h5>
         <a href="#" data-open-signin>Sign in</a>
         <a href="#" data-open-signin>Sub-admin access</a>
         <a href="/admin/login">Internal admin</a>
-        <a href="mailto:hello@asanminds.app">Contact us</a>
+        <a href="mailto:pgayushrai@gmail.com">Contact us</a>
       </div>
     </div>
     <div class="foot-bottom">
@@ -1099,10 +1106,14 @@ INDEX_HTML = """
   </div>
 </div>
 
-<!-- Loader -->
+<!-- Redirect curtain — forest green, branded, covers the post-signin transition -->
 <div class="loader-back" id="loader">
+  <div class="brand-row">
+    <span class="mark">s</span>
+    <span class="name">sunday <span style="color: var(--gold-soft); font-weight: 400; font-size: 14px;">· asanminds</span></span>
+  </div>
   <div class="spinner"></div>
-  <p style="font-size:12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); font-weight:600;">Authenticating</p>
+  <p class="label">Preparing your practice</p>
 </div>
 
 <script>
@@ -1125,6 +1136,18 @@ INDEX_HTML = """
     function openSignin() {
         modal.classList.add('open');
         document.body.style.overflow = 'hidden';
+        // Pre-warm /home so the post-signin redirect feels instant. The
+        // browser DNS-resolves and opens the connection now, before the
+        // user has even clicked the Google button.
+        try {
+            if (!document.getElementById('home-prefetch')) {
+                var pf = document.createElement('link');
+                pf.id = 'home-prefetch';
+                pf.rel = 'prefetch';
+                pf.href = '/home';
+                document.head.appendChild(pf);
+            }
+        } catch (e) { /* prefetch is best-effort */ }
         // Lazy-render Google button on first open.
         ensureGoogle().then(function () {
             if (!googleReady) return;
@@ -1154,8 +1177,14 @@ INDEX_HTML = """
 
     function showLoader(on) { loader.classList.toggle('on', !!on); }
 
-    // Google credential handler
+    // Google credential handler — drop the modal immediately, raise the
+    // forest curtain, and replace the URL so /home isn't kept on top of
+    // the back-stack pointing at the cream landing.
     window.handleGoogleCredential = async function (response) {
+        // Hide the sign-in modal the moment the credential is in flight —
+        // before the network round-trip — so users never see it sitting
+        // there mid-redirect.
+        closeSignin();
         showLoader(true);
         try {
             var res = await fetch('/auth/google', {
@@ -1165,13 +1194,20 @@ INDEX_HTML = """
                 body: JSON.stringify({ credential: response.credential }),
             });
             var data = await res.json();
-            if (data.success) { window.location.href = '/home'; return; }
+            if (data.success) {
+                // location.replace so Back doesn't bounce them out of /home
+                // back onto the marketing site mid-flow.
+                window.location.replace('/home');
+                return;
+            }
             showLoader(false);
+            openSignin(); // bring the modal back so they can retry
             var err = document.getElementById('signin-err');
             err.textContent = data.error || 'Google sign-in failed.';
             err.style.display = 'block';
         } catch (e) {
             showLoader(false);
+            openSignin();
             var err2 = document.getElementById('signin-err');
             err2.textContent = 'Connection error. Please try again.';
             err2.style.display = 'block';
