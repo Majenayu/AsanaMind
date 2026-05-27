@@ -368,12 +368,17 @@
         </div>
     </header>
 
-    <main id="content" style="max-width:1200px; margin:0 auto; padding:40px 24px 100px">
+    <main id="content" class="content-main" style="max-width:1200px; margin:0 auto; padding:40px 24px 120px">
     </main>
+    <style>
+        @media (max-width: 768px) {
+            .content-main { padding: 24px 16px 110px !important; }
+        }
+    </style>
 
-    <!-- Mobile bottom tab bar — 4 tabs, accent dot on active -->
-    <nav class="fixed bottom-0 left-0 right-0 md:hidden" style="z-index:30; background:#F5F2EB; border-top:1px solid #E0D9C8; box-shadow:0 -4px 20px rgba(26,24,20,0.04)">
-        <div id="nav-tabs" class="flex items-center justify-around" style="padding:12px 0 20px; max-width:480px; margin:0 auto"></div>
+    <!-- Mobile bottom tab bar — 4 tabs with icons + label, accent pill on active -->
+    <nav class="fixed bottom-0 left-0 right-0 md:hidden" style="z-index:30; background:#F5F2EB; border-top:1px solid #E0D9C8; box-shadow:0 -8px 24px rgba(26,24,20,0.06); padding-bottom:env(safe-area-inset-bottom)">
+        <div id="nav-tabs" class="flex items-stretch justify-around" style="padding:8px 8px 10px; max-width:520px; margin:0 auto; gap:4px"></div>
     </nav>
 
     <div id="app" class="hidden"></div>
@@ -3113,11 +3118,27 @@
             renderNav() {
                 // Desktop top nav — matches Figma Layout.tsx "Today / Library / Practice / Profile"
                 const topNav = document.getElementById('top-nav');
+                // Each tab carries a stroke-icon SVG path for the mobile
+                // bottom bar. Strokes (not fills) keep them legible on the
+                // cream paper background and look consistent with the rest
+                // of the iconography in the topbar.
                 const tabs = [
-                    { key: 'dashboard',     label: 'Today' },
-                    { key: 'asana',         label: 'Library' },
-                    { key: 'ar_correction', label: 'Practice' },
-                    { key: 'course',        label: 'Course' },
+                    {
+                        key: 'dashboard', label: 'Today',
+                        icon: '<path d="M3 11.5L12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+                    },
+                    {
+                        key: 'asana', label: 'Library',
+                        icon: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+                    },
+                    {
+                        key: 'ar_correction', label: 'Practice',
+                        icon: '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
+                    },
+                    {
+                        key: 'course', label: 'Course',
+                        icon: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+                    },
                 ];
                 if (topNav) {
                     topNav.innerHTML = tabs.map(t => {
@@ -3135,13 +3156,39 @@
                         `;
                     }).join('');
                 }
-                // Mobile bottom tab bar — matches Figma MobileTabBar
+                // Mobile bottom tab bar — icon + label, ≥48px touch target,
+                // active state is a forest-green soft pill so the current
+                // tab reads at a glance.
                 this.navTabsEl.innerHTML = tabs.map(t => {
                     const a = this.currentView === t.key;
+                    const stroke = a ? '#0F3D2E' : '#7A7364';
                     return `
-                        <button onclick="app.navigate('${t.key}')" class="flex flex-col items-center pressable" style="gap:6px; flex:1">
-                            <span class="rounded-full" style="width:6px; height:6px; background:${a ? '#C2552F' : 'transparent'}"></span>
-                            <span class="kicker" style="color:${a ? '#14120E' : '#A8A294'}; font-size:10px">${t.label}</span>
+                        <button onclick="app.navigate('${t.key}')"
+                                class="pressable"
+                                aria-label="${t.label}"
+                                aria-current="${a ? 'page' : 'false'}"
+                                style="
+                                    flex:1; min-height:56px;
+                                    display:flex; flex-direction:column; align-items:center; justify-content:center;
+                                    gap:4px; padding:8px 4px;
+                                    background:${a ? 'rgba(15,61,46,0.08)' : 'transparent'};
+                                    border:0; border-radius:16px;
+                                    cursor:pointer;
+                                ">
+                            <svg viewBox="0 0 24 24" width="22" height="22"
+                                 fill="none" stroke="${stroke}" stroke-width="${a ? 2 : 1.7}"
+                                 stroke-linecap="round" stroke-linejoin="round"
+                                 style="display:block">
+                                ${t.icon}
+                            </svg>
+                            <span style="
+                                font-family:'Inter',sans-serif;
+                                font-size:11px;
+                                font-weight:${a ? 600 : 500};
+                                color:${a ? '#0F3D2E' : '#7A7364'};
+                                letter-spacing:0.02em;
+                                line-height:1;
+                            ">${t.label}</span>
                         </button>
                     `;
                 }).join('');
