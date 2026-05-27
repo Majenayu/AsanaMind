@@ -177,6 +177,18 @@ try:
     feedback_col = adb.feedback
     admin_audit_col = adb.audit
     live_frames_col = adb.live_frames
+    # Multi-tenant collections — organizations, invitations.
+    organizations_col = adb.organizations
+    invitations_col = adb.invitations
+    # Index for invitation token lookups.
+    try:
+        invitations_col.create_index('token', unique=True)
+    except Exception:
+        pass
+    try:
+        organizations_col.create_index('email', unique=True)
+    except Exception:
+        pass
     # TTL index — auto-deletes frames older than 30s. Idempotent.
     try:
         live_frames_col.create_index('expiresAt', expireAfterSeconds=0)
@@ -196,6 +208,7 @@ except Exception as e:
     g_preferences_col = g_push_subs_col = g_streak_freeze_col = None
     feedback_col = admin_audit_col = None
     live_frames_col = None
+    organizations_col = invitations_col = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -230,6 +243,64 @@ def get_push_subs_col():
 
 def get_streak_freeze_col():
     return g_streak_freeze_col if _is_google_session() else streak_freeze_col
+
+
+# ─────────────────────────────────────────────────────────────
+# Multi-tenant organization layer — registered below after the
+# admin decorators are defined. See org_routes.py.
+# ─────────────────────────────────────────────────────────────
+
+
+def _sendgrid_send(to_email, subject, html_content):
+    """Tiny shared helper: send an HTML email via SendGrid. Returns True on success.
+    Used by the org-invitation flow. Falls back gracefully when SendGrid isn't
+    configured — the invitation still gets created, the email just doesn't go out
+    and the UI shows the magic link to copy manually.
+    """
+    if not SENDGRID_AVAILABLE:
+        return False
+    api_key = os.environ.get('SENDGRID_API_KEY')
+    sender = os.environ.get('SENDGRID_FROM_EMAIL')
+    if not api_key or not sender:
+        return False
+    try:
+        msg = Mail(from_email=sender, to_emails=to_email, subject=subject, html_content=html_content)
+        SendGridAPIClient(api_key).send(msg)
+        return True
+    except Exception as e:
+        print(f'sendgrid invite-send error: {e}')
+        return False
+
+
+def _webpush_send(email, title, body):
+    """Push a notification to a user identified by email. Returns True on success.
+
+    Used by org-admin broadcasts. Looks up the user's saved subscription in
+    either the Google or legacy push collection and sends via pywebpush.
+    """
+    if not PUSH_AVAILABLE:
+        return False
+    private = os.environ.get('VAPID_PRIVATE_KEY')
+    if not private:
+        return False
+    sub_doc = None
+    if g_push_subs_col is not None:
+        sub_doc = g_push_subs_col.find_one({'email': email})
+    if not sub_doc and push_subs_col is not None:
+        sub_doc = push_subs_col.find_one({'email': email})
+    if not sub_doc or not sub_doc.get('subscription'):
+        return False
+    try:
+        webpush(
+            subscription_info=sub_doc['subscription'],
+            data=json.dumps({'title': title[:80], 'body': body[:300], 'url': '/home'}),
+            vapid_private_key=private,
+            vapid_claims={'sub': 'mailto:' + (os.environ.get('SENDGRID_FROM_EMAIL') or 'noreply@asanminds.app')},
+        )
+        return True
+    except Exception as e:
+        print(f'webpush send error for {email}: {e}')
+        return False
 
 
 # ─────────────────────────────────────────────────────────────
@@ -352,7 +423,163 @@ def _student_summary(u):
         'poses_learned': len(completed_asanas),
         'sems_completed': sems_completed,
         'has_master': has_master,
+        'role': u.get('role', 'student'),
+        'organization_email': u.get('organizationEmail') or u.get('organization_email') or '',
+        'academic': u.get('academic') or {},
+        'paid_status': u.get('paidStatus') or u.get('paid_status') or 'unknown',
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# MULTI-TENANT (orgs, invitations, sub-admin) helpers
+# ─────────────────────────────────────────────────────────────
+TEST_ORG_EMAIL = 'test@asanminds.local'
+
+
+def _ensure_test_org():
+    """Make sure the system 'test' organization exists. Existing legacy users
+    (those without a role) are mapped to this org so they keep working."""
+    if organizations_col is None:
+        return
+    existing = organizations_col.find_one({'email': TEST_ORG_EMAIL})
+    if existing:
+        return
+    try:
+        organizations_col.insert_one({
+            'email': TEST_ORG_EMAIL,
+            'name': 'AsanMinds Test Org',
+            'domain': '*',  # accepts any email
+            'studentCap': 9999,
+            'studentsEnrolled': 0,
+            'paid': True,
+            'paidUntil': '2099-12-31T00:00:00',
+            'batches': ['test'],
+            'branches': [{'code': 'TEST', 'name': 'Test users'}],
+            'sections': ['T'],
+            'system': True,  # hidden from regular org list
+            'createdAt': datetime.utcnow().isoformat(),
+            'createdByAdmin': 'system',
+        })
+        print('✓ Test organization created')
+    except Exception as e:
+        print(f'test org init failed: {e}')
+
+
+def _migrate_legacy_users():
+    """Run once on boot: any user without a role becomes a student of the
+    test org. Idempotent — safe to run on every boot."""
+    if not db_connected:
+        return
+    today = datetime.utcnow().isoformat()
+    migrated = 0
+    for col, default_provider in ((g_users, 'google'), (users, 'email')):
+        if col is None:
+            continue
+        try:
+            res = col.update_many(
+                {'role': {'$exists': False}},
+                {'$set': {
+                    'role': 'student',
+                    'organizationEmail': TEST_ORG_EMAIL,
+                    'academic': {'batch': 'test', 'branch': 'TEST', 'section': 'T'},
+                    'migrated_at': today,
+                }},
+            )
+            migrated += res.modified_count
+        except Exception as e:
+            print(f'legacy migration error: {e}')
+    if migrated:
+        print(f'✓ Migrated {migrated} legacy user(s) into the test org')
+
+
+_ensure_test_org()
+_migrate_legacy_users()
+
+
+def is_org_admin():
+    """Returns True if the current session belongs to an organization sub-admin."""
+    return bool(
+        session.get('logged_in') and
+        session.get('role') == 'org_admin' and
+        session.get('user_email') and
+        session.get('organization_email')
+    )
+
+
+def org_admin_required(f):
+    """Decorator: 401 if not signed in as an org-admin."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not is_org_admin():
+            return jsonify({'error': 'Organization admin sign-in required'}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _current_org_email():
+    """The org email scoping the current org-admin's session."""
+    return (session.get('organization_email') or '').lower()
+
+
+def _user_doc_by_email(email):
+    """Find a user across both DBs."""
+    em = (email or '').lower()
+    for col in (g_users, users):
+        if col is not None:
+            u = col.find_one({'email': em})
+            if u:
+                return u, col
+    return None, None
+
+
+def _ensure_target_in_my_org(target_email):
+    """Guardrail for org-admin endpoints: only allow operating on students
+    whose organizationEmail matches mine."""
+    me = _current_org_email()
+    if not me:
+        return False
+    u, _ = _user_doc_by_email(target_email)
+    if not u:
+        return False
+    return (u.get('organizationEmail') or '').lower() == me
+
+
+def _compute_current_semester(joining_year):
+    """Auto-progression: 6th-month rollover (July) bumps the sem.
+
+    Sem 1 starts in the join year's August (month 8 onward).
+    Each calendar year past joining adds 2 sems if month >= July, else 1 sem.
+    Sem 1 -> 8, capped at 8.
+    """
+    try:
+        join = int(joining_year)
+    except Exception:
+        return 1
+    now = datetime.utcnow()
+    years_past = now.year - join
+    sem = 1 + max(0, years_past) * 2
+    if now.month >= 7:
+        sem += 1
+    return max(1, min(8, sem))
+
+
+def _audit_org(action, target_email='', meta=None):
+    """Same as _audit but tags the action with the org_admin's identity."""
+    if admin_audit_col is None:
+        return
+    try:
+        admin_audit_col.insert_one({
+            'admin_email': session.get('user_email'),
+            'admin_role': session.get('role'),
+            'organization_email': session.get('organization_email'),
+            'action': action,
+            'target_email': target_email,
+            'meta': meta or {},
+            'ts': datetime.utcnow().isoformat(),
+        })
+    except Exception:
+        pass
+
 
 # Updated INDEX_HTML (with /home redirects)
 INDEX_HTML = """
@@ -666,6 +893,9 @@ def main_alias():
 def home():
     if not session.get('logged_in'):
         return redirect(url_for('index'))
+    # Org-admins shouldn't see the student app's home — route them to /org.
+    if session.get('role') == 'org_admin':
+        return redirect('/org')
     if not os.path.exists('main.html'):
         return "Error: main.html not found in app directory. Place it here.", 500
     
@@ -859,29 +1089,70 @@ def google_auth():
     google_sub = info.get('sub')
 
     today = datetime.now().strftime('%Y-%m-%d')
+
+    # ── Invitation gate (multi-tenant) ──
+    # Check if this Google email is associated with a pending invitation,
+    # OR is already an existing user, OR matches the test-org domain
+    # wildcard. If none of these, refuse sign-in to keep the app private
+    # to invited users only.
+    consume_inv = _org_helpers.get('consume_invitation_for') if _org_helpers else None
+    invitation = consume_inv(email) if consume_inv else None
+    invite_token_in_session = session.get('invite_token')
+    if invite_token_in_session and not invitation:
+        # User clicked an invite link with a token but the email mismatched.
+        # Don't strand them — fall through and let the existing-user path handle it.
+        pass
+
+    existing = g_users.find_one({'email': email}) if g_users is not None else None
+
+    # If neither an invitation nor an existing user, AND the test org
+    # accepts wildcard domain, we let them in as test-org students. This
+    # preserves the "previous users continue working" guarantee.
+    if not invitation and not existing:
+        # Look up the test org to see if wildcard signups are allowed.
+        test_org = None
+        if organizations_col is not None:
+            test_org = organizations_col.find_one({'email': _org_helpers.get('TEST_ORG_EMAIL', 'test@asanminds.local')})
+        if not test_org or test_org.get('domain') != '*':
+            return jsonify({
+                'success': False,
+                'error': 'You need an invitation from your organization to use AsanMinds. Ask your admin to send you a link.',
+            }), 403
+
     # Google users live in the dedicated google_auth DB so they're truly
     # isolated from the legacy face_auth records.
-    existing = g_users.find_one({'email': email})
     if existing:
         # Backfill Google linkage and update profile fields from Google's
         # verified data — Google's name and picture always win because they
         # are user-controlled identity (vs whatever was typed in the old
         # name+email flow). Activity log is still appended.
+        update = {
+            'name': name,
+            'picture': picture,
+            'google_sub': google_sub,
+            'auth_provider': 'google',
+        }
+        # If they accepted an invitation, refresh their role/org/academic.
+        if invitation:
+            update['role'] = invitation.get('role') or 'student'
+            update['organizationEmail'] = invitation.get('organizationEmail')
+            pf = invitation.get('prefilled') or {}
+            if pf:
+                academic = {k: pf.get(k) for k in ('batch', 'branch', 'section', 'usn', 'rollNumber') if pf.get(k)}
+                if 'currentSemester' in pf:
+                    academic['currentSemester'] = pf['currentSemester']
+                if academic:
+                    update['academic'] = academic
+                if pf.get('name') and not existing.get('name'):
+                    update['name'] = pf['name']
         g_users.update_one(
             {'email': email},
-            {
-                '$set': {
-                    'name': name,
-                    'picture': picture,
-                    'google_sub': google_sub,
-                    'auth_provider': 'google',
-                },
-                '$addToSet': {'activity_log': today},
-            },
+            {'$set': update, '$addToSet': {'activity_log': today}},
         )
-        session_name = name
+        session_name = update.get('name') or name
     else:
-        g_users.insert_one({
+        # New user — invitation must exist (we'd have rejected above otherwise).
+        new_doc = {
             'name': name,
             'email': email,
             'picture': picture,
@@ -890,8 +1161,28 @@ def google_auth():
             'created_at': datetime.utcnow(),
             'activity_log': [today],
             'completed_asanas': {},
-        })
-        session_name = name
+        }
+        if invitation:
+            new_doc['role'] = invitation.get('role') or 'student'
+            new_doc['organizationEmail'] = invitation.get('organizationEmail')
+            pf = invitation.get('prefilled') or {}
+            academic = {k: pf.get(k) for k in ('batch', 'branch', 'section', 'usn', 'rollNumber') if pf.get(k)}
+            if 'currentSemester' in pf:
+                academic['currentSemester'] = pf['currentSemester']
+            if academic:
+                new_doc['academic'] = academic
+            if pf.get('name'):
+                new_doc['name'] = pf['name']
+        else:
+            # Wildcard test-org sign-up.
+            new_doc['role'] = 'student'
+            new_doc['organizationEmail'] = _org_helpers.get('TEST_ORG_EMAIL', 'test@asanminds.local')
+            new_doc['academic'] = {'batch': 'test', 'branch': 'TEST', 'section': 'T'}
+        g_users.insert_one(new_doc)
+        session_name = new_doc['name']
+
+    # Final lookup to capture role/org for the session.
+    final = g_users.find_one({'email': email}) or {}
 
     session.permanent = True
     session.clear()  # remove any stale legacy-flow keys
@@ -900,8 +1191,17 @@ def google_auth():
     session['user_email'] = email
     session['user_name'] = session_name
     session['picture'] = picture
-    session['auth_provider'] = 'google'  # routes all DB lookups to google_auth
-    return jsonify({'success': True, 'name': session_name, 'email': email, 'picture': picture})
+    session['auth_provider'] = 'google'
+    session['role'] = final.get('role') or 'student'
+    session['organizationEmail'] = final.get('organizationEmail')
+    return jsonify({
+        'success': True,
+        'name': session_name,
+        'email': email,
+        'picture': picture,
+        'role': session['role'],
+        'organizationEmail': session.get('organizationEmail'),
+    })
 
 
 @app.route('/auth/google/config', methods=['GET'])
@@ -2183,6 +2483,56 @@ a{color:#0F3D2E}
 @app.route('/privacy')
 def privacy_page():
     return PRIVACY_HTML
+
+
+# ─────────────────────────────────────────────────────────────
+# Org-admin SPA — separate from student /home and super-admin /admin.
+# Only accessible to users whose role == 'org_admin'.
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/org')
+def org_page():
+    if not session.get('logged_in'):
+        return redirect(url_for('index'))
+    if session.get('role') != 'org_admin':
+        return redirect(url_for('home'))
+    if not os.path.exists('org.html'):
+        return "Error: org.html not found in app directory.", 500
+    with open('org.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+    response = app.make_response(content)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+
+# ─────────────────────────────────────────────────────────────
+# Multi-tenant routes (organizations, invitations, bulk import)
+# Wired in via org_routes.py for clarity.
+# ─────────────────────────────────────────────────────────────
+try:
+    from org_routes import register_org_routes
+    _org_helpers = register_org_routes(app, {
+        'organizations_col': organizations_col,
+        'invitations_col': invitations_col,
+        'admin_audit_col': admin_audit_col,
+        'g_users': g_users,
+        'users': users,
+        'feedback_col': feedback_col,
+        'certificates_col': certificates_col,
+        'g_certificates_col': g_certificates_col,
+        'course_progress_col': course_progress_col,
+        'g_course_progress_col': g_course_progress_col,
+        'push_subs_col': push_subs_col,
+        'g_push_subs_col': g_push_subs_col,
+        'sendgrid_send': _sendgrid_send,
+        'webpush_send': _webpush_send,
+        'admin_emails': ADMIN_EMAILS,
+    })
+    print('✓ Multi-tenant org routes registered')
+except Exception as _e:
+    print(f'⚠ Org routes failed to register: {_e}')
+    _org_helpers = {}
 
 
 # ═════════════════════════════════════════════════════════════

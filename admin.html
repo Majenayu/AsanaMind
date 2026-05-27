@@ -201,6 +201,7 @@ const initials = (n) => (n || 'A').trim().charAt(0).toUpperCase();
 
 const ROUTES = [
     { path: 'dashboard', label: 'Dashboard' },
+    { path: 'organizations', label: 'Organizations' },
     { path: 'students', label: 'Students' },
     { path: 'feedback', label: 'Feedback' },
     { path: 'certificates', label: 'Certificates' },
@@ -243,6 +244,7 @@ function renderRoute() {
     const [route, ...rest] = hash.split('/');
     renderNav(route);
     if (route === 'dashboard') return renderDashboard();
+    if (route === 'organizations') return renderOrganizations();
     if (route === 'students') {
         if (rest.length) return renderStudentDeep(decodeURIComponent(rest.join('/')));
         return renderStudents();
@@ -738,6 +740,188 @@ async function renderAnalytics() {
     } catch (e) {
         $('.chart-grid').innerHTML = '<div class="empty">Failed to load analytics.</div>';
     }
+}
+
+// ─────────────────────────────────────────────────
+// ORGANIZATIONS — multi-tenant management
+// ─────────────────────────────────────────────────
+async function renderOrganizations() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Organizations</span><h1>Tenant management</h1></div>
+            <button class="btn btn-accent" onclick="openCreateOrgModal()">+ New organization</button>
+        </div>
+        <div class="section">
+            <div class="toolbar">
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3)">
+                    <input type="checkbox" id="show-system" onchange="renderOrganizations()"> Show system orgs (test users)
+                </label>
+            </div>
+            <div id="org-list"><div class="spinner"></div></div>
+        </div>
+    `;
+    const showSystem = $('#show-system')?.checked ? '?system=1' : '';
+    try {
+        const data = await fetchJSON('/api/admin/organizations' + showSystem);
+        const rows = data.organizations || [];
+        if (!rows.length) {
+            $('#org-list').innerHTML = '<div class="empty">No organizations yet. Click "New organization" to add one.</div>';
+            return;
+        }
+        $('#org-list').innerHTML = `
+            <div style="overflow-x:auto"><table class="table">
+                <thead><tr><th>Organization</th><th>Domain</th><th>Seats</th><th>Status</th><th>Created</th><th></th></tr></thead>
+                <tbody>
+                ${rows.map(o => `
+                    <tr class="row">
+                        <td><strong>${o.name}</strong><br><span style="color:var(--text-3);font-size:11px">${o.email}</span></td>
+                        <td>${o.domain === '*' ? '<span class="badge" style="background:var(--surface-3);color:var(--text-2)">any</span>' : '@' + o.domain}</td>
+                        <td>${o.studentsEnrolled || 0} / ${o.studentCap || '∞'}</td>
+                        <td>${o.system ? '<span class="badge" style="background:#FEF3C7;color:#A16207">System</span>' : (o.paid ? '<span class="badge" style="background:#D4F5DC;color:#3E8A52">Paid</span>' : '<span class="badge" style="background:var(--surface-3);color:var(--text-2)">Trial</span>')}</td>
+                        <td>${fmtDate(o.createdAt)}</td>
+                        <td style="white-space:nowrap">
+                            <button class="btn btn-sm" onclick="openInviteOrgAdmin('${o.email.replace(/'/g,"\\'")}','${o.name.replace(/'/g,"\\'")}')">📧 Invite admin</button>
+                            <button class="btn btn-sm" onclick="openEditOrgModal('${o.email.replace(/'/g,"\\'")}', ${JSON.stringify(o).replace(/"/g,'&quot;')})">✎</button>
+                            ${o.system ? '' : `<button class="btn btn-sm btn-danger" onclick="confirmDeleteOrg('${o.email.replace(/'/g,"\\'")}')">🗑</button>`}
+                        </td>
+                    </tr>
+                `).join('')}
+                </tbody>
+            </table></div>
+        `;
+    } catch (e) { $('#org-list').innerHTML = '<div class="empty">Failed to load.</div>'; }
+}
+
+function openCreateOrgModal() {
+    showModal(`
+        <div class="modal-h"><h3>New organization</h3></div>
+        <div class="modal-b">
+            <label>Organization name</label>
+            <input class="input" id="org-name" style="width:100%" placeholder="Vidyavardhaka College of Engineering">
+            <label>Primary contact email (the org admin)</label>
+            <input class="input" id="org-email" style="width:100%" placeholder="wellness@vvce.ac.in">
+            <label>Email domain (only this domain's emails can sign up)</label>
+            <input class="input" id="org-domain" style="width:100%" placeholder="vvce.ac.in">
+            <label>Student seat cap</label>
+            <input class="input" id="org-cap" type="number" style="width:100%" value="1000" min="1">
+            <label style="display:flex;align-items:center;gap:8px;letter-spacing:0;text-transform:none;font-size:13px">
+                <input type="checkbox" id="org-paid" checked> Mark as paid (deactivate to suspend)
+            </label>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveCreateOrg()">Create</button>
+            </div>
+        </div>
+    `);
+}
+async function saveCreateOrg() {
+    const payload = {
+        name: $('#org-name').value.trim(),
+        email: $('#org-email').value.trim().toLowerCase(),
+        domain: $('#org-domain').value.trim().toLowerCase(),
+        studentCap: parseInt($('#org-cap').value, 10),
+        paid: $('#org-paid').checked,
+    };
+    if (!payload.name || !payload.email || !payload.domain || !payload.studentCap) {
+        alert('All fields are required.'); return;
+    }
+    try {
+        const r = await fetch('/api/admin/organization', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!j.success) { alert(j.error || 'Failed'); return; }
+        closeModal(); renderOrganizations();
+    } catch(e) { alert(e.message); }
+}
+
+function openEditOrgModal(email, orgJson) {
+    const o = typeof orgJson === 'string' ? JSON.parse(orgJson.replace(/&quot;/g,'"')) : orgJson;
+    showModal(`
+        <div class="modal-h"><h3>Edit ${o.name}</h3></div>
+        <div class="modal-b">
+            <p style="color:var(--text-3);font-size:12px;margin:0 0 4px">${email}</p>
+            <label>Name</label>
+            <input class="input" id="eo-name" style="width:100%" value="${(o.name||'').replace(/"/g,'&quot;')}">
+            <label>Domain</label>
+            <input class="input" id="eo-domain" style="width:100%" value="${(o.domain||'').replace(/"/g,'&quot;')}">
+            <label>Seat cap</label>
+            <input class="input" id="eo-cap" type="number" style="width:100%" value="${o.studentCap || 1000}">
+            <label style="display:flex;align-items:center;gap:8px;letter-spacing:0;text-transform:none;font-size:13px">
+                <input type="checkbox" id="eo-paid" ${o.paid ? 'checked' : ''}> Paid
+            </label>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveEditOrg('${email.replace(/'/g,"\\'")}')">Save</button>
+            </div>
+        </div>
+    `);
+}
+async function saveEditOrg(email) {
+    const payload = {
+        name: $('#eo-name').value.trim(),
+        domain: $('#eo-domain').value.trim().toLowerCase(),
+        studentCap: parseInt($('#eo-cap').value, 10),
+        paid: $('#eo-paid').checked,
+    };
+    try {
+        const r = await fetch('/api/admin/organization/' + encodeURIComponent(email), {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!j.success) { alert(j.error || 'Failed'); return; }
+        closeModal(); renderOrganizations();
+    } catch(e) { alert(e.message); }
+}
+
+async function confirmDeleteOrg(email) {
+    const t = prompt(`Delete organization ${email}?\n\nThis will detach all students (they keep their accounts). Type DELETE to confirm.`);
+    if (t !== 'DELETE') return;
+    try {
+        const r = await fetch('/api/admin/organization/' + encodeURIComponent(email), { method: 'DELETE', credentials: 'same-origin' });
+        const j = await r.json();
+        if (j.success) renderOrganizations(); else alert(j.error || 'Failed');
+    } catch(e) { alert(e.message); }
+}
+
+function openInviteOrgAdmin(orgEmail, orgName) {
+    showModal(`
+        <div class="modal-h"><h3>Invite admin for ${orgName}</h3></div>
+        <div class="modal-b">
+            <p style="color:var(--text-3);font-size:13px;margin:0 0 14px">Send a magic-link email to the person who will run this org's sub-admin panel. They'll click the link, sign in with Google, and be granted org-admin access.</p>
+            <label>Their email</label>
+            <input class="input" id="ioa-email" style="width:100%" value="${orgEmail}" placeholder="wellness@vvce.ac.in">
+            <p id="ioa-status" style="margin-top:14px;color:var(--text-3);font-size:13px"></p>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-accent" onclick="sendOrgAdminInvite('${orgEmail.replace(/'/g,"\\'")}')">Send invitation</button>
+            </div>
+        </div>
+    `);
+}
+async function sendOrgAdminInvite(orgEmail) {
+    const email = $('#ioa-email').value.trim().toLowerCase();
+    if (!email) return;
+    $('#ioa-status').textContent = 'Sending…';
+    try {
+        const r = await fetch('/api/admin/invite-org-admin', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, organizationEmail: orgEmail }),
+        });
+        const j = await r.json();
+        if (j.success) {
+            $('#ioa-status').innerHTML = j.emailSent
+                ? `✓ Invitation email sent to <b>${email}</b>.`
+                : `Invitation created. Email did not send. Send this link manually:<br><span style="color:var(--primary);word-break:break-all">${j.inviteLink}</span>`;
+        } else {
+            $('#ioa-status').textContent = '✗ ' + (j.error || 'Failed');
+        }
+    } catch(e) { $('#ioa-status').textContent = '✗ ' + e.message; }
 }
 
 // ─────────────────────────────────────────────────

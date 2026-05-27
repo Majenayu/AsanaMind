@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Organization Admin · AsanMinds</title>
+<link rel="icon" href="/assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/static/org_helpers.js"></script>
+<style>
+:root {
+    --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
+    --text-1:#14120E; --text-2:#4A453B; --text-3:#7A7364; --text-4:#A8A294;
+    --primary:#0F3D2E; --primary-2:#1F5A44; --primary-3:#6FA089; --primary-4:#C7DBCE;
+    --accent:#C2552F; --accent-soft:#F6DACB; --highlight:#E0A23F; --highlight-2:#F3D58C;
+    --success:#3E8A52;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text-1);font-family:Inter,system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--primary);text-decoration:none}
+.kicker{font-weight:500;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',monospace}
+.pressable{transition:transform .12s ease,background .2s ease;cursor:pointer}
+.pressable:active{transform:scale(0.98)}
+.topbar{position:sticky;top:0;z-index:30;background:rgba(245,242,235,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(26,24,20,.06)}
+.topbar-inner{max-width:1400px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-dot{width:30px;height:30px;border-radius:8px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:15px;font-weight:500}
+.brand-word{font-family:Fraunces,serif;font-size:19px;font-weight:500;letter-spacing:-0.01em}
+.brand-tag{background:var(--accent);color:var(--bg);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase}
+.nav{display:flex;align-items:center;gap:4px}
+.nav a{padding:8px 14px;border-radius:9999px;color:var(--text-3);font-size:13px;font-weight:500}
+.nav a.active{background:rgba(15,61,46,.08);color:var(--text-1)}
+.nav a:hover{background:rgba(15,61,46,.04);color:var(--text-1)}
+.nav-right{display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:9999px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;background-size:cover;background-position:center;font-family:Fraunces,serif;font-size:13px;font-weight:500}
+.page{max-width:1400px;margin:0 auto;padding:32px 24px 80px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap}
+.page-head h1{font-family:Fraunces,serif;font-size:42px;font-weight:300;letter-spacing:-0.02em;margin:6px 0 0}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:32px}
+@media(min-width:768px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px}
+.kpi-label{color:var(--text-3);font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase}
+.kpi-n{font-family:Fraunces,serif;font-size:38px;font-weight:300;line-height:1.1;letter-spacing:-0.02em;margin-top:6px}
+.kpi-sub{color:var(--text-3);font-size:12px;margin-top:6px}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:24px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.section-head h2{font-family:Fraunces,serif;font-size:22px;font-weight:400;margin:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.input,.select{height:38px;padding:0 14px;border-radius:9999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-1);font-size:13px;font-family:inherit;outline:none;min-width:140px}
+.input:focus,.select:focus{border-color:var(--primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:9999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-1);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn:hover{background:var(--surface-3)}
+.btn-primary{background:var(--primary);color:var(--bg);border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-2)}
+.btn-accent{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.btn-danger{background:transparent;color:var(--accent);border-color:var(--accent)}
+.btn-danger:hover{background:var(--accent);color:var(--bg)}
+.btn-sm{height:30px;padding:0 12px;font-size:12px}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--surface-2);font-size:13px;vertical-align:middle}
+.table th{color:var(--text-3);font-weight:500;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;background:var(--surface-2)}
+.table tr.row{cursor:pointer}
+.table tr.row:hover{background:var(--surface-2)}
+.cell-name{display:flex;align-items:center;gap:10px}
+.cell-name .av{width:32px;height:32px;border-radius:9999px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:13px;background-size:cover;background-position:center;flex-shrink:0}
+.cell-name .meta{display:flex;flex-direction:column}
+.cell-name .meta .n{color:var(--text-1);font-weight:500}
+.cell-name .meta .e{color:var(--text-3);font-size:11px}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:9999px;font-size:11px;font-weight:500;letter-spacing:0.06em}
+.badge-google{background:#E8F0FE;color:#1A73E8}
+.badge-paid{background:var(--success);color:#fff}
+.badge-unpaid{background:var(--surface-3);color:var(--text-2)}
+.badge-test{background:var(--highlight);color:var(--text-1)}
+.empty{padding:32px;text-align:center;color:var(--text-3);font-size:14px}
+.spinner{width:24px;height:24px;border:3px solid rgba(15,61,46,.15);border-top-color:var(--primary);border-radius:50%;animation:spin .9s linear infinite;margin:32px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-bg{position:fixed;inset:0;background:rgba(20,18,14,.7);backdrop-filter:blur(8px);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-bg.active{display:flex}
+.modal{background:var(--surface);border-radius:22px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border:1px solid var(--border)}
+.modal-h{padding:22px 24px 12px;border-bottom:1px solid var(--surface-2)}
+.modal-h h3{font-family:Fraunces,serif;font-size:22px;font-weight:400;margin:0}
+.modal-b{padding:18px 24px}
+.modal-b label{display:block;font-size:11px;color:var(--text-3);letter-spacing:0.16em;text-transform:uppercase;margin:14px 0 6px}
+.modal-b textarea{width:100%;min-height:90px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-family:inherit;font-size:13px;resize:vertical}
+
+.drop{border:2px dashed var(--border);border-radius:18px;padding:36px;text-align:center;background:var(--surface-2);cursor:pointer;transition:all .15s}
+.drop:hover{background:var(--surface-3);border-color:var(--primary-3)}
+.drop.dragging{background:var(--primary-4);border-color:var(--primary)}
+.drop p{margin:8px 0;color:var(--text-3);font-size:13px}
+.preview-results{margin-top:18px}
+.preview-row{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--surface-2);font-size:13px}
+.preview-row .v{color:var(--text-1);font-weight:500}
+.errors-list{background:#FEF1ED;border:1px solid var(--accent);border-radius:12px;padding:14px;margin-top:14px;max-height:200px;overflow-y:auto;font-size:12px;color:var(--accent);font-family:'JetBrains Mono',monospace;line-height:1.6}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="/org">
+            <span class="brand-dot">s</span>
+            <span class="brand-word">sunday</span>
+            <span class="brand-tag">Org admin</span>
+        </a>
+        <nav class="nav" id="top-nav"></nav>
+        <div class="nav-right">
+            <a href="/logout" class="btn btn-sm">Sign out</a>
+            <span class="avatar" id="me-av"></span>
+        </div>
+    </div>
+</header>
+
+<main id="content" class="page">
+    <div class="spinner"></div>
+</main>
+
+<div id="modal-bg" class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const $ = (s, p) => (p || document).querySelector(s);
+const $$ = (s, p) => Array.from((p || document).querySelectorAll(s));
+const initials = (n) => (n || 'A').trim().charAt(0).toUpperCase();
+const fmtDate = (s) => s ? new Date(s).toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' }) : '—';
+
+const ROUTES = [
+    { p: 'dashboard', l: 'Dashboard' },
+    { p: 'students', l: 'Students' },
+    { p: 'invite', l: 'Invite' },
+    { p: 'import', l: 'Bulk import' },
+    { p: 'broadcast', l: 'Broadcast' },
+    { p: 'feedback', l: 'Feedback' },
+    { p: 'analytics', l: 'Analytics' },
+    { p: 'config', l: 'Config' },
+];
+let myProfile = null;
+let myOrg = null;
+
+function renderNav(active) {
+    $('#top-nav').innerHTML = ROUTES.map(r =>
+        `<a href="#${r.p}" class="${active === r.p ? 'active' : ''}">${r.l}</a>`
+    ).join('');
+}
+async function fetchJSON(url, opts) {
+    const r = await fetch(url, { credentials: 'same-origin', ...(opts||{}) });
+    if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`${url} → ${r.status}: ${t.slice(0,200)}`);
+    }
+    return r.json();
+}
+function showModal(html) { $('#modal').innerHTML = html; $('#modal-bg').classList.add('active'); }
+function closeModal() { $('#modal-bg').classList.remove('active'); }
+
+async function bootProfile() {
+    try {
+        const me = await fetchJSON('/api/org/me');
+        myProfile = me.admin;
+        myOrg = me.organization;
+        const av = $('#me-av');
+        if (myProfile.picture) {
+            av.style.backgroundImage = `url(${myProfile.picture})`;
+            av.textContent = '';
+        } else {
+            av.textContent = initials(myProfile.name);
+        }
+    } catch (e) {
+        $('#content').innerHTML = `<div class="empty">Could not load org context. Are you signed in as the org admin? <br><br>${e.message}</div>`;
+        throw e;
+    }
+}
+
+window.addEventListener('hashchange', renderRoute);
+function renderRoute() {
+    const hash = (location.hash || '#dashboard').slice(1);
+    const route = hash.split('/')[0];
+    renderNav(route);
+    if (route === 'dashboard') return renderDashboard();
+    if (route === 'students') return renderStudents();
+    if (route === 'invite') return renderInvite();
+    if (route === 'import') return renderImport();
+    if (route === 'broadcast') return renderBroadcast();
+    if (route === 'feedback') return renderFeedback();
+    if (route === 'analytics') return renderAnalytics();
+    if (route === 'config') return renderConfig();
+    location.hash = '#dashboard';
+}
+
+// ─────────────────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────────────────
+async function renderDashboard() {
+    $('#content').innerHTML = '<div class="spinner"></div>';
+    let data;
+    try {
+        data = await fetchJSON('/api/org/students');
+    } catch (e) {
+        $('#content').innerHTML = `<div class="empty">${e.message}</div>`;
+        return;
+    }
+    const all = data.students || [];
+    const seats = myOrg.studentCap || 0;
+    const used = all.length;
+    const today = new Date().toISOString().slice(0,10);
+    const cutoff7 = (() => { const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })();
+    const active7 = all.filter(s => s.last_active && s.last_active >= cutoff7).length;
+
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div>
+                <span class="kicker">${myOrg.name}</span>
+                <h1>Welcome${myProfile?.name ? ', ' + myProfile.name.split(' ')[0] : ''}</h1>
+            </div>
+            <div style="display:flex;gap:8px">
+                <a class="btn btn-primary" href="#import">⤓ Bulk import</a>
+                <a class="btn btn-accent" href="#invite">+ Invite student</a>
+            </div>
+        </div>
+        <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Enrolled</span><div class="kpi-n">${used}</div><div class="kpi-sub">${seats ? seats + ' seats' : 'no cap'}</div></div>
+            <div class="kpi"><span class="kpi-label">Active 7d</span><div class="kpi-n">${active7}</div><div class="kpi-sub">unique students</div></div>
+            <div class="kpi"><span class="kpi-label">Branches</span><div class="kpi-n">${(myOrg.branches||[]).length}</div><div class="kpi-sub">configured</div></div>
+            <div class="kpi"><span class="kpi-label">Status</span><div class="kpi-n" style="font-size:24px">${myOrg.paid ? 'Paid' : 'Trial'}</div><div class="kpi-sub">${myOrg.paidUntil ? 'until '+fmtDate(myOrg.paidUntil) : ''}</div></div>
+        </div>
+        <div class="section">
+            <div class="section-head"><div><span class="kicker">Recent</span><h2>New sign-ups</h2></div><a href="#students" class="btn btn-sm">All students →</a></div>
+            ${renderStudentsTable(all.slice(0, 8))}
+        </div>
+    `;
+}
+
+// ─────────────────────────────────────────────────────────────
+// STUDENTS
+// ─────────────────────────────────────────────────────────────
+let _studentCache = [];
+async function renderStudents() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Students</span><h1>${myOrg.name}</h1></div>
+        </div>
+        <div class="section">
+            <div class="toolbar">
+                <input class="input" id="q" placeholder="Search name / email / USN…" oninput="filterStudents()">
+                <select class="select" id="f-batch" onchange="filterStudents()"><option value="">All batches</option>${(myOrg.batches||[]).map(b=>`<option>${b}</option>`).join('')}</select>
+                <select class="select" id="f-branch" onchange="filterStudents()"><option value="">All branches</option>${(myOrg.branches||[]).map(b=>`<option value="${b.code}">${b.code}</option>`).join('')}</select>
+                <select class="select" id="f-section" onchange="filterStudents()"><option value="">All sections</option>${(myOrg.sections||[]).map(s=>`<option>${s}</option>`).join('')}</select>
+            </div>
+            <div id="bulk-bar" style="display:none;align-items:center;gap:10px;background:var(--surface-2);padding:10px 14px;border-radius:14px;margin-bottom:14px;flex-wrap:wrap">
+                <span class="kicker" id="bulk-count" style="color:var(--accent)">0 selected</span>
+                <button class="btn btn-sm" onclick="bulkAction('reset_progress')">Reset progress</button>
+                <button class="btn btn-sm" onclick="bulkActionWithTarget('move_section', 'section')">Move to section…</button>
+                <button class="btn btn-sm" onclick="bulkActionWithTarget('move_branch', 'branch')">Move to branch…</button>
+                <button class="btn btn-sm" onclick="bulkActionWithTarget('move_batch', 'batch')">Move to batch…</button>
+                <button class="btn btn-sm" onclick="bulkAction('mark_paid')">Mark paid</button>
+                <button class="btn btn-sm" onclick="bulkAction('mark_unpaid')">Mark unpaid</button>
+                <button class="btn btn-sm" onclick="openBulkPushModal()">📣 Push to selected</button>
+                <button class="btn btn-sm btn-danger" onclick="bulkAction('delete')">🗑 Delete</button>
+                <button class="btn btn-sm" onclick="_selected.clear(); filterStudents()">Clear selection</button>
+            </div>
+            <div id="student-list"><div class="spinner"></div></div>
+        </div>
+    `;
+    try {
+        const data = await fetchJSON('/api/org/students');
+        _studentCache = data.students || [];
+        _selected = new Set();
+        filterStudents();
+    } catch (e) {
+        $('#student-list').innerHTML = `<div class="empty">${e.message}</div>`;
+    }
+}
+
+async function bulkAction(action) {
+    const emails = [..._selected];
+    if (!emails.length) { alert('Select at least one student.'); return; }
+    const confirms = {
+        delete: `Permanently delete ${emails.length} students? This cannot be undone. Type DELETE to confirm.`,
+        reset_progress: `Reset progress for ${emails.length} students? Their certificates remain.`,
+        mark_paid: `Mark ${emails.length} students as paid?`,
+        mark_unpaid: `Mark ${emails.length} students as unpaid?`,
+    };
+    if (action === 'delete') {
+        const t = prompt(confirms.delete);
+        if (t !== 'DELETE') return;
+    } else if (confirms[action] && !confirm(confirms[action])) {
+        return;
+    }
+    try {
+        const r = await fetch('/api/org/students/bulk', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, emails }),
+        });
+        const j = await r.json();
+        if (j.success) {
+            alert(`✓ ${j.affected} of ${j.requested} students updated.`);
+            _selected.clear();
+            renderStudents();
+        } else {
+            alert(j.error || 'Failed.');
+        }
+    } catch(e) { alert(e.message); }
+}
+
+async function bulkActionWithTarget(action, kind) {
+    const emails = [..._selected];
+    if (!emails.length) { alert('Select at least one student.'); return; }
+    const choices = kind === 'section' ? (myOrg.sections || []) :
+                    kind === 'branch' ? (myOrg.branches || []).map(b => b.code) :
+                    (myOrg.batches || []);
+    if (!choices.length) { alert(`Configure ${kind}s in the Config tab first.`); return; }
+    const target = prompt(
+        `Move ${emails.length} students to which ${kind}?\n\nAvailable: ${choices.join(', ')}`,
+        choices[0]
+    );
+    if (!target) return;
+    if (!choices.includes(target)) {
+        alert(`"${target}" is not in your configured ${kind}s. Add it in the Config tab first.`);
+        return;
+    }
+    try {
+        const r = await fetch('/api/org/students/bulk', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, emails, target }),
+        });
+        const j = await r.json();
+        if (j.success) {
+            alert(`✓ Moved ${j.affected} students to ${kind} ${target}.`);
+            _selected.clear();
+            renderStudents();
+        } else {
+            alert(j.error || 'Failed.');
+        }
+    } catch(e) { alert(e.message); }
+}
+
+function openBulkPushModal() {
+    if (!_selected.size) { alert('Select at least one student.'); return; }
+    showModal(`
+        <div class="modal-h"><h3>Push notification to ${_selected.size} selected</h3></div>
+        <div class="modal-b">
+            <p style="color:var(--text-3);font-size:13px;margin:0 0 14px">Sends a Web Push notification to each selected student who has opted in. Students who haven't enabled push will silently skip.</p>
+            <label>Title</label>
+            <input class="input" id="bp-title" style="width:100%" value="A nudge from your coach">
+            <label>Message</label>
+            <textarea id="bp-body" placeholder="3 minutes of practice today goes a long way."></textarea>
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-accent" onclick="sendBulkPush()">Send</button>
+            </div>
+        </div>
+    `);
+}
+async function sendBulkPush() {
+    const title = $('#bp-title').value.trim();
+    const body = $('#bp-body').value.trim();
+    if (!body) { alert('Message is required.'); return; }
+    try {
+        const r = await fetch('/api/org/broadcast', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body, emails: [..._selected] }),
+        });
+        const j = await r.json();
+        closeModal();
+        alert(j.success ? `✓ Delivered to ${j.delivered} of ${j.attempted}.` : (j.error || 'Failed.'));
+    } catch(e) { alert(e.message); }
+}
+
+// Track which student emails are selected for bulk actions.
+let _selected = new Set();
+let _filteredCache = [];
+
+function _toggleSelectAll(cb) {
+    if (cb.checked) {
+        _filteredCache.forEach(s => _selected.add(s.email));
+    } else {
+        _filteredCache.forEach(s => _selected.delete(s.email));
+    }
+    document.querySelectorAll('input.row-check').forEach(c => c.checked = cb.checked);
+    _updateBulkBar();
+}
+function _toggleRow(email, cb) {
+    if (cb.checked) _selected.add(email); else _selected.delete(email);
+    _updateBulkBar();
+}
+function _updateBulkBar() {
+    const bar = $('#bulk-bar');
+    if (!bar) return;
+    const n = _selected.size;
+    if (n === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    $('#bulk-count').textContent = n + ' selected';
+}
+
+function filterStudents() {
+    const q = ($('#q')?.value || '').toLowerCase().trim();
+    const fb = $('#f-batch')?.value || '';
+    const fbr = $('#f-branch')?.value || '';
+    const fs = $('#f-section')?.value || '';
+    let rows = _studentCache.filter(s => {
+        const a = s.academic || {};
+        if (fb && a.batch !== fb) return false;
+        if (fbr && a.branch !== fbr) return false;
+        if (fs && a.section !== fs) return false;
+        if (q) {
+            const t = ((s.name||'') + ' ' + (s.email||'') + ' ' + (a.usn||'')).toLowerCase();
+            if (!t.includes(q)) return false;
+        }
+        return true;
+    });
+    _filteredCache = rows;
+    // Drop selections that no longer match the filter.
+    _selected = new Set([..._selected].filter(e => rows.some(r => r.email === e)));
+    $('#student-list').innerHTML = renderStudentsTable(rows);
+    _updateBulkBar();
+}
+
+function renderStudentsTable(rows) {
+    if (!rows.length) return '<div class="empty">No students match.</div>';
+    return `
+        <div style="overflow-x:auto"><table class="table">
+            <thead><tr>
+                <th style="width:36px"><input type="checkbox" onchange="_toggleSelectAll(this)" title="Select all in current view"></th>
+                <th>Student</th><th>USN</th><th>Batch</th><th>Branch</th><th>Sec</th><th>Sem</th><th>Status</th><th>Last active</th><th></th>
+            </tr></thead>
+            <tbody>
+            ${rows.map(s => {
+                const a = s.academic || {};
+                const isTest = a.batch === 'test';
+                const checked = _selected.has(s.email) ? 'checked' : '';
+                return `
+                <tr class="row">
+                    <td><input type="checkbox" class="row-check" ${checked} onchange="_toggleRow('${s.email.replace(/'/g,"\\'")}', this)"></td>
+                    <td><div class="cell-name">
+                        <div class="av" ${s.picture ? `style="background-image:url(${s.picture})"` : ''}>${s.picture ? '' : initials(s.name)}</div>
+                        <div class="meta"><span class="n">${s.name||'—'}</span><span class="e">${s.email}</span></div>
+                    </div></td>
+                    <td class="mono" style="font-size:11px">${a.usn || '—'}</td>
+                    <td>${a.batch || '—'}</td>
+                    <td>${a.branch || '—'}</td>
+                    <td>${a.section || '—'}</td>
+                    <td>${a.currentSemester || (a.batch && a.batch !== 'test' ? OrgHelpers.currentSemester(a.batch) : '—')}</td>
+                    <td>${isTest ? '<span class="badge badge-test">Test</span>' : (s.paidStatus === 'paid' ? '<span class="badge badge-paid">Paid</span>' : '<span class="badge badge-unpaid">Unpaid</span>')}</td>
+                    <td>${fmtDate(s.last_active)}</td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-sm" onclick="openEditModal('${s.email.replace(/'/g,"\\'")}')">✎</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDelete('${s.email.replace(/'/g,"\\'")}')">🗑</button>
+                    </td>
+                </tr>`;
+            }).join('')}
+            </tbody>
+        </table></div>
+    `;
+}
+
+function openEditModal(email) {
+    const s = _studentCache.find(x => x.email === email);
+    if (!s) return;
+    const a = s.academic || {};
+    showModal(`
+        <div class="modal-h"><h3>Edit student</h3></div>
+        <div class="modal-b">
+            <p style="color:var(--text-3);margin:0 0 4px;font-size:12px">${s.email}</p>
+            <label>Name</label>
+            <input class="input" id="ed-name" style="width:100%" value="${(s.name||'').replace(/"/g,'&quot;')}">
+            <label>Batch</label>
+            <select class="select" id="ed-batch" style="width:100%">${(myOrg.batches||[]).map(b=>`<option ${a.batch===b?'selected':''}>${b}</option>`).join('')}</select>
+            <label>Branch</label>
+            <select class="select" id="ed-branch" style="width:100%">${(myOrg.branches||[]).map(b=>`<option value="${b.code}" ${a.branch===b.code?'selected':''}>${b.code} · ${b.name}</option>`).join('')}</select>
+            <label>Section</label>
+            <select class="select" id="ed-section" style="width:100%">${(myOrg.sections||[]).map(x=>`<option ${a.section===x?'selected':''}>${x}</option>`).join('')}</select>
+            <label>USN</label>
+            <input class="input" id="ed-usn" style="width:100%" value="${(a.usn||'').replace(/"/g,'&quot;')}">
+            <label>Roll number</label>
+            <input class="input" id="ed-roll" style="width:100%" value="${(a.rollNumber||'').replace(/"/g,'&quot;')}">
+            <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveEdit('${email.replace(/'/g,"\\'")}')">Save</button>
+            </div>
+        </div>
+    `);
+}
+async function saveEdit(email) {
+    const payload = {
+        name: $('#ed-name').value.trim(),
+        academic: {
+            batch: $('#ed-batch').value,
+            branch: $('#ed-branch').value,
+            section: $('#ed-section').value,
+            usn: $('#ed-usn').value.trim(),
+            rollNumber: $('#ed-roll').value.trim(),
+        }
+    };
+    try {
+        const r = await fetch('/api/org/student/' + encodeURIComponent(email), {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!j.success) { alert(j.error || 'Failed'); return; }
+        closeModal();
+        renderStudents();
+    } catch(e) { alert(e.message); }
+}
+async function confirmDelete(email) {
+    const t = prompt(`Delete ${email}? Type DELETE to confirm.\n(All progress and certificates for this student will be permanently removed.)`);
+    if (t !== 'DELETE') return;
+    try {
+        const r = await fetch('/api/org/student/' + encodeURIComponent(email), { method: 'DELETE', credentials: 'same-origin' });
+        const j = await r.json();
+        alert(j.success ? 'Deleted.' : (j.error || 'Failed'));
+        if (j.success) renderStudents();
+    } catch(e) { alert(e.message); }
+}
+
+// ─────────────────────────────────────────────────────────────
+// INVITE (single)
+// ─────────────────────────────────────────────────────────────
+function renderInvite() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Invite</span><h1>Add a single student</h1></div>
+        </div>
+        <div class="section" style="max-width:640px">
+            <p style="color:var(--text-3);margin:0 0 16px;font-size:13px">Send a magic-link email to one student. They'll click the link and sign in with Google to complete their enrolment. For batches &gt; 10 use Bulk import instead.</p>
+            <label class="kicker" style="color:var(--accent);display:block;margin-bottom:6px">Email</label>
+            <input class="input" id="inv-email" style="width:100%" placeholder="student@${myOrg.domain || 'example.com'}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px">
+                <div><label class="kicker" style="display:block;margin-bottom:6px">Batch</label>
+                    <select class="select" id="inv-batch" style="width:100%"><option value="">—</option>${(myOrg.batches||[]).map(b=>`<option>${b}</option>`).join('')}</select></div>
+                <div><label class="kicker" style="display:block;margin-bottom:6px">Branch</label>
+                    <select class="select" id="inv-branch" style="width:100%"><option value="">—</option>${(myOrg.branches||[]).map(b=>`<option value="${b.code}">${b.code}</option>`).join('')}</select></div>
+                <div><label class="kicker" style="display:block;margin-bottom:6px">Section</label>
+                    <select class="select" id="inv-section" style="width:100%"><option value="">—</option>${(myOrg.sections||[]).map(s=>`<option>${s}</option>`).join('')}</select></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+                <div><label class="kicker" style="display:block;margin-bottom:6px">USN (optional)</label>
+                    <input class="input" id="inv-usn" style="width:100%"></div>
+                <div><label class="kicker" style="display:block;margin-bottom:6px">Roll # (optional)</label>
+                    <input class="input" id="inv-roll" style="width:100%"></div>
+            </div>
+            <div style="margin-top:18px">
+                <button class="btn btn-accent" onclick="sendInvite()">Send invitation email</button>
+            </div>
+            <p id="inv-status" style="margin-top:14px;color:var(--text-3);font-size:13px"></p>
+        </div>
+    `;
+}
+async function sendInvite() {
+    const payload = {
+        email: $('#inv-email').value.trim().toLowerCase(),
+        batch: $('#inv-batch').value,
+        branch: $('#inv-branch').value,
+        section: $('#inv-section').value,
+        usn: $('#inv-usn').value.trim(),
+        rollNumber: $('#inv-roll').value.trim(),
+    };
+    if (!payload.email) { $('#inv-status').textContent = 'Email is required.'; return; }
+    $('#inv-status').textContent = 'Sending…';
+    try {
+        const r = await fetch('/api/org/invite-student', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (j.success) {
+            $('#inv-status').innerHTML = j.emailSent
+                ? `✓ Invitation sent to <b>${payload.email}</b>.`
+                : `Invitation created. Email did not send (server config). Send this link manually:<br><span class="mono" style="color:var(--primary)">${j.inviteLink}</span>`;
+        } else {
+            $('#inv-status').textContent = '✗ ' + (j.error || 'Failed');
+        }
+    } catch(e) { $('#inv-status').textContent = '✗ ' + e.message; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// BULK IMPORT (Excel)
+// ─────────────────────────────────────────────────────────────
+function renderImport() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Bulk import</span><h1>Onboard a whole batch</h1></div>
+        </div>
+        <div class="section" style="max-width:760px">
+            <p style="color:var(--text-3);margin:0 0 16px;font-size:13px">
+                Step 1: Download the Excel template (it has dropdowns for your branches and sections pre-filled).<br>
+                Step 2: Paste your student roster, fix any mismatches, save.<br>
+                Step 3: Drop the file below. We'll preview before sending invitations.
+            </p>
+            <a class="btn btn-primary" href="/api/org/students/template.xlsx" download>⤓ Download template</a>
+            <div class="drop" id="drop" style="margin-top:18px" onclick="document.getElementById('xls-input').click()">
+                <p style="font-family:Fraunces,serif;font-size:18px;color:var(--text-1)">Drop your filled template here</p>
+                <p>or click to browse — .xlsx only</p>
+            </div>
+            <input type="file" id="xls-input" accept=".xlsx" style="display:none" onchange="onPickFile(event)">
+            <div id="preview-box" class="preview-results"></div>
+        </div>
+    `;
+    const drop = $('#drop');
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragging'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragging'));
+    drop.addEventListener('drop', e => {
+        e.preventDefault(); drop.classList.remove('dragging');
+        const f = e.dataTransfer.files[0]; if (f) handleFile(f);
+    });
+}
+function onPickFile(e) {
+    const f = e.target.files[0]; if (f) handleFile(f);
+}
+let _lastFile = null;
+async function handleFile(file) {
+    _lastFile = file;
+    $('#preview-box').innerHTML = '<div class="spinner"></div>';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        const r = await fetch('/api/org/students/import-preview', { method: 'POST', credentials: 'same-origin', body: fd });
+        const j = await r.json();
+        renderPreview(j);
+    } catch(e) {
+        $('#preview-box').innerHTML = '<div class="empty">' + e.message + '</div>';
+    }
+}
+function renderPreview(j) {
+    const errs = j.errors || [];
+    $('#preview-box').innerHTML = `
+        <div class="preview-row"><span>New invitations</span><span class="v">${j.newCount}</span></div>
+        <div class="preview-row"><span>Updates to existing students</span><span class="v">${j.updateCount}</span></div>
+        <div class="preview-row"><span>Duplicates within file</span><span class="v">${(j.duplicateInFile||[]).length}</span></div>
+        <div class="preview-row"><span>Seats remaining after import</span><span class="v">${Math.max(0, (j.seatsLeft||0) - (j.newCount||0))}</span></div>
+        ${errs.length ? `<div class="errors-list">${errs.map(e => '• ' + e).join('<br>')}</div>` : ''}
+        <div style="margin-top:18px;display:flex;gap:8px">
+            <button class="btn btn-accent" onclick="commitImport()" ${j.newCount + j.updateCount > 0 ? '' : 'disabled'}>Send ${j.newCount} invitations + update ${j.updateCount}</button>
+            <button class="btn" onclick="document.getElementById('xls-input').value=''; document.getElementById('preview-box').innerHTML=''">Cancel</button>
+        </div>
+    `;
+}
+async function commitImport() {
+    if (!_lastFile) return;
+    $('#preview-box').innerHTML = '<div class="spinner"></div><p style="text-align:center;color:var(--text-3)">Sending invitations… don\'t close this tab.</p>';
+    const fd = new FormData();
+    fd.append('file', _lastFile);
+    try {
+        const r = await fetch('/api/org/students/import', { method: 'POST', credentials: 'same-origin', body: fd });
+        const j = await r.json();
+        const errs = j.errors || [];
+        $('#preview-box').innerHTML = `
+            <div class="section" style="margin-top:14px;background:var(--surface-2)">
+                <h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 10px">Import complete</h3>
+                <p style="margin:0;color:var(--text-2);font-size:13px">✓ ${j.invited} invitations sent · ${j.updated} students updated</p>
+                ${errs.length ? `<div class="errors-list">${errs.map(e => '• ' + e).join('<br>')}</div>` : ''}
+                <div style="margin-top:14px"><a class="btn btn-primary" href="#students">View students →</a></div>
+            </div>
+        `;
+        _lastFile = null;
+    } catch(e) {
+        $('#preview-box').innerHTML = '<div class="empty">' + e.message + '</div>';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// FEEDBACK
+// ─────────────────────────────────────────────────────────────
+async function renderFeedback() {
+    $('#content').innerHTML = `
+        <div class="page-head"><div><span class="kicker">Feedback</span><h1>What students are saying</h1></div></div>
+        <div class="section" id="fb-summary"><div class="spinner"></div></div>
+        <div class="section">
+            <div class="section-head">
+                <div><span class="kicker">All</span><h2>Submissions</h2></div>
+                <select class="select" id="fb-filter" onchange="renderFeedbackList()">
+                    <option value="">All ratings</option>
+                    <option value="5">5 stars only</option>
+                    <option value="4">4 stars and up</option>
+                    <option value="low">3 stars or fewer</option>
+                </select>
+            </div>
+            <div id="fb-list"><div class="spinner"></div></div>
+        </div>
+    `;
+    try {
+        const data = await fetchJSON('/api/org/feedback');
+        window.__orgFb = data.feedback || [];
+        const fb = window.__orgFb;
+        const ratings = fb.map(x => x.rating || 0).filter(Boolean);
+        const avg = ratings.length ? (ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1) : '—';
+        const npsBuckets = { yes:0, maybe:0, no:0 };
+        fb.forEach(x => { if (x.nps && npsBuckets[x.nps] !== undefined) npsBuckets[x.nps]++; });
+        const promoters = npsBuckets.yes;
+        const detractors = npsBuckets.no;
+        const totalNps = promoters + npsBuckets.maybe + detractors;
+        const npsScore = totalNps ? Math.round(((promoters - detractors) / totalNps) * 100) : 0;
+        $('#fb-summary').innerHTML = `
+            <div class="kpis" style="margin:0">
+                <div class="kpi"><span class="kpi-label">Avg rating</span><div class="kpi-n">${avg}<span style="font-size:18px;color:var(--highlight)">★</span></div><div class="kpi-sub">${ratings.length} ratings</div></div>
+                <div class="kpi"><span class="kpi-label">NPS</span><div class="kpi-n">${npsScore}</div><div class="kpi-sub">${promoters} yes / ${npsBuckets.maybe} maybe / ${detractors} no</div></div>
+                <div class="kpi"><span class="kpi-label">Submissions</span><div class="kpi-n">${fb.length}</div><div class="kpi-sub">all-time</div></div>
+                <div class="kpi"><span class="kpi-label">Last 7 days</span><div class="kpi-n">${fb.filter(x => x.submitted_at > new Date(Date.now()-7*86400000).toISOString()).length}</div></div>
+            </div>
+        `;
+        renderFeedbackList();
+    } catch (e) {
+        $('#fb-list').innerHTML = `<div class="empty">${e.message}</div>`;
+    }
+}
+function renderFeedbackList() {
+    const v = $('#fb-filter')?.value || '';
+    let rows = window.__orgFb || [];
+    if (v === '5') rows = rows.filter(r => r.rating === 5);
+    else if (v === '4') rows = rows.filter(r => r.rating >= 4);
+    else if (v === 'low') rows = rows.filter(r => r.rating && r.rating <= 3);
+    if (!rows.length) { $('#fb-list').innerHTML = '<div class="empty">No feedback yet.</div>'; return; }
+    const stars = (n) => '★'.repeat(n||0) + '☆'.repeat(5-(n||0));
+    $('#fb-list').innerHTML = rows.map(f => `
+        <div style="padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface-2)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+                <div class="cell-name">
+                    <div class="av" ${f.picture ? `style="background-image:url(${f.picture})"` : ''}>${f.picture ? '' : initials(f.name)}</div>
+                    <div class="meta">
+                        <span class="n">${f.name || '—'}</span>
+                        <span class="e">${f.email}</span>
+                    </div>
+                </div>
+                <span style="color:var(--highlight);font-size:14px;letter-spacing:1px">${stars(f.rating)}</span>
+                <span style="color:var(--text-3);font-size:11px">${f.course_id || 'general'} · ${fmtDate(f.submitted_at)}</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-2);line-height:1.55">
+                ${f.helpful ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Most helpful:</strong> ${f.helpful}</p>` : ''}
+                ${f.hardest ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Hardest:</strong> ${f.hardest}</p>` : ''}
+                ${f.nps ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Recommend:</strong> ${f.nps}</p>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ─────────────────────────────────────────────────────────────
+// BROADCAST
+// ─────────────────────────────────────────────────────────────
+function renderBroadcast() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Broadcast</span><h1>Push notification to all</h1></div>
+        </div>
+        <div class="section" style="max-width:640px">
+            <p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Sends a Web Push notification to every student in your organization who has opted in to push reminders. Students who haven't enabled push will silently skip.</p>
+            <label class="kicker" style="color:var(--accent);display:block;margin-bottom:6px">Title (max 80 chars)</label>
+            <input class="input" id="br-title" style="width:100%" value="Sunday is waiting" maxlength="80">
+            <label class="kicker" style="color:var(--accent);display:block;margin:14px 0 6px">Message (max 300 chars)</label>
+            <textarea id="br-body" placeholder="A few minutes of practice today goes a long way." maxlength="300"></textarea>
+            <div style="margin-top:18px;display:flex;gap:8px">
+                <button class="btn btn-accent" onclick="sendOrgBroadcast()">📣 Send to everyone in ${myOrg.name}</button>
+            </div>
+            <p id="br-status" style="margin-top:14px;color:var(--text-3);font-size:13px"></p>
+            <div style="margin-top:24px;padding:14px;background:var(--surface-2);border-radius:14px;font-size:12px;color:var(--text-3)">
+                <strong style="color:var(--text-1)">Tip:</strong> To send to a specific batch / branch / section, use the
+                <a href="#students" style="color:var(--primary)">Students</a> tab — apply filters, select all, click "📣 Push to selected".
+            </div>
+        </div>
+    `;
+}
+async function sendOrgBroadcast() {
+    const title = $('#br-title').value.trim();
+    const body = $('#br-body').value.trim();
+    if (!body) { $('#br-status').textContent = 'Message is required.'; return; }
+    if (!confirm(`Send "${title}" to every student in ${myOrg.name}?`)) return;
+    $('#br-status').textContent = 'Sending… this may take a few seconds.';
+    try {
+        const r = await fetch('/api/org/broadcast', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body }),
+        });
+        const j = await r.json();
+        $('#br-status').textContent = j.success
+            ? `✓ Delivered to ${j.delivered} of ${j.attempted} subscribers.`
+            : '✗ ' + (j.error || 'Failed.');
+    } catch(e) { $('#br-status').textContent = '✗ ' + e.message; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANALYTICS
+// ─────────────────────────────────────────────────────────────
+async function renderAnalytics() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Analytics</span><h1>Insights for ${myOrg.name}</h1></div>
+            <button class="btn" onclick="recomputeSems()">↻ Recompute semesters</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:18px" id="charts-grid">
+            <div class="section"><h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px">Pose popularity</h3><p style="color:var(--text-3);font-size:12px;margin:0 0 14px">Top 12 poses by total sessions</p><div style="position:relative;height:300px"><canvas id="ch-poses"></canvas></div></div>
+            <div class="section"><h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px">Streak distribution</h3><p style="color:var(--text-3);font-size:12px;margin:0 0 14px">Students grouped by their best-ever streak</p><div style="position:relative;height:300px"><canvas id="ch-streaks"></canvas></div></div>
+            <div class="section"><h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px">Cohort retention</h3><p style="color:var(--text-3);font-size:12px;margin:0 0 14px">% of new sign-ups still active after N days</p><div style="position:relative;height:300px"><canvas id="ch-retention"></canvas></div></div>
+            <div class="section"><h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px">Sign-ups by week</h3><p style="color:var(--text-3);font-size:12px;margin:0 0 14px">New students over the last 12 weeks</p><div style="position:relative;height:300px"><canvas id="ch-signups"></canvas></div></div>
+            <div class="section"><h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px">Completion by branch</h3><p style="color:var(--text-3);font-size:12px;margin:0 0 14px">Average % of 6-semester course completed, per branch</p><div style="position:relative;height:300px"><canvas id="ch-branch"></canvas></div></div>
+            <div class="section"><h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 6px">Completion by section</h3><p style="color:var(--text-3);font-size:12px;margin:0 0 14px">Same metric, sliced by section</p><div style="position:relative;height:300px"><canvas id="ch-section"></canvas></div></div>
+        </div>
+    `;
+    try {
+        const data = await fetchJSON('/api/org/analytics');
+        drawChart('ch-poses', 'bar', data.poses);
+        drawChart('ch-streaks', 'bar', data.streaks);
+        drawChart('ch-retention', 'line', data.retention);
+        drawChart('ch-signups', 'bar', data.signups);
+        drawChart('ch-branch', 'bar', data.completion_by_branch);
+        drawChart('ch-section', 'bar', data.completion_by_section);
+    } catch(e) {
+        $('#charts-grid').innerHTML = `<div class="empty">${e.message}</div>`;
+    }
+}
+
+function drawChart(canvasId, type, payload) {
+    if (!payload) return;
+    const ctx = document.getElementById(canvasId);
+    if (!ctx || !window.Chart) return;
+    new Chart(ctx, {
+        type,
+        data: {
+            labels: payload.labels,
+            datasets: [{
+                label: payload.label,
+                data: payload.values,
+                backgroundColor: type === 'bar' ? '#0F3D2E' : 'rgba(15,61,46,.12)',
+                borderColor: '#0F3D2E',
+                borderWidth: 2,
+                tension: 0.35,
+                fill: type === 'line',
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { color: '#7A7364', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+                x: { ticks: { color: '#7A7364', font: { size: 11 } }, grid: { display: false } },
+            },
+        },
+    });
+}
+
+async function recomputeSems() {
+    if (!confirm('Recompute current semester for every student in your org based on today\'s date and their batch year?')) return;
+    try {
+        const r = await fetch('/api/org/recompute-semesters', { method: 'POST', credentials: 'same-origin' });
+        const j = await r.json();
+        alert(j.success ? `✓ ${j.updated} students moved to their current semester.` : (j.error || 'Failed.'));
+        if (j.success) renderAnalytics();
+    } catch(e) { alert(e.message); }
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONFIG (batches, branches, sections)
+// ─────────────────────────────────────────────────────────────
+function renderConfig() {
+    $('#content').innerHTML = `
+        <div class="page-head"><div><span class="kicker">Configuration</span><h1>Academic structure</h1></div></div>
+        <div class="section" style="max-width:760px">
+            <p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Edit your organisation's batches, branches, and sections. Changes take effect immediately for new invitations and bulk imports.</p>
+            <label class="kicker" style="color:var(--accent);display:block;margin-bottom:6px">Batches (comma-separated, year format)</label>
+            <input class="input" id="cfg-batches" style="width:100%" value="${(myOrg.batches||[]).join(', ')}" placeholder="2022, 2023, 2024, 2025">
+            <label class="kicker" style="color:var(--accent);display:block;margin:14px 0 6px">Sections</label>
+            <input class="input" id="cfg-sections" style="width:100%" value="${(myOrg.sections||[]).join(', ')}" placeholder="A, B, C, D">
+            <label class="kicker" style="color:var(--accent);display:block;margin:14px 0 6px">Branches (one per line, format: CODE Full Name)</label>
+            <textarea id="cfg-branches" style="width:100%;min-height:150px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-family:'JetBrains Mono',monospace;font-size:13px;resize:vertical">${(myOrg.branches||[]).map(b=>b.code+' '+b.name).join('\n')}</textarea>
+            <p style="color:var(--text-3);font-size:11px;margin:6px 0 0">Example: <span class="mono">CSE-AIML Computer Science (AI &amp; ML)</span></p>
+            <div style="margin-top:18px">
+                <button class="btn btn-primary" onclick="saveConfig()">Save changes</button>
+            </div>
+            <p id="cfg-status" style="margin-top:14px;color:var(--text-3);font-size:13px"></p>
+        </div>
+    `;
+}
+async function saveConfig() {
+    const batches = $('#cfg-batches').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const sections = $('#cfg-sections').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const branches = $('#cfg-branches').value.split('\n').map(line => {
+        const t = line.trim();
+        if (!t) return null;
+        const sp = t.split(/\s+/);
+        const code = sp[0];
+        const name = sp.slice(1).join(' ') || code;
+        return { code, name };
+    }).filter(Boolean);
+    try {
+        const r = await fetch('/api/org/config', {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ batches, sections, branches }),
+        });
+        const j = await r.json();
+        if (j.success) {
+            $('#cfg-status').textContent = '✓ Saved. Refreshing…';
+            const me = await fetchJSON('/api/org/me'); myOrg = me.organization;
+            setTimeout(renderConfig, 600);
+        } else $('#cfg-status').textContent = '✗ ' + (j.error || 'Failed');
+    } catch(e) { $('#cfg-status').textContent = '✗ ' + e.message; }
+}
+
+// Boot
+(async function() {
+    try { await bootProfile(); } catch(_) { return; }
+    renderRoute();
+})();
+</script>
+</body>
+</html>
