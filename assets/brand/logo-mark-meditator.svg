@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AsanMinds — primary mark (Concept A: Seated Meditator)
+  A meditator in lotus position rendered as a clean geometric silhouette,
+  cradled by a forest-green rounded tile. Saffron sunrise arc above the
+  head reads as "sunday" / awakening. The single saffron bindu at the
+  third eye is the only point of bright contrast — that's the brand.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AsanMinds">
+  <title>AsanMinds — sunday</title>
+  <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+
+  <!-- Sunrise arc above the meditator — "sunday" -->
+  <path d="M18 21 A14 14 0 0 1 46 21"
+        stroke="#E0A23F" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Meditator silhouette -->
+  <g fill="#F5F2EB">
+    <!-- Head -->
+    <circle cx="32" cy="26" r="3.6"/>
+    <!-- Neck + torso -->
+    <path d="M30.4 29.4 L33.6 29.4 L34.4 38.5 L29.6 38.5 Z"/>
+    <!-- Lotus legs (wide grounded base) -->
+    <path d="M16.5 46.5
+             C16.5 41 21 38 24 38
+             L40 38
+             C43 38 47.5 41 47.5 46.5
+             C47.5 49 45.5 50.5 43 50.5
+             L21 50.5
+             C18.5 50.5 16.5 49 16.5 46.5 Z"/>
+    <!-- Arms in mudra (left + right curving to lap) -->
+    <path d="M28.5 33 C25 36 24.5 41 28 43" stroke="#F5F2EB" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <path d="M35.5 33 C39 36 39.5 41 36 43" stroke="#F5F2EB" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- Bindu / awareness dot at the third eye (saffron) -->
+  <circle cx="32" cy="25.4" r="0.9" fill="#E0A23F"/>
+</svg>

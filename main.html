@@ -5021,10 +5021,17 @@
                     }
                 } catch(_){}
 
-                // Onboarding tour removed — straight-to-app redirect feels
-                // more professional. Stamp the seen flag so any older code
-                // path can't resurrect it.
-                try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
+                // ── First-run spotlight tour ──
+                // Real tour: highlights actual UI elements (nav tabs,
+                // hero CTA, KPIs, etc.) using a clipped overlay so users
+                // can SEE their dashboard while reading each step.
+                try {
+                    const seen = localStorage.getItem('sunday_onboarding_done');
+                    if (!seen && this.currentView === 'dashboard') {
+                        // Wait for the dashboard DOM to settle, then fire.
+                        setTimeout(() => this._startOnboardingTour(), 600);
+                    }
+                } catch(_){}
 
                 // ── Web push registration if user opted in (item 11) ──
                 try {
@@ -5035,13 +5042,277 @@
             },
 
             // ─────────────────────────────────────────────────
-            // ONBOARDING TOUR — disabled; kept as no-op stubs so any
-            // stale references in the DOM don't throw.
+            // ONBOARDING TOUR — real spotlight tour. Each step targets
+            // a real element by selector; the overlay clips a hole
+            // around the target so users can see what they're learning
+            // about. Tooltips position above/below the spotlight, with
+            // a connecting tail. Mobile-aware: tooltips pin to the
+            // nearest viewport edge instead of overflowing.
             // ─────────────────────────────────────────────────
-            _startOnboardingTour() { /* intentionally a no-op */ },
-            _renderOnboardStep()   { /* intentionally a no-op */ },
-            _nextOnboardingStep()  { /* intentionally a no-op */ },
-            _skipOnboarding()      { /* intentionally a no-op */ },
+            _tourSteps() {
+                const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+                return [
+                    {
+                        target: null, // intro card, no spotlight
+                        title: 'Welcome to Sunday.',
+                        body: 'A short, real tour of your practice space — 30 seconds. We\'ll point at things and tell you what they do.',
+                        cta: 'Show me around',
+                    },
+                    {
+                        target: isDesktop ? '#top-nav' : '#nav-tabs',
+                        title: 'Your four spaces.',
+                        body: 'Today is your dashboard. Library is the catalogue of asanas. Practice opens the AR coach. Course tracks your six-semester progress.',
+                        place: isDesktop ? 'below' : 'above',
+                    },
+                    {
+                        target: '#content section:first-of-type',
+                        title: 'Today\'s recommendation.',
+                        body: 'Each session we suggest the next pose that matters for your current semester. Tap "Start today\'s practice" and the AR coach opens with that pose pre-loaded.',
+                        place: 'below',
+                    },
+                    {
+                        target: '#voice-toggle',
+                        title: 'Hands-free voice coach.',
+                        body: 'Tap once to wake. Then say things like "next pose", "show reference", or "what muscles does this work?" — Sunday answers in your ear so you stay on the mat.',
+                        place: 'below',
+                    },
+                    {
+                        target: '#commands-btn',
+                        title: 'See every voice command.',
+                        body: 'Not sure what to say? Tap this and the full command library opens — by category, with examples.',
+                        place: 'below',
+                    },
+                    {
+                        target: '#avatar-btn',
+                        title: 'Your profile, certificates, settings.',
+                        body: 'Streak, badges, downloadable certificates, theme, push reminders — they all live here. You can replay this tour any time from Settings.',
+                        place: 'below',
+                    },
+                    {
+                        target: null,
+                        title: 'You\'re ready.',
+                        body: 'When in doubt, just say "what should I do?" out loud. Have a calm practice.',
+                        cta: 'Begin',
+                    },
+                ];
+            },
+
+            _startOnboardingTour() {
+                if (this._tourActive) return;
+                this._tourActive = true;
+                this._tourStep = 0;
+                // Make sure the dashboard is mounted before we start hunting selectors.
+                if (this.currentView !== 'dashboard') {
+                    this.navigate('dashboard');
+                    setTimeout(() => this._renderOnboardStep(), 400);
+                } else {
+                    this._renderOnboardStep();
+                }
+            },
+
+            _renderOnboardStep() {
+                const steps = this._tourSteps();
+                const i = this._tourStep || 0;
+                if (i >= steps.length) return this._finishTour();
+
+                this._ensureTourLayer();
+                const step = steps[i];
+                const layer = document.getElementById('tour-layer');
+                if (!layer) return;
+
+                // Find the target rect (or null for intro/outro cards).
+                let rect = null;
+                if (step.target) {
+                    const el = document.querySelector(step.target);
+                    if (el) {
+                        // Bring it into view if it's offscreen.
+                        const r0 = el.getBoundingClientRect();
+                        if (r0.bottom < 0 || r0.top > window.innerHeight) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return setTimeout(() => this._renderOnboardStep(), 350);
+                        }
+                        rect = el.getBoundingClientRect();
+                    }
+                }
+
+                this._paintTour(rect, step, i, steps.length);
+            },
+
+            _ensureTourLayer() {
+                if (document.getElementById('tour-layer')) return;
+                const layer = document.createElement('div');
+                layer.id = 'tour-layer';
+                layer.style.cssText = 'position:fixed;inset:0;z-index:90;pointer-events:auto';
+                layer.innerHTML = `
+                    <svg id="tour-mask" width="100%" height="100%" style="position:absolute;inset:0;display:block">
+                        <defs>
+                            <mask id="tour-spotlight-mask">
+                                <rect x="0" y="0" width="100%" height="100%" fill="#fff"/>
+                                <rect id="tour-hole" x="-100" y="-100" width="0" height="0" rx="14" ry="14" fill="#000"/>
+                            </mask>
+                        </defs>
+                        <rect x="0" y="0" width="100%" height="100%"
+                              fill="rgba(20,18,14,0.78)"
+                              mask="url(#tour-spotlight-mask)"
+                              style="transition:all .35s cubic-bezier(.22,.8,.3,1)"/>
+                        <rect id="tour-ring" x="-100" y="-100" width="0" height="0" rx="14" ry="14"
+                              fill="none" stroke="#E0A23F" stroke-width="2"
+                              style="transition:all .35s cubic-bezier(.22,.8,.3,1); filter:drop-shadow(0 0 8px rgba(224,162,63,0.6))"/>
+                    </svg>
+                    <div id="tour-card" style="
+                        position:absolute; max-width:360px; width:calc(100% - 32px);
+                        background:#F5F2EB; border:1px solid #D4CCB8; border-radius:22px;
+                        padding:22px 22px 18px;
+                        box-shadow:0 24px 60px rgba(20,18,14,0.4);
+                        opacity:0; transform:translateY(8px) scale(.98);
+                        transition: opacity .25s ease, transform .25s ease;
+                    "></div>
+                `;
+                document.body.appendChild(layer);
+                // Click backdrop to advance, but not the card itself.
+                layer.addEventListener('click', (ev) => {
+                    if (ev.target === layer || ev.target.tagName === 'svg' || ev.target.tagName === 'rect') {
+                        this._nextOnboardingStep();
+                    }
+                });
+                window.addEventListener('resize', this._onTourResize = () => {
+                    if (this._tourActive) this._renderOnboardStep();
+                });
+                window.addEventListener('keydown', this._onTourKey = (ev) => {
+                    if (!this._tourActive) return;
+                    if (ev.key === 'Escape') this._skipOnboarding();
+                    else if (ev.key === 'Enter' || ev.key === 'ArrowRight') this._nextOnboardingStep();
+                    else if (ev.key === 'ArrowLeft') this._prevOnboardingStep();
+                });
+            },
+
+            _paintTour(rect, step, i, total) {
+                const card = document.getElementById('tour-card');
+                const hole = document.getElementById('tour-hole');
+                const ring = document.getElementById('tour-ring');
+                if (!card || !hole || !ring) return;
+
+                const PAD = 10; // padding around target inside the spotlight
+                const VW = window.innerWidth;
+                const VH = window.innerHeight;
+
+                // Spotlight rect
+                if (rect) {
+                    const x = Math.max(8, rect.left - PAD);
+                    const y = Math.max(8, rect.top - PAD);
+                    const w = Math.min(VW - 16, rect.width + PAD * 2);
+                    const h = Math.min(VH - 16, rect.height + PAD * 2);
+                    hole.setAttribute('x', x);
+                    hole.setAttribute('y', y);
+                    hole.setAttribute('width', w);
+                    hole.setAttribute('height', h);
+                    ring.setAttribute('x', x);
+                    ring.setAttribute('y', y);
+                    ring.setAttribute('width', w);
+                    ring.setAttribute('height', h);
+                } else {
+                    // No spotlight — center the card on a flat dim.
+                    hole.setAttribute('width', 0);
+                    hole.setAttribute('height', 0);
+                    ring.setAttribute('width', 0);
+                    ring.setAttribute('height', 0);
+                }
+
+                // Card content
+                const dots = Array.from({length: total}, (_, j) => `
+                    <span style="width:6px;height:6px;border-radius:9999px;background:${j === i ? '#0F3D2E' : '#D4CCB8'}"></span>
+                `).join('');
+                const isLast = (i === total - 1);
+                const isFirst = (i === 0);
+                card.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                        <span class="kicker" style="color:#C2552F;font-size:10px">Step ${i + 1} of ${total}</span>
+                        <button id="tour-x" aria-label="Skip tour" style="background:transparent;border:0;color:#7A7364;font-size:18px;cursor:pointer;padding:4px 8px;line-height:1">×</button>
+                    </div>
+                    <h2 style="font-family:'Fraunces',serif;font-size:24px;font-weight:300;color:#14120E;margin:0 0 8px;letter-spacing:-0.02em;line-height:1.2">${step.title}</h2>
+                    <p style="color:#4A453B;font-size:14px;line-height:1.55;margin:0 0 18px">${step.body}</p>
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <div style="display:flex;gap:6px;align-items:center">${dots}</div>
+                        <div style="display:flex;gap:8px">
+                            ${!isFirst ? `<button id="tour-back" class="pressable" style="background:transparent;border:1px solid #D4CCB8;color:#4A453B;padding:9px 16px;border-radius:9999px;font-size:13px;font-weight:500;cursor:pointer">Back</button>` : ''}
+                            <button id="tour-next" class="pressable" style="background:#0F3D2E;color:#F5F2EB;border:0;padding:10px 20px;border-radius:9999px;font-size:13px;font-weight:600;cursor:pointer">${step.cta || (isLast ? 'Got it' : 'Next')}</button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('tour-x').onclick = () => this._skipOnboarding();
+                document.getElementById('tour-next').onclick = () => this._nextOnboardingStep();
+                const back = document.getElementById('tour-back');
+                if (back) back.onclick = () => this._prevOnboardingStep();
+
+                // Position card relative to spotlight.
+                requestAnimationFrame(() => {
+                    const cardW = card.offsetWidth;
+                    const cardH = card.offsetHeight;
+                    let cx, cy;
+                    if (rect) {
+                        const place = step.place || 'below';
+                        const M = 16; // gap from spotlight
+                        if (place === 'below' && rect.bottom + cardH + M < VH - 16) {
+                            cy = rect.bottom + M;
+                            cx = Math.min(Math.max(16, rect.left + rect.width/2 - cardW/2), VW - cardW - 16);
+                        } else if (place === 'above' && rect.top - cardH - M > 16) {
+                            cy = rect.top - cardH - M;
+                            cx = Math.min(Math.max(16, rect.left + rect.width/2 - cardW/2), VW - cardW - 16);
+                        } else if (rect.right + cardW + M < VW - 16) {
+                            cx = rect.right + M;
+                            cy = Math.min(Math.max(16, rect.top + rect.height/2 - cardH/2), VH - cardH - 16);
+                        } else if (rect.left - cardW - M > 16) {
+                            cx = rect.left - cardW - M;
+                            cy = Math.min(Math.max(16, rect.top + rect.height/2 - cardH/2), VH - cardH - 16);
+                        } else {
+                            // Fallback: pin to the bottom of the viewport.
+                            cx = (VW - cardW) / 2;
+                            cy = VH - cardH - 24;
+                        }
+                    } else {
+                        // No spotlight — center card.
+                        cx = (VW - cardW) / 2;
+                        cy = (VH - cardH) / 2;
+                    }
+                    card.style.left = Math.round(cx) + 'px';
+                    card.style.top = Math.round(cy) + 'px';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0) scale(1)';
+                });
+            },
+
+            _nextOnboardingStep() {
+                this._tourStep = (this._tourStep || 0) + 1;
+                const steps = this._tourSteps();
+                if (this._tourStep >= steps.length) return this._finishTour();
+                this._renderOnboardStep();
+            },
+
+            _prevOnboardingStep() {
+                this._tourStep = Math.max(0, (this._tourStep || 0) - 1);
+                this._renderOnboardStep();
+            },
+
+            _skipOnboarding() {
+                this._finishTour();
+            },
+
+            _finishTour() {
+                this._tourActive = false;
+                try { localStorage.setItem('sunday_onboarding_done', '1'); } catch(_){}
+                const layer = document.getElementById('tour-layer');
+                if (layer) layer.remove();
+                if (this._onTourResize) { window.removeEventListener('resize', this._onTourResize); this._onTourResize = null; }
+                if (this._onTourKey) { window.removeEventListener('keydown', this._onTourKey); this._onTourKey = null; }
+            },
+
+            // Public hook used by Settings → "Replay tour" so users can
+            // re-watch the spotlight tour any time.
+            replayTour() {
+                try { localStorage.removeItem('sunday_onboarding_done'); } catch(_){}
+                this._finishTour();
+                this._startOnboardingTour();
+            },
 
             // ─────────────────────────────────────────────────
             // SETTINGS MODAL (theme, remember-me, push, delete)
@@ -5091,7 +5362,11 @@
                             <button onclick="app._openFeedbackModal('general')" class="pressable" style="height:38px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Send feedback</button>
                             <button onclick="app._sendTestEmail()" class="pressable" style="height:38px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Send me a SendGrid test email</button>
                         </div>
-                        <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account & all data</button>
+                        <div>
+                            <span class="kicker" style="color:#7A7364;font-size:10px">Tour</span>
+                            <button onclick="app.replayTour(); document.getElementById('cert-share-modal').classList.remove('active')" class="pressable" style="margin-top:8px;height:38px;width:100%;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Replay the spotlight tour</button>
+                        </div>
+                        <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account &amp; all data</button>
                     </div>
                 `;
                 modal.classList.add('active');

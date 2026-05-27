@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Horizontal lockup — Concept A (Meditator) + wordmark.
+  Use this for the topbar, email headers, and OG cards.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-label="sunday · asanminds">
+  <title>sunday · asanminds</title>
+
+  <!-- Mark -->
+  <g transform="translate(0 8) scale(1)">
+    <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+    <path d="M18 21 A14 14 0 0 1 46 21"
+          stroke="#E0A23F" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85"/>
+    <g fill="#F5F2EB">
+      <circle cx="32" cy="26" r="3.6"/>
+      <path d="M30.4 29.4 L33.6 29.4 L34.4 38.5 L29.6 38.5 Z"/>
+      <path d="M16.5 46.5 C16.5 41 21 38 24 38 L40 38 C43 38 47.5 41 47.5 46.5 C47.5 49 45.5 50.5 43 50.5 L21 50.5 C18.5 50.5 16.5 49 16.5 46.5 Z"/>
+    </g>
+    <path d="M28.5 33 C25 36 24.5 41 28 43" stroke="#F5F2EB" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <path d="M35.5 33 C39 36 39.5 41 36 43" stroke="#F5F2EB" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <circle cx="32" cy="25.4" r="0.9" fill="#E0A23F"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="80" y="46"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="34" font-weight="300" font-style="italic"
+        fill="#14120E" letter-spacing="-0.02em">sunday</text>
+  <text x="83" y="64"
+        font-family="'Inter', system-ui, sans-serif"
+        font-size="9.5" font-weight="500"
+        fill="#7A7364" letter-spacing="0.24em">A S A N M I N D S</text>
+</svg>

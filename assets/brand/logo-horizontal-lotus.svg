@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Horizontal lockup — Concept B (Geometric Lotus) + wordmark. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-label="sunday · asanminds">
+  <title>sunday · asanminds</title>
+  <g transform="translate(0 8)">
+    <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+    <g transform="translate(32 33)">
+      <g fill="#F5F2EB">
+        <ellipse cx="0" cy="-13.5" rx="5" ry="13.5" transform="rotate(0)"/>
+        <ellipse cx="0" cy="-13.5" rx="5" ry="13.5" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-13.5" rx="5" ry="13.5" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-13.5" rx="5" ry="13.5" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-13.5" rx="5" ry="13.5" transform="rotate(288)"/>
+      </g>
+      <g fill="#C7DBCE" opacity="0.55">
+        <ellipse cx="0" cy="-8.5" rx="3.4" ry="9" transform="rotate(36)"/>
+        <ellipse cx="0" cy="-8.5" rx="3.4" ry="9" transform="rotate(108)"/>
+        <ellipse cx="0" cy="-8.5" rx="3.4" ry="9" transform="rotate(180)"/>
+        <ellipse cx="0" cy="-8.5" rx="3.4" ry="9" transform="rotate(252)"/>
+        <ellipse cx="0" cy="-8.5" rx="3.4" ry="9" transform="rotate(324)"/>
+      </g>
+      <circle cx="0" cy="0" r="3.4" fill="#E0A23F"/>
+      <circle cx="0" cy="0" r="1.4" fill="#0F3D2E"/>
+    </g>
+  </g>
+  <text x="80" y="46" font-family="Georgia, 'Times New Roman', serif"
+        font-size="34" font-weight="300" font-style="italic"
+        fill="#14120E" letter-spacing="-0.02em">sunday</text>
+  <text x="83" y="64" font-family="'Inter', system-ui, sans-serif"
+        font-size="9.5" font-weight="500"
+        fill="#7A7364" letter-spacing="0.24em">A S A N M I N D S</text>
+</svg>

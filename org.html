@@ -95,6 +95,56 @@ a{color:var(--primary);text-decoration:none}
 .preview-row{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--surface-2);font-size:13px}
 .preview-row .v{color:var(--text-1);font-weight:500}
 .errors-list{background:#FEF1ED;border:1px solid var(--accent);border-radius:12px;padding:14px;margin-top:14px;max-height:200px;overflow-y:auto;font-size:12px;color:var(--accent);font-family:'JetBrains Mono',monospace;line-height:1.6}
+
+/* ─── Mobile drawer + responsive overrides ─────────────────────── */
+.menu-toggle{display:none;width:38px;height:38px;border:1px solid var(--border);background:var(--surface-2);border-radius:9999px;cursor:pointer;align-items:center;justify-content:center;color:var(--text-1);padding:0}
+.menu-toggle svg{width:18px;height:18px}
+.menu-backdrop{display:none;position:fixed;inset:0;background:rgba(20,18,14,.45);backdrop-filter:blur(4px);z-index:35}
+.menu-backdrop.open{display:block}
+.brand-tag{flex-shrink:0}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:14px}
+
+@media(max-width:880px){
+  .topbar-inner{padding:0 16px;height:60px;gap:10px}
+  .brand-word{font-size:17px}
+  .menu-toggle{display:inline-flex}
+  .nav{position:fixed;top:60px;left:0;right:0;flex-direction:column;align-items:stretch;background:var(--bg);border-bottom:1px solid var(--border);padding:14px 16px;gap:2px;transform:translateY(-130%);transition:transform .28s cubic-bezier(.22,.8,.3,1);z-index:40;box-shadow:0 16px 40px rgba(20,18,14,.12)}
+  .nav.open{transform:translateY(0)}
+  .nav a{padding:14px 16px;border-radius:12px;font-size:15px}
+  .nav a.active{background:var(--primary);color:var(--bg)}
+  .nav-right .btn{padding:0 12px;font-size:12px}
+
+  .page{padding:20px 16px 80px}
+  .page-head{margin-bottom:20px}
+  .page-head h1{font-size:28px}
+  .page-head .btn{height:36px;font-size:12px}
+
+  .kpi{padding:16px}
+  .kpi-n{font-size:28px}
+  .section{padding:16px;border-radius:14px}
+  .section-head h2{font-size:18px}
+  .toolbar{gap:6px}
+  .toolbar .input,.toolbar .btn,.toolbar .select{height:36px;font-size:12px;padding:0 12px;min-width:0;flex:1 1 auto}
+
+  .table th,.table td{padding:10px 10px;font-size:12px}
+  .table th{font-size:9px}
+  .cell-name .av{width:28px;height:28px;font-size:11px}
+  .cell-name .meta .e{display:none}
+
+  .modal{border-radius:18px;max-height:94vh}
+  .modal-h{padding:18px 18px 10px}
+  .modal-b{padding:14px 18px}
+
+  .drop{padding:24px}
+}
+
+@media(max-width:480px){
+  .page-head h1{font-size:24px}
+  .page{padding:16px 12px 80px}
+  .topbar-inner{padding:0 12px}
+  .brand-tag{display:none}
+  .table th:nth-child(n+5),.table td:nth-child(n+5){display:none}
+}
 </style>
 </head>
 <body>
@@ -106,6 +156,9 @@ a{color:var(--primary);text-decoration:none}
             <span class="brand-word">sunday</span>
             <span class="brand-tag">Org admin</span>
         </a>
+        <button class="menu-toggle pressable" id="menu-toggle" aria-label="Open menu" aria-expanded="false" onclick="toggleMobileNav()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+        </button>
         <nav class="nav" id="top-nav"></nav>
         <div class="nav-right">
             <a href="/logout" class="btn btn-sm">Sign out</a>
@@ -113,6 +166,7 @@ a{color:var(--primary);text-decoration:none}
         </div>
     </div>
 </header>
+<div class="menu-backdrop" id="menu-backdrop" onclick="toggleMobileNav(false)"></div>
 
 <main id="content" class="page">
     <div class="spinner"></div>
@@ -123,6 +177,19 @@ a{color:var(--primary);text-decoration:none}
 </div>
 
 <script>
+// ─────────────────────────────────────────────────
+// Mobile nav drawer
+// ─────────────────────────────────────────────────
+function toggleMobileNav(force){
+    const nav = document.getElementById('top-nav');
+    const back = document.getElementById('menu-backdrop');
+    const tog = document.getElementById('menu-toggle');
+    const want = (typeof force === 'boolean') ? force : !nav.classList.contains('open');
+    nav.classList.toggle('open', want);
+    back.classList.toggle('open', want);
+    if (tog) tog.setAttribute('aria-expanded', want ? 'true' : 'false');
+}
+
 const $ = (s, p) => (p || document).querySelector(s);
 const $$ = (s, p) => Array.from((p || document).querySelectorAll(s));
 const initials = (n) => (n || 'A').trim().charAt(0).toUpperCase();
@@ -142,9 +209,11 @@ let myProfile = null;
 let myOrg = null;
 
 function renderNav(active) {
-    $('#top-nav').innerHTML = ROUTES.map(r =>
+    const nav = $('#top-nav');
+    nav.innerHTML = ROUTES.map(r =>
         `<a href="#${r.p}" class="${active === r.p ? 'active' : ''}">${r.l}</a>`
     ).join('');
+    nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => toggleMobileNav(false)));
 }
 async function fetchJSON(url, opts) {
     const r = await fetch(url, { credentials: 'same-origin', ...(opts||{}) });

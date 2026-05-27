@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AsanMinds — wordmark only.
+  "sunday" set in a Fraunces-flavoured italic serif, with "· asanminds"
+  as the supporting eyebrow in a quiet sans-style style. Use this when
+  the mark is shown alone elsewhere (e.g. inline body copy).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" role="img" aria-label="sunday · asanminds">
+  <title>sunday · asanminds</title>
+  <text x="0" y="48"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="44" font-weight="300" font-style="italic"
+        fill="#14120E" letter-spacing="-0.02em">sunday</text>
+  <text x="6" y="68"
+        font-family="'Inter', system-ui, sans-serif"
+        font-size="11" font-weight="500"
+        fill="#7A7364" letter-spacing="0.22em">A S A N M I N D S</text>
+</svg>
