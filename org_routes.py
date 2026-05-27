@@ -282,7 +282,55 @@ def register_org_routes(app, deps):
             'createdByAdmin': session.get('admin_email'),
         })
         _audit_safe(admin_audit_col, 'org_create', email, {'name': name, 'domain': domain, 'cap': cap})
-        return jsonify({'success': True})
+
+        # Auto-create a magic-link invitation for the org-admin and email it.
+        # The org's contact email IS the first sub-admin's account by design,
+        # so this is what makes "registering an org" actually do something
+        # visible to the user — they get a Google sign-in link in their inbox.
+        invite_link = None
+        email_sent = False
+        if invitations_col is not None:
+            try:
+                # Drop any prior pending invite for this email+org pair to avoid
+                # ambiguity if the super-admin recreates an org.
+                invitations_col.delete_many({
+                    'email': email,
+                    'organizationEmail': email,
+                    'role': 'org_admin',
+                    'status': 'pending',
+                })
+                token = secrets.token_hex(20)
+                invitations_col.insert_one({
+                    'email': email,
+                    'token': token,
+                    'inviterEmail': session.get('admin_email'),
+                    'organizationEmail': email,
+                    'role': 'org_admin',
+                    'status': 'pending',
+                    'prefilled': {'name': name},
+                    'createdAt': datetime.utcnow(),
+                })
+                invite_link = request.url_root.rstrip('/') + '/invite/' + token
+                email_sent = bool(_send_invite_email(email, 'org_admin', invite_link, name, prefilled_name=name))
+                _audit_safe(admin_audit_col, 'invite_org_admin', email, {'org': email, 'sent': email_sent, 'auto': True})
+            except Exception as exc:
+                # Don't fail the whole org creation if mail dispatch fails;
+                # super-admin can resend from the Organizations tab.
+                try:
+                    app.logger.warning('Auto-invite on org create failed: %r', exc)
+                except Exception:
+                    pass
+
+        return jsonify({
+            'success': True,
+            'inviteLink': invite_link,
+            'emailSent': email_sent,
+            'message': (
+                'Organization created and an admin invitation was emailed.'
+                if email_sent else
+                'Organization created. Email could not be sent automatically — share the invitation link manually.'
+            ),
+        })
 
     @app.route('/api/admin/organization/<path:email>', methods=['PUT'])
     @super_admin_required
@@ -564,25 +612,185 @@ def register_org_routes(app, deps):
     # Invitations
     # ─────────────────────────────────────────────────────────
 
-    def _send_invite_email(to, role, invite_link, org_name):
-        """Sends the invitation magic link via SendGrid (Path A)."""
+    def _send_invite_email(to, role, invite_link, org_name, prefilled_name=''):
+        """Sends the invitation magic link via SendGrid (Path A).
+
+        Branded HTML email — cream paper aesthetic matching the AsanMinds
+        product. Two voice tones depending on role: warm/student vs.
+        professional/admin.
+        """
         if not sendgrid_send:
             return False
-        subject = f"AsanMinds invitation — join {org_name} as {role.replace('_', ' ')}"
-        html = f"""
-        <div style="font-family: 'Inter', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background:#F5F2EB; color:#14120E">
-          <h2 style="font-family: 'Fraunces', serif; font-weight: 300; font-size: 28px; letter-spacing:-0.02em; margin: 0 0 6px">You're invited to AsanMinds</h2>
-          <p style="color:#7A7364; margin: 0 0 18px">{org_name} has invited you to join as {role.replace('_', ' ')}.</p>
-          <p style="font-size: 14px; line-height: 1.6">Click below to accept and sign in with your Google account.</p>
-          <p style="text-align:center; margin: 28px 0">
-            <a href="{invite_link}" style="display:inline-block; padding: 14px 28px; background:#0F3D2E; color:#F5F2EB; text-decoration:none; border-radius: 9999px; font-weight: 500">Accept invitation</a>
-          </p>
-          <p style="color:#7A7364; font-size: 12px">If the button doesn't work, paste this link into your browser:<br>
-            <span style="color:#0F3D2E">{invite_link}</span>
-          </p>
-          <p style="color:#A8A294; font-size: 11px; margin-top: 28px">Sent by Sunday · AsanMinds — {org_name}</p>
-        </div>
+
+        is_admin = role == 'org_admin'
+        first_name = (prefilled_name or to.split('@')[0]).split()[0] if prefilled_name or to else 'there'
+        first_name = first_name[:30]
+
+        if is_admin:
+            subject = f"You're invited to run AsanMinds for {org_name}"
+            kicker_text = 'Organization access'
+            heading = f'Welcome aboard, {first_name}.'
+            sub = (
+                f'<b>{org_name}</b> has been onboarded to AsanMinds. As the '
+                f'designated organization admin, you\'ll manage student '
+                f'enrollment, track progress across cohorts, and see live '
+                f'wellness analytics for your campus.'
+            )
+            cta_label = 'Access your admin panel'
+            footer_pitch = (
+                'After signing in, head to the Bulk import tab to onboard '
+                'your first batch in minutes.'
+            )
+        else:
+            subject = f'Welcome to AsanMinds — your yoga journey starts at {org_name}'
+            kicker_text = 'You\'re invited'
+            heading = f'Hi {first_name}, your mat is ready.'
+            sub = (
+                f'{org_name} has enrolled you in <b>AsanMinds</b> — an AI '
+                f'yoga programme that meets you where you are. Earn your '
+                f'first certificate as you move from foundation poses to '
+                f'master-level standing balances over six semesters.'
+            )
+            cta_label = 'Begin your practice'
+            footer_pitch = (
+                'AsanMinds works in your browser — no download. Use '
+                'Chrome or Safari on a phone or laptop with a camera.'
+            )
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0; padding:0; background:#F5F2EB; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color:#14120E;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F5F2EB;">
+    <tr>
+      <td align="center" style="padding: 32px 16px 8px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="560" style="max-width: 560px; width: 100%;">
+          <tr>
+            <td style="padding: 0 8px 24px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:#0F3D2E; color:#F5F2EB; width:36px; height:36px; text-align:center; vertical-align:middle; font-family: Georgia, 'Times New Roman', serif; font-size:18px; font-weight:300; border-radius:8px;">s</td>
+                  <td style="padding-left:12px; font-family: Georgia, 'Times New Roman', serif; font-size:21px; font-weight:500; color:#14120E; letter-spacing:-0.01em;">sunday <span style="color:#A8A294; font-size:13px; font-weight:400;">· asanminds</span></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#FFFFFF; border:1px solid #D4CCB8; border-radius:24px; padding:36px 32px; box-shadow: 0 8px 24px rgba(20,18,14,0.04);">
+              <p style="margin:0; color:#C2552F; font-size:11px; font-weight:600; letter-spacing:0.22em; text-transform:uppercase;">{kicker_text}</p>
+              <h1 style="margin:8px 0 14px; font-family: Georgia, 'Times New Roman', serif; font-size:34px; font-weight:300; line-height:1.15; color:#14120E; letter-spacing:-0.02em;">{heading}</h1>
+              <p style="margin:0 0 24px; color:#4A453B; font-size:15px; line-height:1.65;">{sub}</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="border-radius:9999px; background:#0F3D2E;">
+                    <a href="{invite_link}" style="display:inline-block; padding:15px 32px; color:#F5F2EB; text-decoration:none; font-size:15px; font-weight:600; letter-spacing:0.02em; border-radius:9999px;">{cta_label} →</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0; color:#7A7364; font-size:12px; line-height:1.6;">
+                {footer_pitch}
+              </p>
+              <hr style="border:0; border-top:1px solid #E0D9C8; margin:28px 0 18px;">
+              <p style="margin:0; color:#A8A294; font-size:11px; line-height:1.5;">
+                If the button doesn't work, copy and paste this link into your browser:<br>
+                <span style="color:#0F3D2E; word-break:break-all;">{invite_link}</span>
+              </p>
+              <p style="margin:18px 0 0; color:#A8A294; font-size:11px;">
+                This invitation is single-use and expires after acceptance. Sign in with the same Google account this email was sent to.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 8px; color:#A8A294; font-size:11px; text-align:center;">
+              Sent by <b style="color:#7A7364;">Sunday · AsanMinds</b> on behalf of {org_name} ·
+              <a href="https://asanaminds.onrender.com/privacy" style="color:#7A7364; text-decoration:underline;">Privacy</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+        return sendgrid_send(to, subject, html)
+
+
+    def _send_welcome_email(to, name, org_name):
+        """Sent to a student AFTER they successfully accept their invitation
+        and complete Google sign-in. Confirms enrolment and points them at
+        the first lesson.
         """
+        if not sendgrid_send:
+            return False
+        first = (name or to.split('@')[0]).split()[0][:30]
+        subject = f"You're in — welcome to AsanMinds, {first}."
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0; padding:0; background:#F5F2EB; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color:#14120E;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F5F2EB;">
+    <tr>
+      <td align="center" style="padding: 32px 16px 8px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="560" style="max-width: 560px; width: 100%;">
+          <tr>
+            <td style="background:#0F3D2E; color:#F5F2EB; border-radius:24px 24px 0 0; padding:40px 32px 32px;">
+              <p style="margin:0; color:#E0A23F; font-size:11px; font-weight:600; letter-spacing:0.22em; text-transform:uppercase;">Welcome aboard</p>
+              <h1 style="margin:10px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size:36px; font-weight:300; line-height:1.1; color:#F5F2EB; letter-spacing:-0.02em;">Hi {first}, your mat is set.</h1>
+              <p style="margin:14px 0 0; color:#C7DBCE; font-size:15px; line-height:1.6;">You're enrolled in {org_name}'s AsanMinds programme. Six semesters, twenty asanas, one calmer you.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#FFFFFF; border:1px solid #D4CCB8; border-top:0; border-radius:0 0 24px 24px; padding:32px;">
+              <p style="margin:0 0 14px; font-family: Georgia, serif; font-size:20px; font-weight:400; color:#14120E;">Three things to try first</p>
+              <table cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:12px 0; border-bottom:1px solid #E0D9C8;">
+                    <p style="margin:0; color:#0F3D2E; font-size:13px; font-weight:600;">1. Browse the library</p>
+                    <p style="margin:4px 0 0; color:#7A7364; font-size:13px; line-height:1.55;">All 20 asanas with detailed notes — Sanskrit name, alignment cues, common mistakes.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0; border-bottom:1px solid #E0D9C8;">
+                    <p style="margin:0; color:#0F3D2E; font-size:13px; font-weight:600;">2. Try the AR coach</p>
+                    <p style="margin:4px 0 0; color:#7A7364; font-size:13px; line-height:1.55;">Allow camera access, pick Tadasana, and watch your alignment score in real time.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0;">
+                    <p style="margin:0; color:#0F3D2E; font-size:13px; font-weight:600;">3. Start Semester 3</p>
+                    <p style="margin:4px 0 0; color:#7A7364; font-size:13px; line-height:1.55;">Foundations. Pass each pose's AR test plus quiz to earn your first certificate.</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;">
+                <tr>
+                  <td style="border-radius:9999px; background:#C2552F;">
+                    <a href="https://asanamindvvce.onrender.com/home" style="display:inline-block; padding:14px 28px; color:#F5F2EB; text-decoration:none; font-size:14px; font-weight:600; border-radius:9999px;">Open AsanMinds</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0; color:#A8A294; font-size:11px;">
+                Need help? Reach your organization admin or write to <a href="mailto:hello@asanminds.app" style="color:#7A7364;">hello@asanminds.app</a>.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 8px; color:#A8A294; font-size:11px; text-align:center;">
+              <b style="color:#7A7364;">Sunday · AsanMinds</b> · enrolled via {org_name}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
         return sendgrid_send(to, subject, html)
 
     @app.route('/api/admin/invite-org-admin', methods=['POST'])
@@ -1312,5 +1520,6 @@ a.btn{{display:inline-block;padding:14px 28px;background:#0F3D2E;color:#F5F2EB;t
         'super_admin_required': super_admin_required,
         'org_admin_required': org_admin_required,
         'consume_invitation_for': consume_invitation_for,
+        'send_welcome_email': _send_welcome_email,
         'TEST_ORG_EMAIL': TEST_ORG_EMAIL,
     }

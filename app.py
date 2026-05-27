@@ -588,293 +588,643 @@ INDEX_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUNDAY - Yoga Wellness Platform</title>
+    <title>AsanMinds — AI yoga coaching for institutions and individuals</title>
+    <meta name="description" content="AsanMinds is an AI-guided yoga platform with real-time pose correction, voice coaching, six-semester courseware, and institutional dashboards. Built for colleges, scaled for everyone.">
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0F3D2E">
     <link rel="apple-touch-icon" href="/assets/logo.png">
     <link rel="icon" type="image/png" href="/assets/logo.png">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Outfit', sans-serif; }
-        .bg-mesh {
-            background-color: #0c0e12;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, rgba(255, 235, 59, 0.05) 0, transparent 50%);
+        :root {
+            --bg: #F5F2EB;
+            --surface: #FFFFFF;
+            --surface-2: #EEE9DE;
+            --surface-3: #E0D9C8;
+            --border: #D4CCB8;
+            --text-1: #14120E;
+            --text-2: #4A453B;
+            --text-3: #7A7364;
+            --text-4: #A8A294;
+            --primary: #0F3D2E;
+            --primary-2: #1F5A44;
+            --primary-3: #6FA089;
+            --primary-4: #C7DBCE;
+            --accent: #C2552F;
+            --accent-soft: #F6DACB;
+            --gold: #E0A23F;
+            --gold-soft: #F3D58C;
         }
-        .glass {
-            background: rgba(30, 32, 38, 0.4);
-            backdrop-filter: blur(25px);
-            border: 1px solid rgba(255, 255, 255, 0.03);
-            box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.7);
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            background: var(--bg);
+            color: var(--text-1);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            line-height: 1.55;
         }
-        .input-glow:focus {
-            box-shadow: 0 0 20px rgba(37, 99, 235, 0.2);
-            border-color: #42A5F5;
+        body { min-height: 100vh; }
+        a { color: inherit; text-decoration: none; }
+        img { max-width: 100%; display: block; }
+        .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; letter-spacing: -0.02em; font-optical-sizing: auto; }
+        .kicker { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 11px; line-height: 14px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); }
+
+        /* Container */
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+        /* Top nav */
+        .topbar {
+            position: sticky; top: 0; z-index: 50;
+            background: rgba(245, 242, 235, 0.92);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid rgba(26,24,20,0.06);
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
+        .topbar-inner { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand-mark { width: 32px; height: 32px; border-radius: 9999px; background: var(--primary); color: var(--bg); font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+        .brand-name { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
+        .brand-name em { font-style: normal; color: var(--text-3); font-size: 13px; font-weight: 400; }
+        .nav-links { display: none; gap: 28px; align-items: center; }
+        .nav-links a { color: var(--text-2); font-size: 14px; font-weight: 500; transition: color .2s; }
+        .nav-links a:hover { color: var(--primary); }
+        @media (min-width: 880px) { .nav-links { display: flex; } }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            border: 0; border-radius: 9999px; cursor: pointer;
+            font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px;
+            padding: 0 22px; height: 46px;
+            transition: transform .12s ease, background .2s ease, box-shadow .2s ease;
+            text-decoration: none;
         }
-        .animate-fadeIn { animation: fadeIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-        
-        /* Shimmering Loader */
-        .premium-loader {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            border: 3px solid rgba(66, 165, 245, 0.1);
-            border-top-color: #42A5F5;
-            animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: var(--primary); color: var(--bg); }
+        .btn-primary:hover { background: var(--primary-2); box-shadow: 0 8px 24px rgba(15,61,46,0.18); }
+        .btn-accent { background: var(--accent); color: var(--bg); }
+        .btn-accent:hover { filter: brightness(1.05); box-shadow: 0 8px 24px rgba(194,85,47,0.22); }
+        .btn-outline { background: transparent; color: var(--text-1); border: 1.5px solid var(--text-1); }
+        .btn-outline:hover { background: var(--text-1); color: var(--bg); }
+        .btn-ghost { background: var(--surface-2); color: var(--text-1); }
+        .btn-ghost:hover { background: var(--surface-3); }
+        .btn-sm { height: 40px; padding: 0 18px; font-size: 13px; }
+        .btn-lg { height: 56px; padding: 0 32px; font-size: 15px; }
+
+        /* HERO */
+        .hero { padding: 64px 0 96px; position: relative; overflow: hidden; }
+        .hero-grid { display: grid; gap: 56px; align-items: center; }
+        @media (min-width: 920px) { .hero-grid { grid-template-columns: 1.15fr 1fr; gap: 80px; } }
+        .hero h1 {
+            font-family: 'Fraunces', serif;
+            font-size: clamp(44px, 6.5vw, 80px);
+            font-weight: 300;
+            line-height: 1.02;
+            letter-spacing: -0.035em;
+            color: var(--text-1);
+            margin-top: 16px;
         }
-        .premium-loader::after {
-            content: '';
-            position: absolute;
-            inset: 8px;
-            border-radius: 50%;
-            border: 3px solid rgba(255, 235, 59, 0.1);
-            border-bottom-color: #FFEB3B;
-            animation: spin 1.5s linear infinite reverse;
+        .hero h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+        .hero p.lede { font-size: 18px; color: var(--text-2); margin: 24px 0 36px; max-width: 540px; line-height: 1.6; }
+        .hero-cta { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+        .hero-stats { margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; max-width: 480px; }
+        .hero-stats > div span { display: block; font-family: 'Fraunces', serif; font-size: 32px; font-weight: 400; color: var(--primary); letter-spacing: -0.02em; }
+        .hero-stats > div p { font-size: 12px; color: var(--text-3); margin-top: 4px; line-height: 1.4; }
+
+        .hero-art {
+            position: relative; aspect-ratio: 4/5; max-width: 480px; justify-self: center;
+            border-radius: 32px; overflow: hidden; background: var(--primary);
+            box-shadow: 0 30px 80px rgba(15,61,46,0.35);
         }
+        .hero-art::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(160deg, rgba(224,162,63,0.18) 0%, rgba(15,61,46,0) 50%, rgba(194,85,47,0.16) 100%);
+            z-index: 2;
+        }
+        .hero-art img { width: 100%; height: 100%; object-fit: cover; opacity: 0.78; }
+        .hero-art .badge {
+            position: absolute; top: 24px; left: 24px; z-index: 3;
+            background: rgba(245,242,235,0.95); padding: 8px 14px; border-radius: 9999px;
+            font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--primary);
+        }
+        .hero-art .score-card {
+            position: absolute; bottom: 24px; left: 24px; right: 24px; z-index: 3;
+            background: rgba(15,61,46,0.85); backdrop-filter: blur(8px);
+            border: 1px solid rgba(245,242,235,0.18); border-radius: 18px;
+            padding: 16px 18px; color: var(--bg);
+        }
+        .score-card .row { display: flex; justify-content: space-between; align-items: center; }
+        .score-card .label { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+        .score-card .value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 400; color: var(--bg); }
+        .score-card .bar { height: 4px; background: rgba(245,242,235,0.18); border-radius: 999px; margin-top: 10px; overflow: hidden; }
+        .score-card .bar > div { width: 86%; height: 100%; background: linear-gradient(90deg, var(--gold) 0%, var(--primary-3) 100%); border-radius: 999px; }
+        .score-card .cue { font-size: 12px; color: var(--primary-4); margin-top: 8px; }
+
+        /* Trust strip */
+        .trust {
+            padding: 32px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            background: var(--surface-2);
+        }
+        .trust-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+        .trust p { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+        .trust ul { list-style: none; display: flex; flex-wrap: wrap; gap: 28px; }
+        .trust li { font-family: 'Fraunces', serif; font-size: 17px; color: var(--text-2); font-weight: 400; }
+
+        /* Section */
+        .section { padding: 96px 0; }
+        .section-head { max-width: 720px; margin: 0 auto 56px; text-align: center; }
+        .section-head h2 { font-family: 'Fraunces', serif; font-size: clamp(34px, 4.5vw, 54px); font-weight: 300; line-height: 1.1; letter-spacing: -0.025em; margin-top: 14px; }
+        .section-head h2 em { color: var(--accent); font-style: italic; font-weight: 400; }
+        .section-head p { color: var(--text-2); margin-top: 18px; font-size: 17px; line-height: 1.6; }
+
+        /* Feature grid */
+        .features { display: grid; gap: 20px; grid-template-columns: 1fr; }
+        @media (min-width: 720px) { .features { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1040px) { .features { grid-template-columns: repeat(3, 1fr); } }
+        .feat-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
+            padding: 28px; display: flex; flex-direction: column; gap: 14px;
+            transition: transform .3s ease, box-shadow .3s ease;
+        }
+        .feat-card:hover { transform: translateY(-4px); box-shadow: 0 20px 50px rgba(20,18,14,0.10); }
+        .feat-icon {
+            width: 48px; height: 48px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--primary); color: var(--gold);
+        }
+        .feat-icon svg { width: 24px; height: 24px; }
+        .feat-card.alt .feat-icon { background: var(--accent); color: var(--bg); }
+        .feat-card.gold .feat-icon { background: var(--gold); color: var(--primary); }
+        .feat-card h3 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 400; line-height: 1.2; letter-spacing: -0.01em; }
+        .feat-card p { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+
+        /* Steps */
+        .steps { display: grid; gap: 28px; counter-reset: step; }
+        @media (min-width: 880px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+        .step {
+            background: var(--surface-2); border-radius: 24px; padding: 32px;
+            border: 1px solid var(--border); position: relative;
+        }
+        .step::before {
+            counter-increment: step;
+            content: counter(step, decimal-leading-zero);
+            font-family: 'Fraunces', serif; font-size: 64px; font-weight: 300;
+            color: var(--accent); line-height: 1; letter-spacing: -0.03em; opacity: .9;
+        }
+        .step h3 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 400; margin: 12px 0 8px; }
+        .step p { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+
+        /* Institution band */
+        .inst {
+            background: var(--primary); color: var(--bg); border-radius: 32px;
+            padding: 64px 40px; position: relative; overflow: hidden;
+            display: grid; gap: 32px;
+        }
+        @media (min-width: 880px) { .inst { grid-template-columns: 1.2fr 1fr; align-items: center; padding: 80px; } }
+        .inst::before {
+            content: ''; position: absolute; top: -120px; right: -100px;
+            width: 360px; height: 360px; border-radius: 9999px;
+            background: rgba(224,162,63,0.18); filter: blur(20px); pointer-events: none;
+        }
+        .inst::after {
+            content: ''; position: absolute; bottom: -80px; left: -60px;
+            width: 280px; height: 280px; border-radius: 9999px;
+            background: rgba(194,85,47,0.15); filter: blur(20px); pointer-events: none;
+        }
+        .inst > * { position: relative; z-index: 1; }
+        .inst h2 { font-family: 'Fraunces', serif; font-size: clamp(32px, 4vw, 48px); font-weight: 300; line-height: 1.1; letter-spacing: -0.025em; }
+        .inst h2 em { color: var(--gold); font-style: italic; font-weight: 400; }
+        .inst p { color: var(--primary-4); margin-top: 20px; font-size: 16px; line-height: 1.65; max-width: 560px; }
+        .inst ul { list-style: none; margin-top: 24px; display: grid; gap: 12px; }
+        .inst ul li { display: flex; gap: 12px; align-items: flex-start; color: var(--bg); font-size: 14px; }
+        .inst ul li::before { content: '✓'; color: var(--gold); font-weight: 700; }
+        .inst-card {
+            background: rgba(245,242,235,0.06); border: 1px solid rgba(245,242,235,0.12);
+            border-radius: 22px; padding: 28px;
+        }
+        .inst-card h4 { font-family: 'Fraunces', serif; font-size: 18px; color: var(--gold); font-weight: 400; }
+        .inst-card .num { font-family: 'Fraunces', serif; font-size: 48px; font-weight: 300; line-height: 1; margin: 16px 0 8px; color: var(--bg); letter-spacing: -0.02em; }
+        .inst-card p { font-size: 13px; color: var(--primary-4); margin-top: 6px; }
+        .inst-stats { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-top: 18px; }
+
+        /* Final CTA */
+        .final-cta { text-align: center; padding: 96px 24px; }
+        .final-cta h2 { font-family: 'Fraunces', serif; font-size: clamp(40px, 6vw, 72px); font-weight: 300; line-height: 1.05; letter-spacing: -0.03em; max-width: 880px; margin: 0 auto; }
+        .final-cta h2 em { font-style: italic; color: var(--accent); font-weight: 400; }
+        .final-cta p { color: var(--text-2); font-size: 17px; margin: 24px auto 36px; max-width: 600px; }
+        .final-cta .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+        /* Footer */
+        footer { background: var(--surface-2); border-top: 1px solid var(--border); padding: 48px 0 32px; }
+        .foot-grid { display: grid; gap: 32px; grid-template-columns: 1fr; }
+        @media (min-width: 720px) { .foot-grid { grid-template-columns: 2fr 1fr 1fr; } }
+        .foot-grid h5 { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-3); font-weight: 600; margin-bottom: 14px; }
+        .foot-grid a { display: block; color: var(--text-2); font-size: 14px; padding: 4px 0; }
+        .foot-grid a:hover { color: var(--primary); }
+        .foot-bottom { border-top: 1px solid var(--border); margin-top: 36px; padding-top: 20px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-3); }
+
+        /* Sign-in modal */
+        .modal-back {
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(20,18,14,0.55); backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center; padding: 16px;
+        }
+        .modal-back.open { display: flex; }
+        .modal {
+            background: var(--bg); border-radius: 28px; max-width: 440px; width: 100%;
+            border: 1px solid var(--border); padding: 36px 32px;
+            box-shadow: 0 40px 100px rgba(20,18,14,0.30);
+            position: relative;
+        }
+        .modal h3 { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 300; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 8px; }
+        .modal p.sub { color: var(--text-2); font-size: 14.5px; line-height: 1.6; margin-bottom: 28px; }
+        .modal .gh-host { display: flex; justify-content: center; min-height: 48px; }
+        .modal .close-x {
+            position: absolute; top: 14px; right: 14px;
+            background: var(--surface-2); border: 0; width: 36px; height: 36px;
+            border-radius: 9999px; cursor: pointer; color: var(--text-2); font-size: 18px;
+        }
+        .modal .help { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); line-height: 1.5; }
+        .modal .err { margin-top: 16px; padding: 12px 14px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 14px; font-size: 13px; color: var(--text-1); display: none; }
+
+        /* Tiny loader */
+        .loader-back {
+            position: fixed; inset: 0; z-index: 200; background: rgba(245,242,235,0.94);
+            display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+        }
+        .loader-back.on { display: flex; }
+        .spinner { width: 36px; height: 36px; border-radius: 9999px; border: 3px solid var(--surface-3); border-top-color: var(--primary); animation: spin 0.9s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="bg-mesh min-h-screen flex items-center justify-center p-6">
-    <div class="w-full max-w-lg animate-fadeIn">
-        <div class="text-center mb-10">
-            <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl shadow-2xl shadow-blue-500/20 mb-6 rotate-3 overflow-hidden p-2 border border-white/10">
-                <img src="/assets/logo.png" alt="SUNDAY Logo" class="w-full h-full object-contain">
-            </div>
-            <h1 class="text-6xl font-black text-white tracking-tighter mb-2">SUNDAY</h1>
-            <p class="text-gray-500 text-lg font-medium tracking-wide">ELEVATE YOUR PRACTICE</p>
-        </div>
+<body>
 
-        <div class="glass rounded-[3rem] p-10 relative overflow-hidden">
-            <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl"></div>
-            <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-yellow-400/5 rounded-full blur-3xl"></div>
-            
-            <!-- Login Form -->
-            <div id="login-form">
-                <h2 class="text-3xl font-black text-white mb-8 border-b border-white/5 pb-4">Welcome Back</h2>
-                <form id="login-form-submit" class="space-y-6">
-                    <div>
-                        <label class="block text-gray-500 text-xs font-black uppercase tracking-widest mb-2 px-1">Full Name</label>
-                        <input id="login-name" type="text" placeholder="John Doe" required
-                            class="w-full px-6 py-4 bg-black/30 border border-white/5 rounded-2xl text-white placeholder-gray-700 focus:outline-none input-glow transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 text-xs font-black uppercase tracking-widest mb-2 px-1">Email Address</label>
-                        <input id="login-email" type="email" placeholder="john@example.com" required
-                            class="w-full px-6 py-4 bg-black/30 border border-white/5 rounded-2xl text-white placeholder-gray-700 focus:outline-none input-glow transition-all">
-                    </div>
-                    <button type="submit" class="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-xl shadow-blue-600/20 transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest">
-                        Sign In
-                    </button>
-                </form>
-                <div id="login-google" style="display:none; margin-top:24px">
-                    <div style="display:flex; align-items:center; gap:10px; color:#6B7280; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:14px">
-                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
-                        <span>Or</span>
-                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
-                    </div>
-                    <div id="g-host-login" style="display:flex; justify-content:center"></div>
-                </div>
-                <p class="text-center mt-10 text-gray-600 text-sm">
-                    New to SUNDAY? 
-                    <button id="show-register" class="text-blue-400 hover:text-blue-300 font-black ml-1 uppercase text-xs tracking-widest">Create Account</button>
-                </p>
-                <p id="login-error" class="mt-6 text-center text-red-400 hidden bg-red-400/10 py-4 rounded-2xl border border-red-400/20 text-sm font-bold"></p>
-            </div>
-
-            <!-- Register Form -->
-            <div id="register-form" class="hidden">
-                <h2 class="text-3xl font-black text-white mb-8 border-b border-white/5 pb-4">Start Journey</h2>
-                <form id="register-form-submit" class="space-y-6">
-                    <div>
-                        <label class="block text-gray-500 text-xs font-black uppercase tracking-widest mb-2 px-1">Full Name</label>
-                        <input id="register-name" type="text" placeholder="John Doe" required
-                            class="w-full px-6 py-4 bg-black/30 border border-white/5 rounded-2xl text-white placeholder-gray-700 focus:outline-none input-glow transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 text-xs font-black uppercase tracking-widest mb-2 px-1">Email Address</label>
-                        <input id="register-email" type="email" placeholder="john@example.com" required
-                            class="w-full px-6 py-4 bg-black/30 border border-white/5 rounded-2xl text-white placeholder-gray-700 focus:outline-none input-glow transition-all">
-                    </div>
-                    <button type="submit" class="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-xl shadow-blue-600/20 transform hover:-translate-y-1 active:scale-95 uppercase tracking-widest">
-                        Get Started
-                    </button>
-                </form>
-                <div id="register-google" style="display:none; margin-top:24px">
-                    <div style="display:flex; align-items:center; gap:10px; color:#6B7280; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:14px">
-                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
-                        <span>Or</span>
-                        <span style="flex:1; height:1px; background:rgba(255,255,255,0.08)"></span>
-                    </div>
-                    <div id="g-host-register" style="display:flex; justify-content:center"></div>
-                </div>
-                <p class="text-center mt-10 text-gray-600 text-sm">
-                    Already a member? 
-                    <button id="show-login" class="text-blue-400 hover:text-blue-300 font-black ml-1 uppercase text-xs tracking-widest">Log In</button>
-                </p>
-                <p id="register-error" class="mt-6 text-center text-red-400 hidden bg-red-400/10 py-4 rounded-2xl border border-red-400/20 text-sm font-bold"></p>
-            </div>
-        </div>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a href="/" class="brand">
+      <span class="brand-mark">s</span>
+      <span class="brand-name">sunday <em>· asanminds</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#institutions">For institutions</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn btn-ghost btn-sm" data-open-signin>Sign in</button>
+      <button class="btn btn-primary btn-sm" data-open-signin>Begin</button>
     </div>
+  </div>
+</header>
 
-    <!-- Premium Loader Overhaul -->
-    <div id="loader" class="fixed inset-0 bg-[#0c0e12] flex flex-col items-center justify-center z-50 hidden transition-opacity duration-500">
-        <div class="relative flex items-center justify-center">
-            <div class="premium-loader"></div>
-            <img src="/assets/logo.png" class="absolute w-12 h-12 object-contain animate-pulse">
-        </div>
-        <p class="mt-8 text-blue-400 font-black tracking-[0.3em] text-sm animate-pulse uppercase">Authenticating</p>
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="kicker">Six semesters · twenty asanas · one calmer you</span>
+      <h1>Yoga that <em>watches</em>, listens, and teaches you back.</h1>
+      <p class="lede">AsanMinds is an AI yoga coach for institutions and individuals. Real-time pose correction in your browser, voice guidance that answers questions, and a six-semester progression that earns a certificate worth showing.</p>
+      <div class="hero-cta">
+        <button class="btn btn-primary btn-lg" data-open-signin>Begin your practice →</button>
+        <a class="btn btn-outline btn-lg" href="#how">See how it works</a>
+      </div>
+      <div class="hero-stats">
+        <div><span>20</span><p>guided asanas with anatomical cues</p></div>
+        <div><span>6</span><p>semesters of structured progression</p></div>
+        <div><span>0</span><p>downloads — runs in any browser</p></div>
+      </div>
     </div>
+    <div class="hero-art">
+      <span class="badge">Live AR session</span>
+      <img src="/assets/poses/vrikshasana.png" alt="Vrikshasana — tree pose">
+      <div class="score-card">
+        <div class="row">
+          <span class="label">Alignment</span>
+          <span class="value">86%</span>
+        </div>
+        <div class="bar"><div></div></div>
+        <p class="cue">Lift the standing leg's arch · soften the shoulders</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-        <script>
-            // Register Service Worker
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('/sw.js')
-                        .then(reg => console.log('SW Registered', reg))
-                        .catch(err => console.log('SW Register Error', err));
-                });
-            }
+<!-- TRUST STRIP -->
+<div class="trust">
+  <div class="wrap trust-inner">
+    <p>Onboarding institutions across India</p>
+    <ul>
+      <li>VVCE, Mysuru</li>
+      <li>· Pilot programmes 2024</li>
+      <li>· FERPA-aligned data isolation</li>
+    </ul>
+  </div>
+</div>
 
-            const loginForm = document.getElementById('login-form');
-        const registerForm = document.getElementById('register-form');
-        const loader = document.getElementById('loader');
+<!-- FEATURE GRID -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">What's inside</span>
+      <h2>Everything a yoga programme should have, <em>nothing</em> it shouldn't.</h2>
+      <p>Pose correction, voice coaching, library, courseware, certificates and analytics — built into one calm cream-paper interface.</p>
+    </div>
+    <div class="features">
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z"/></svg>
+        </div>
+        <h3>Real-time AR coach</h3>
+        <p>TensorFlow.js MoveNet runs on-device. We score 17 keypoint angles every frame, draw the corrective overlay, and tell you exactly which limb to move where.</p>
+      </div>
+      <div class="feat-card alt">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        </div>
+        <h3>AI voice assistant</h3>
+        <p>Hands-free coaching. Ask "what muscles does this work?" or say "next pose" — Sunday answers in your ear so you stay on the mat.</p>
+      </div>
+      <div class="feat-card gold">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+        </div>
+        <h3>Pose library, deeply annotated</h3>
+        <p>Each asana has Sanskrit meaning, alignment cues, common mistakes, modifications, philosophy notes, and pairs-naturally-with hints.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        </div>
+        <h3>Certified six-semester course</h3>
+        <p>Pass the AR test plus quiz for every pose. Progress is recorded, semesters auto-roll, and certificates are issued as cryptographically-signed PDFs.</p>
+      </div>
+      <div class="feat-card alt">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+        </div>
+        <h3>Institutional analytics</h3>
+        <p>Cohort-wise dashboards: by batch, branch, section. See who's stuck, who's ahead, and who needs a nudge — without violating any student's privacy.</p>
+      </div>
+      <div class="feat-card gold">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <h3>Bulk import & roster sync</h3>
+        <p>Drop an Excel sheet of students with batch + branch + section. Validate, preview, then send a single click of magic-link invitations.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-        document.getElementById('show-register').onclick = () => {
-            loginForm.classList.add('hidden');
-            registerForm.classList.remove('hidden');
-        };
+<!-- HOW IT WORKS -->
+<section class="section" id="how" style="background: var(--surface-2);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">How it works</span>
+      <h2>From an empty mat to <em>aligned</em> in three steps.</h2>
+      <p>No app to download. Open AsanMinds in your browser, point your camera, and the AI handles the rest.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <h3>Pick a pose</h3>
+        <p>Browse the library by difficulty or jump straight into your current semester. Every pose has alignment cues and a reference photo.</p>
+      </div>
+      <div class="step">
+        <h3>Camera + AR</h3>
+        <p>Allow camera access. The AR coach overlays a corrective skeleton on your live feed. Score updates 30× per second.</p>
+      </div>
+      <div class="step">
+        <h3>Hold, score, advance</h3>
+        <p>Hit 80% alignment for the required hold. Take the quiz. Pose unlocked. Semester progresses. Certificate when complete.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-        document.getElementById('show-login').onclick = () => {
-            registerForm.classList.add('hidden');
-            loginForm.classList.remove('hidden');
-        };
+<!-- FOR INSTITUTIONS -->
+<section class="section" id="institutions">
+  <div class="wrap">
+    <div class="inst">
+      <div>
+        <span class="kicker" style="color: var(--gold);">For colleges & wellness programmes</span>
+        <h2>Roll out yoga across your <em>whole campus</em> in a week.</h2>
+        <p>AsanMinds Institutional gives you an admin panel scoped to your domain, bulk Excel onboarding, broadcast announcements, cohort analytics, and per-student progress tracking. We handle hosting, data isolation, and certificate verification.</p>
+        <ul>
+          <li>One-time annual licence per organisation, scoped to a domain</li>
+          <li>Multi-tenant DB — your students' data never touches another org</li>
+          <li>Sub-admin sign-in via Google · no passwords to manage</li>
+          <li>Branded certificates carrying your institution's name</li>
+          <li>Excel template for batch + branch + section onboarding</li>
+        </ul>
+        <div style="margin-top:32px; display:flex; gap:14px; flex-wrap:wrap;">
+          <a class="btn btn-accent" href="mailto:hello@asanminds.app?subject=AsanMinds%20for%20our%20institution">Talk to our team →</a>
+          <button class="btn btn-outline" style="color:var(--bg); border-color:var(--bg);" data-open-signin>Sub-admin sign in</button>
+        </div>
+      </div>
+      <div class="inst-card">
+        <h4>VVCE pilot snapshot</h4>
+        <div class="inst-stats">
+          <div><div class="num">1,000</div><p>seats provisioned per semester</p></div>
+          <div><div class="num">6×</div><p>semester progression supported</p></div>
+          <div><div class="num">≤2 wk</div><p>typical onboarding to first cohort</p></div>
+          <div><div class="num">₹999</div><p>per student per semester</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-        function showLoader(show) { loader.classList.toggle('hidden', !show); }
+<!-- PRICING / FINAL CTA -->
+<section class="final-cta" id="pricing">
+  <div class="wrap">
+    <span class="kicker">Two paths in</span>
+    <h2>Whether you're <em>one</em> mat or <em>a thousand</em>.</h2>
+    <p>Individuals can begin a free practice with their Google account. Institutions get a custom rollout with admin tooling and analytics. Either way, the AR coach is the same.</p>
+    <div class="cta-row">
+      <button class="btn btn-primary btn-lg" data-open-signin>Begin your practice →</button>
+      <a class="btn btn-outline btn-lg" href="mailto:hello@asanminds.app?subject=AsanMinds%20for%20our%20institution">Bring it to my college</a>
+    </div>
+  </div>
+</section>
 
-        document.getElementById('login-form-submit').onsubmit = async (e) => {
-            e.preventDefault();
-            showLoader(true);
-            const name = document.getElementById('login-name').value;
-            const email = document.getElementById('login-email').value;
-            const error = document.getElementById('login-error');
-            
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="brand" style="margin-bottom:12px;">
+          <span class="brand-mark">s</span>
+          <span class="brand-name">sunday <em>· asanminds</em></span>
+        </div>
+        <p style="color: var(--text-3); font-size: 13.5px; max-width: 360px; line-height: 1.6;">An AI yoga programme that meets you where you are. Built calm, on purpose.</p>
+      </div>
+      <div>
+        <h5>Product</h5>
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#institutions">For institutions</a>
+        <a href="#pricing">Pricing</a>
+      </div>
+      <div>
+        <h5>Account</h5>
+        <a href="#" data-open-signin>Sign in</a>
+        <a href="#" data-open-signin>Sub-admin access</a>
+        <a href="/admin/login">Internal admin</a>
+        <a href="mailto:hello@asanminds.app">Contact us</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© <span id="yr"></span> AsanMinds · sunday.</span>
+      <span>Made in India · cream paper, forest green</span>
+    </div>
+  </div>
+</footer>
+
+<!-- Sign-in modal -->
+<div class="modal-back" id="signin-modal" role="dialog" aria-modal="true" aria-labelledby="signin-h">
+  <div class="modal">
+    <button class="close-x" data-close-signin aria-label="Close">×</button>
+    <span class="kicker">Welcome back</span>
+    <h3 id="signin-h" style="margin-top:8px;">Sign in to continue.</h3>
+    <p class="sub">Use the same Google account your invitation was sent to. Brand-new? Ask your organization to send you a magic link.</p>
+    <div id="g-host" class="gh-host"></div>
+    <p id="signin-err" class="err"></p>
+    <div class="help">
+      Looking for the internal admin panel? <a href="/admin/login" style="color: var(--primary); font-weight: 600;">Sign in here</a>.<br>
+      Have an invitation link in your email? Just click it — sign-in happens automatically.
+    </div>
+  </div>
+</div>
+
+<!-- Loader -->
+<div class="loader-back" id="loader">
+  <div class="spinner"></div>
+  <p style="font-size:12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); font-weight:600;">Authenticating</p>
+</div>
+
+<script>
+    // Year stamp
+    document.getElementById('yr').textContent = new Date().getFullYear();
+
+    // Service worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+    }
+
+    // Modal controls
+    var modal = document.getElementById('signin-modal');
+    var loader = document.getElementById('loader');
+    var googleReady = false;
+    var googleClientId = null;
+
+    function openSignin() {
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        // Lazy-render Google button on first open.
+        ensureGoogle().then(function () {
+            if (!googleReady) return;
+            var host = document.getElementById('g-host');
+            host.innerHTML = '';
             try {
-                const res = await fetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email })
+                google.accounts.id.renderButton(host, {
+                    theme: 'outline', size: 'large', text: 'continue_with',
+                    shape: 'pill', logo_alignment: 'left', width: 320
                 });
-                const data = await res.json();
-                if (data.success) window.location.href = '/home';
-                else {
-                    showLoader(false);
-                    error.textContent = data.error;
-                    error.classList.remove('hidden');
+                google.accounts.id.prompt();
+            } catch (e) { console.warn('Google button render failed:', e); }
+        });
+    }
+    function closeSignin() {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+    document.querySelectorAll('[data-open-signin]').forEach(function (b) {
+        b.addEventListener('click', function (e) { e.preventDefault(); openSignin(); });
+    });
+    document.querySelectorAll('[data-close-signin]').forEach(function (b) {
+        b.addEventListener('click', closeSignin);
+    });
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeSignin(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSignin(); });
+
+    function showLoader(on) { loader.classList.toggle('on', !!on); }
+
+    // Google credential handler
+    window.handleGoogleCredential = async function (response) {
+        showLoader(true);
+        try {
+            var res = await fetch('/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ credential: response.credential }),
+            });
+            var data = await res.json();
+            if (data.success) { window.location.href = '/home'; return; }
+            showLoader(false);
+            var err = document.getElementById('signin-err');
+            err.textContent = data.error || 'Google sign-in failed.';
+            err.style.display = 'block';
+        } catch (e) {
+            showLoader(false);
+            var err2 = document.getElementById('signin-err');
+            err2.textContent = 'Connection error. Please try again.';
+            err2.style.display = 'block';
+        }
+    };
+
+    // Lazy-init GIS
+    var gisPromise = null;
+    function ensureGoogle() {
+        if (gisPromise) return gisPromise;
+        gisPromise = (async function () {
+            try {
+                var r = await fetch('/auth/google/config');
+                var cfg = r.ok ? await r.json() : {};
+                if (!cfg.enabled || !cfg.clientId) {
+                    var err = document.getElementById('signin-err');
+                    err.textContent = 'Google sign-in is not configured on this server.';
+                    err.style.display = 'block';
+                    return;
                 }
-            } catch {
-                showLoader(false);
-                error.textContent = "Connection error. Please try again.";
-                error.classList.remove('hidden');
-            }
-        };
-
-        document.getElementById('register-form-submit').onsubmit = async (e) => {
-            e.preventDefault();
-            showLoader(true);
-            const name = document.getElementById('register-name').value;
-            const email = document.getElementById('register-email').value;
-            const error = document.getElementById('register-error');
-            
-            try {
-                const res = await fetch('/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email })
-                });
-                const data = await res.json();
-                if (data.success) window.location.href = '/home';
-                else {
-                    showLoader(false);
-                    error.textContent = data.error;
-                    error.classList.remove('hidden');
-                }
-            } catch {
-                showLoader(false);
-                error.textContent = "Registration failed. Try again.";
-                error.classList.remove('hidden');
-            }
-        };
-
-        // ── Google Sign-In ──
-        // Asks the server for the configured client ID, lazy-loads Google
-        // Identity Services, and renders a button on both the sign-in and
-        // sign-up panels. One Tap also fires for users already signed in
-        // to Google in their browser.
-        (async function setupGoogle() {
-            try {
-                const r = await fetch('/auth/google/config');
-                const cfg = r.ok ? await r.json() : {};
-                if (!cfg.enabled || !cfg.clientId) return;
-
-                window.handleGoogleCredential = async (response) => {
-                    showLoader(true);
-                    try {
-                        const res = await fetch('/auth/google', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'same-origin',
-                            body: JSON.stringify({ credential: response.credential }),
-                        });
-                        const data = await res.json();
-                        if (data.success) { window.location.href = '/home'; return; }
-                        showLoader(false);
-                        const err = document.getElementById('login-error');
-                        if (err) {
-                            err.textContent = data.error || 'Google sign-in failed.';
-                            err.classList.remove('hidden');
-                        }
-                    } catch (e) {
-                        showLoader(false);
-                    }
-                };
-
-                await new Promise((resolve, reject) => {
-                    const s = document.createElement('script');
+                googleClientId = cfg.clientId;
+                await new Promise(function (resolve, reject) {
+                    var s = document.createElement('script');
                     s.src = 'https://accounts.google.com/gsi/client';
                     s.async = true; s.defer = true;
                     s.onload = resolve; s.onerror = reject;
                     document.head.appendChild(s);
                 });
-
                 google.accounts.id.initialize({
-                    client_id: cfg.clientId,
+                    client_id: googleClientId,
                     callback: window.handleGoogleCredential,
                     auto_select: false,
                     use_fedcm_for_prompt: true,
                 });
-
-                const opts = { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left', width: 320 };
-                const loginHost = document.getElementById('g-host-login');
-                const regHost = document.getElementById('g-host-register');
-                if (loginHost) google.accounts.id.renderButton(loginHost, opts);
-                if (regHost) google.accounts.id.renderButton(regHost, opts);
-                document.getElementById('login-google').style.display = 'block';
-                document.getElementById('register-google').style.display = 'block';
-
-                google.accounts.id.prompt();
+                googleReady = true;
             } catch (e) {
                 console.warn('Google sign-in unavailable:', e);
             }
         })();
-    </script>
+        return gisPromise;
+    }
+
+    // Smooth scroll for anchors
+    document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            var id = a.getAttribute('href');
+            if (id && id.length > 1 && document.querySelector(id)) {
+                e.preventDefault();
+                document.querySelector(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+</script>
 </body>
 </html>
 """
@@ -1180,6 +1530,24 @@ def google_auth():
             new_doc['academic'] = {'batch': 'test', 'branch': 'TEST', 'section': 'T'}
         g_users.insert_one(new_doc)
         session_name = new_doc['name']
+
+        # Send a one-time welcome email to brand-new STUDENT enrollees who
+        # signed up via an invitation. We mark `welcomed=True` after sending
+        # so a re-login never re-sends the welcome message.
+        try:
+            send_welcome = _org_helpers.get('send_welcome_email') if _org_helpers else None
+            if send_welcome and invitation and (new_doc.get('role') == 'student'):
+                org_email_for_welcome = new_doc.get('organizationEmail') or ''
+                org_name_for_welcome = 'AsanMinds'
+                if organizations_col is not None and org_email_for_welcome:
+                    org_doc_lookup = organizations_col.find_one({'email': org_email_for_welcome})
+                    if org_doc_lookup and org_doc_lookup.get('name'):
+                        org_name_for_welcome = org_doc_lookup['name']
+                send_welcome(email, new_doc.get('name') or name, org_name_for_welcome)
+                g_users.update_one({'email': email}, {'$set': {'welcomed': True, 'welcomedAt': datetime.utcnow()}})
+        except Exception as exc:
+            # Welcome email is best-effort; never block sign-in on it.
+            print(f'Welcome email dispatch failed for {email}: {exc!r}')
 
     # Final lookup to capture role/org for the session.
     final = g_users.find_one({'email': email}) or {}

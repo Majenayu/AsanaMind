@@ -768,27 +768,49 @@ async function renderOrganizations() {
             $('#org-list').innerHTML = '<div class="empty">No organizations yet. Click "New organization" to add one.</div>';
             return;
         }
+        // Stash full org rows by email so action buttons can look them up by
+        // attribute instead of via fragile JSON-in-onclick injection.
+        window.__orgRowsByEmail = {};
+        rows.forEach(o => { window.__orgRowsByEmail[o.email] = o; });
+
+        const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
         $('#org-list').innerHTML = `
             <div style="overflow-x:auto"><table class="table">
                 <thead><tr><th>Organization</th><th>Domain</th><th>Seats</th><th>Status</th><th>Created</th><th></th></tr></thead>
                 <tbody>
                 ${rows.map(o => `
                     <tr class="row">
-                        <td><strong>${o.name}</strong><br><span style="color:var(--text-3);font-size:11px">${o.email}</span></td>
-                        <td>${o.domain === '*' ? '<span class="badge" style="background:var(--surface-3);color:var(--text-2)">any</span>' : '@' + o.domain}</td>
+                        <td><strong>${esc(o.name)}</strong><br><span style="color:var(--text-3);font-size:11px">${esc(o.email)}</span></td>
+                        <td>${o.domain === '*' ? '<span class="badge" style="background:var(--surface-3);color:var(--text-2)">any</span>' : '@' + esc(o.domain)}</td>
                         <td>${o.studentsEnrolled || 0} / ${o.studentCap || '∞'}</td>
                         <td>${o.system ? '<span class="badge" style="background:#FEF3C7;color:#A16207">System</span>' : (o.paid ? '<span class="badge" style="background:#D4F5DC;color:#3E8A52">Paid</span>' : '<span class="badge" style="background:var(--surface-3);color:var(--text-2)">Trial</span>')}</td>
                         <td>${fmtDate(o.createdAt)}</td>
                         <td style="white-space:nowrap">
-                            <button class="btn btn-sm" onclick="openInviteOrgAdmin('${o.email.replace(/'/g,"\\'")}','${o.name.replace(/'/g,"\\'")}')">📧 Invite admin</button>
-                            <button class="btn btn-sm" onclick="openEditOrgModal('${o.email.replace(/'/g,"\\'")}', ${JSON.stringify(o).replace(/"/g,'&quot;')})">✎</button>
-                            ${o.system ? '' : `<button class="btn btn-sm btn-danger" onclick="confirmDeleteOrg('${o.email.replace(/'/g,"\\'")}')">🗑</button>`}
+                            <button class="btn btn-sm" data-org-action="invite" data-org-email="${esc(o.email)}">📧 Invite admin</button>
+                            <button class="btn btn-sm" data-org-action="edit" data-org-email="${esc(o.email)}">✎</button>
+                            ${o.system ? '' : `<button class="btn btn-sm btn-danger" data-org-action="delete" data-org-email="${esc(o.email)}">🗑</button>`}
                         </td>
                     </tr>
                 `).join('')}
                 </tbody>
             </table></div>
         `;
+        // Single delegated click handler — survives names/emails with quotes,
+        // apostrophes, ampersands, etc. without any string escaping headaches.
+        $('#org-list').addEventListener('click', (ev) => {
+            const btn = ev.target.closest('[data-org-action]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-org-action');
+            const email = btn.getAttribute('data-org-email');
+            const o = (window.__orgRowsByEmail || {})[email];
+            if (!o) return;
+            if (action === 'invite') openInviteOrgAdmin(o.email, o.name);
+            else if (action === 'edit') openEditOrgModal(o);
+            else if (action === 'delete') confirmDeleteOrg(o.email);
+        });
     } catch (e) { $('#org-list').innerHTML = '<div class="empty">Failed to load.</div>'; }
 }
 
@@ -833,20 +855,37 @@ async function saveCreateOrg() {
         });
         const j = await r.json();
         if (!j.success) { alert(j.error || 'Failed'); return; }
+        // Surface the auto-invite outcome — the org-admin gets a magic link
+        // emailed automatically, but if SMTP failed we hand the link back so
+        // super-admin can deliver it themselves.
+        if (j.emailSent) {
+            alert('✓ Organization created.\n\nAn invitation email with a Google sign-in magic link has been sent to ' + payload.email + '.');
+        } else if (j.inviteLink) {
+            prompt('Organization created, but the invitation email could not be sent automatically.\n\nCopy this magic link and send it to the org admin:', j.inviteLink);
+        } else {
+            alert('Organization created. You can invite the admin from the actions column.');
+        }
         closeModal(); renderOrganizations();
     } catch(e) { alert(e.message); }
 }
 
-function openEditOrgModal(email, orgJson) {
-    const o = typeof orgJson === 'string' ? JSON.parse(orgJson.replace(/&quot;/g,'"')) : orgJson;
+function openEditOrgModal(orgArg, _legacyOrg) {
+    // Accept either a full org object (preferred) or legacy (email, json) calls.
+    const o = (typeof orgArg === 'string')
+        ? (typeof _legacyOrg === 'string' ? JSON.parse(_legacyOrg.replace(/&quot;/g,'"')) : (_legacyOrg || {}))
+        : (orgArg || {});
+    const email = o.email || (typeof orgArg === 'string' ? orgArg : '');
+    const esc = (s) => String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     showModal(`
-        <div class="modal-h"><h3>Edit ${o.name}</h3></div>
+        <div class="modal-h"><h3>Edit ${esc(o.name)}</h3></div>
         <div class="modal-b">
-            <p style="color:var(--text-3);font-size:12px;margin:0 0 4px">${email}</p>
+            <p style="color:var(--text-3);font-size:12px;margin:0 0 4px">${esc(email)}</p>
             <label>Name</label>
-            <input class="input" id="eo-name" style="width:100%" value="${(o.name||'').replace(/"/g,'&quot;')}">
+            <input class="input" id="eo-name" style="width:100%" value="${esc(o.name||'')}">
             <label>Domain</label>
-            <input class="input" id="eo-domain" style="width:100%" value="${(o.domain||'').replace(/"/g,'&quot;')}">
+            <input class="input" id="eo-domain" style="width:100%" value="${esc(o.domain||'')}">
             <label>Seat cap</label>
             <input class="input" id="eo-cap" type="number" style="width:100%" value="${o.studentCap || 1000}">
             <label style="display:flex;align-items:center;gap:8px;letter-spacing:0;text-transform:none;font-size:13px">
@@ -854,10 +893,13 @@ function openEditOrgModal(email, orgJson) {
             </label>
             <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
                 <button class="btn" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveEditOrg('${email.replace(/'/g,"\\'")}')">Save</button>
+                <button class="btn btn-primary" id="eo-save-btn">Save</button>
             </div>
         </div>
     `);
+    // Bind via JS rather than embedding the email in an onclick string.
+    const btn = document.getElementById('eo-save-btn');
+    if (btn) btn.addEventListener('click', () => saveEditOrg(email));
 }
 async function saveEditOrg(email) {
     const payload = {
@@ -889,19 +931,24 @@ async function confirmDeleteOrg(email) {
 }
 
 function openInviteOrgAdmin(orgEmail, orgName) {
+    const esc = (s) => String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     showModal(`
-        <div class="modal-h"><h3>Invite admin for ${orgName}</h3></div>
+        <div class="modal-h"><h3>Invite admin for ${esc(orgName)}</h3></div>
         <div class="modal-b">
             <p style="color:var(--text-3);font-size:13px;margin:0 0 14px">Send a magic-link email to the person who will run this org's sub-admin panel. They'll click the link, sign in with Google, and be granted org-admin access.</p>
             <label>Their email</label>
-            <input class="input" id="ioa-email" style="width:100%" value="${orgEmail}" placeholder="wellness@vvce.ac.in">
+            <input class="input" id="ioa-email" style="width:100%" value="${esc(orgEmail)}" placeholder="wellness@vvce.ac.in">
             <p id="ioa-status" style="margin-top:14px;color:var(--text-3);font-size:13px"></p>
             <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
                 <button class="btn" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-accent" onclick="sendOrgAdminInvite('${orgEmail.replace(/'/g,"\\'")}')">Send invitation</button>
+                <button class="btn btn-accent" id="ioa-send-btn">Send invitation</button>
             </div>
         </div>
     `);
+    const btn = document.getElementById('ioa-send-btn');
+    if (btn) btn.addEventListener('click', () => sendOrgAdminInvite(orgEmail));
 }
 async function sendOrgAdminInvite(orgEmail) {
     const email = $('#ioa-email').value.trim().toLowerCase();

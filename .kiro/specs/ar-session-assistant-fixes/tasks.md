@@ -6,7 +6,7 @@ handler, and the `showReferenceOverlay` method) already landed in an earlier
 session; this plan closes the remaining gap (on-screen Reference button),
 verifies every bug condition, prevents regressions, and ships the change.
 
-- [ ] 1. Add the on-screen "Show Reference" control in the AR session
+- [x] 1. Add the on-screen "Show Reference" control in the AR session
   - File: `main.html` around line 2261 (the session control row that holds
     the voice-guide toggle and the Diagnostics button).
   - Insert a new `<button>` as a sibling of the Diagnostics button, using the
@@ -20,7 +20,7 @@ verifies every bug condition, prevents regressions, and ships the change.
   - _Fixes bug conditions 1.6 (on-screen control missing) and 2.6 (button
     parity with voice trigger)._
 
-- [ ] 2. Validate the inline `<script>` in `main.html` and `static/poses.js`
+- [x] 2. Validate the inline `<script>` in `main.html` and `static/poses.js`
   parse as JavaScript
   - Extract the second `<script>` block from `main.html` to a temp file and
     run it through `new Function(...)` / `vm.Script` via Node.
