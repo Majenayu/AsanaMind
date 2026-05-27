@@ -9,8 +9,8 @@
  * response, otherwise the browser throws "Request method 'POST' is
  * unsupported".
  */
-// Bumped to v9 — switched to new SVG brand mark; force fresh cache.
-const CACHE_NAME = 'sunday-v9';
+// Bumped to v11 — final logo asset (logo1.png) replacing SVG mark; force fresh cache.
+const CACHE_NAME = 'sunday-v11';
 const STATIC_ASSETS = [
     '/',
     '/home',
@@ -22,6 +22,7 @@ const STATIC_ASSETS = [
     '/static/pose-notes.js',
     '/static/courses.js',
     '/manifest.json',
+    '/assets/brand/logo1.png',
     '/assets/brand/logo.svg',
     '/assets/brand/favicon.svg',
     '/assets/poses/tadasana.jpg',
@@ -129,7 +130,7 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(title, {
         body,
         tag,
-        icon: '/assets/brand/logo.svg',
+        icon: '/assets/brand/logo1.png',
         badge: '/assets/brand/favicon.svg',
         vibrate: [120, 60, 120],
         data: { url },

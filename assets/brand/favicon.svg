@@ -1,13 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Favicon — simplified for tiny sizes. Drops the side leaves, the bindu,
-  and the mat hairline since they wouldn't survive a 16×16 render.
-  What's left: forest tile + cream petal silhouette + saffron flame.
+  Favicon — same composition as the primary mark, simplified for
+  16-32px rendering. Dropped the molecular + circuit accents and
+  the mat hairline so the meditator + chakra spine + leaves still
+  read at a browser-tab size.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
-  <path d="M32 10 C 24 18, 20 27, 20 38 C 20 47, 25 52, 32 52 C 39 52, 44 47, 44 38 C 44 27, 40 18, 32 10 Z"
-        fill="#F5F2EB"/>
-  <path d="M32 22 C 27 28, 25 34, 25 40 C 25 45, 28 49, 32 49 C 36 49, 39 45, 39 40 C 39 34, 37 28, 32 22 Z"
-        fill="#E0A23F"/>
+  <defs>
+    <linearGradient id="fav-arc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4CAF50"/>
+      <stop offset="1" stop-color="#1E88E5"/>
+    </linearGradient>
+    <linearGradient id="fav-leaf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#66BB6A"/>
+      <stop offset="1" stop-color="#2E7D32"/>
+    </linearGradient>
+  </defs>
+  <!-- Arc -->
+  <path d="M 8 34 A 24 24 0 0 1 32 10 A 24 24 0 0 1 56 34"
+        fill="none" stroke="url(#fav-arc)" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Leaves -->
+  <g fill="url(#fav-leaf)">
+    <path d="M 20 38 Q 14 32 14 24 Q 22 26 26 32 Q 26 36 20 38 Z"/>
+    <path d="M 44 38 Q 50 32 50 24 Q 42 26 38 32 Q 38 36 44 38 Z"/>
+  </g>
+  <!-- Meditator -->
+  <g fill="#1B2D5E">
+    <circle cx="32" cy="20" r="3.4"/>
+    <path d="M 24 30 Q 32 26 40 30 L 42 42 Q 32 46 22 42 Z"/>
+    <path d="M 18 50 Q 16 46 22 42 Q 32 38 42 42 Q 48 46 46 50 Q 46 56 38 56 L 26 56 Q 18 56 18 50 Z"/>
+  </g>
+  <!-- Chakra spine -->
+  <g fill="#4CAF50">
+    <circle cx="32" cy="32" r="1.4"/>
+    <circle cx="32" cy="36" r="1.4"/>
+    <circle cx="32" cy="40" r="1.4"/>
+  </g>
 </svg>

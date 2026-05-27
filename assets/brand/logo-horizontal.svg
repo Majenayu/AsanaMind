@@ -1,29 +1,85 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Horizontal lockup — primary mark + wordmark. Use this in topbars, email
-  headers, social og:image, and presentation title cards.
+  Horizontal lockup — primary mark + AsanMinds wordmark. Use in
+  topbars, email headers, and presentation title cards. Wordmark
+  uses Asan (navy) + Minds (green) + AI POWERED YOGA INSTRUCTOR
+  tagline beneath, matching the supplied brand artwork.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 80" role="img" aria-label="sunday · asanminds">
-  <title>sunday · asanminds</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" role="img" aria-label="AsanMinds — AI powered yoga instructor">
+  <title>AsanMinds</title>
+  <defs>
+    <linearGradient id="h-arc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4CAF50"/>
+      <stop offset="1" stop-color="#1E88E5"/>
+    </linearGradient>
+    <linearGradient id="h-leaf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#66BB6A"/>
+      <stop offset="1" stop-color="#2E7D32"/>
+    </linearGradient>
+    <linearGradient id="h-med" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B2D5E"/>
+      <stop offset="1" stop-color="#0D1B3D"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Mark -->
-  <g transform="translate(0 8)">
-    <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
-    <path d="M16 44 C 16 32, 22 24, 26 24 C 24 30, 22 38, 22 46 Z" fill="#1F5A44"/>
-    <path d="M48 44 C 48 32, 42 24, 38 24 C 40 30, 42 38, 42 46 Z" fill="#1F5A44"/>
-    <path d="M32 12 C 26 18, 22 26, 22 36 C 22 44, 26 50, 32 50 C 38 50, 42 44, 42 36 C 42 26, 38 18, 32 12 Z" fill="#F5F2EB"/>
-    <path d="M32 22 C 28 27, 26 33, 26 38 C 26 43, 29 47, 32 47 C 35 47, 38 43, 38 38 C 38 33, 36 27, 32 22 Z" fill="#E0A23F"/>
-    <circle cx="32" cy="40" r="2.4" fill="#0F3D2E"/>
-    <line x1="20" y1="53" x2="44" y2="53" stroke="#E0A23F" stroke-width="0.7" opacity="0.65" stroke-linecap="round"/>
+  <!-- Mark, scaled into 200×200 area on the left -->
+  <g>
+    <path d="M 30 100 A 70 70 0 0 1 100 30 A 70 70 0 0 1 170 100"
+          fill="none" stroke="url(#h-arc)" stroke-width="3.5" stroke-linecap="round" opacity="0.95"/>
+    <g stroke="#42A5F5" stroke-width="1.2" fill="#4CAF50" opacity="0.85">
+      <line x1="42" y1="62" x2="58" y2="78"/>
+      <line x1="58" y1="78" x2="50" y2="98"/>
+      <line x1="58" y1="78" x2="76" y2="72"/>
+      <circle cx="42" cy="62" r="3.2"/>
+      <circle cx="58" cy="78" r="3.2" fill="#42A5F5"/>
+      <circle cx="50" cy="98" r="3.2"/>
+      <circle cx="76" cy="72" r="3.2" fill="#42A5F5"/>
+    </g>
+    <g stroke="#1E88E5" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+      <path d="M 158 60 L 158 72 L 144 72"/>
+      <path d="M 165 80 L 152 80 L 152 92"/>
+      <path d="M 158 100 L 148 100"/>
+      <circle cx="158" cy="60" r="2.4" fill="#1E88E5"/>
+      <circle cx="144" cy="72" r="2.4" fill="#1E88E5"/>
+      <circle cx="165" cy="80" r="2.4" fill="#1E88E5"/>
+      <circle cx="152" cy="92" r="2.4" fill="#1E88E5"/>
+      <circle cx="148" cy="100" r="2.4" fill="#1E88E5"/>
+    </g>
+    <g fill="url(#h-leaf)">
+      <path d="M 70 110 Q 58 102 56 86 Q 70 88 78 100 Q 78 108 70 110 Z"/>
+      <path d="M 130 110 Q 142 102 144 86 Q 130 88 122 100 Q 122 108 130 110 Z"/>
+      <path d="M 100 78 Q 92 84 92 100 Q 100 102 108 100 Q 108 84 100 78 Z" opacity="0.7"/>
+    </g>
+    <g fill="url(#h-med)">
+      <circle cx="100" cy="58" r="5"/>
+      <ellipse cx="100" cy="68" rx="9" ry="10"/>
+      <rect x="97" y="76" width="6" height="6"/>
+      <path d="M 86 86 Q 100 80 114 86 L 118 110 Q 100 116 82 110 Z"/>
+      <path d="M 82 102 Q 70 110 70 124 Q 76 124 84 118 Q 92 113 86 105 Z"/>
+      <path d="M 118 102 Q 130 110 130 124 Q 124 124 116 118 Q 108 113 114 105 Z"/>
+      <path d="M 64 128 Q 60 122 70 116 Q 100 108 130 116 Q 140 122 136 128 Q 138 144 124 148 Q 100 152 76 148 Q 62 144 64 128 Z"/>
+    </g>
+    <g fill="#4CAF50" stroke="#2E7D32" stroke-width="0.6">
+      <circle cx="100" cy="86" r="2.6"/>
+      <circle cx="100" cy="93" r="2.6"/>
+      <circle cx="100" cy="100" r="2.6"/>
+      <circle cx="100" cy="107" r="2.6"/>
+      <circle cx="100" cy="114" r="2.6"/>
+      <circle cx="100" cy="121" r="2.6"/>
+      <circle cx="100" cy="128" r="2.6"/>
+    </g>
+    <path d="M 50 158 Q 100 168 150 158" fill="none" stroke="#1B2D5E" stroke-width="2.4" stroke-linecap="round"/>
   </g>
 
-  <!-- Wordmark -->
-  <text x="80" y="46"
-        font-family="Georgia, 'Times New Roman', serif"
-        font-size="34" font-weight="300" font-style="italic"
-        fill="#14120E" letter-spacing="-0.02em">sunday</text>
-  <text x="83" y="64"
-        font-family="'Inter', system-ui, sans-serif"
-        font-size="9.5" font-weight="500"
-        fill="#7A7364" letter-spacing="0.24em">A S A N M I N D S</text>
+  <!-- Wordmark right of mark -->
+  <g>
+    <text x="220" y="115" font-family="'Inter', system-ui, sans-serif"
+          font-size="56" font-weight="700" letter-spacing="-0.02em">
+      <tspan fill="#1B2D5E">Asan</tspan><tspan fill="#2E7D32">Minds</tspan>
+    </text>
+    <text x="220" y="142" font-family="'Inter', system-ui, sans-serif"
+          font-size="13" font-weight="500" letter-spacing="0.18em" fill="#4A453B">
+      AI POWERED YOGA INSTRUCTOR
+    </text>
+  </g>
 </svg>

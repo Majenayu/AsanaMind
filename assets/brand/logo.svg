@@ -1,39 +1,105 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   AsanMinds — primary mark.
-  An upright lotus petal cradling a saffron flame on the forest tile.
-  Petal = yoga, growth, asana. Flame = awakened mind.
-  64×64 base, scales identically from 16px favicon to billboard.
+  Meditator in lotus pose with chakra spine, three leaves behind,
+  encircled by a green-to-blue arc on the left and tech circuit
+  + molecular accents on the right. White background — designed
+  to read on cream and white surfaces alike.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AsanMinds">
-  <title>AsanMinds</title>
-  <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="AsanMinds">
+  <title>AsanMinds — sunday</title>
+  <defs>
+    <linearGradient id="arc-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4CAF50"/>
+      <stop offset="1" stop-color="#1E88E5"/>
+    </linearGradient>
+    <linearGradient id="leaf-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#66BB6A"/>
+      <stop offset="1" stop-color="#2E7D32"/>
+    </linearGradient>
+    <linearGradient id="meditator-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B2D5E"/>
+      <stop offset="1" stop-color="#0D1B3D"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Two side leaves anchoring the bud (subtle, in deep teal so they recede) -->
-  <path d="M16 44 C 16 32, 22 24, 26 24 C 24 30, 22 38, 22 46 Z"
-        fill="#1F5A44"/>
-  <path d="M48 44 C 48 32, 42 24, 38 24 C 40 30, 42 38, 42 46 Z"
-        fill="#1F5A44"/>
+  <!-- Subtle white card-style backdrop so the logo can sit on cream too -->
+  <rect width="200" height="200" rx="0" fill="white" opacity="0"/>
 
-  <!-- Central upright petal — cream, defines the silhouette -->
-  <path d="M32 12
-           C 26 18, 22 26, 22 36
-           C 22 44, 26 50, 32 50
-           C 38 50, 42 44, 42 36
-           C 42 26, 38 18, 32 12 Z"
-        fill="#F5F2EB"/>
+  <!-- Outer arc — green → blue gradient, enclosing the figure -->
+  <path d="M 30 100 A 70 70 0 0 1 100 30 A 70 70 0 0 1 170 100"
+        fill="none" stroke="url(#arc-grad)" stroke-width="3.5" stroke-linecap="round" opacity="0.95"/>
 
-  <!-- Inner flame — saffron, soft droplet shape -->
-  <path d="M32 22
-           C 28 27, 26 33, 26 38
-           C 26 43, 29 47, 32 47
-           C 35 47, 38 43, 38 38
-           C 38 33, 36 27, 32 22 Z"
-        fill="#E0A23F"/>
+  <!-- Molecular accent (left) — three dots connected by lines -->
+  <g stroke="#42A5F5" stroke-width="1.2" fill="#4CAF50" opacity="0.85">
+    <line x1="42" y1="62" x2="58" y2="78"/>
+    <line x1="58" y1="78" x2="50" y2="98"/>
+    <line x1="58" y1="78" x2="76" y2="72"/>
+    <circle cx="42" cy="62" r="3.2"/>
+    <circle cx="58" cy="78" r="3.2" fill="#42A5F5"/>
+    <circle cx="50" cy="98" r="3.2"/>
+    <circle cx="76" cy="72" r="3.2" fill="#42A5F5"/>
+  </g>
 
-  <!-- Bindu — the still point, deepest in -->
-  <circle cx="32" cy="40" r="2.4" fill="#0F3D2E"/>
+  <!-- Circuit accent (right) — geometric tech lines with terminal nodes -->
+  <g stroke="#1E88E5" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <path d="M 158 60 L 158 72 L 144 72"/>
+    <path d="M 165 80 L 152 80 L 152 92"/>
+    <path d="M 158 100 L 148 100"/>
+    <circle cx="158" cy="60" r="2.4" fill="#1E88E5"/>
+    <circle cx="144" cy="72" r="2.4" fill="#1E88E5"/>
+    <circle cx="165" cy="80" r="2.4" fill="#1E88E5"/>
+    <circle cx="152" cy="92" r="2.4" fill="#1E88E5"/>
+    <circle cx="148" cy="100" r="2.4" fill="#1E88E5"/>
+  </g>
 
-  <!-- Single hairline at the base — the mat -->
-  <line x1="20" y1="53" x2="44" y2="53" stroke="#E0A23F" stroke-width="0.7" opacity="0.65" stroke-linecap="round"/>
+  <!-- Three leaves behind the meditator -->
+  <g fill="url(#leaf-grad)">
+    <!-- Left leaf -->
+    <path d="M 70 110 Q 58 102 56 86 Q 70 88 78 100 Q 78 108 70 110 Z"/>
+    <!-- Right leaf -->
+    <path d="M 130 110 Q 142 102 144 86 Q 130 88 122 100 Q 122 108 130 110 Z"/>
+    <!-- Centre back leaf, slightly taller -->
+    <path d="M 100 78 Q 92 84 92 100 Q 100 102 108 100 Q 108 84 100 78 Z" opacity="0.7"/>
+  </g>
+
+  <!-- Meditator silhouette — head, hair bun, torso, lotus base, arms -->
+  <g fill="url(#meditator-grad)">
+    <!-- Hair bun -->
+    <circle cx="100" cy="58" r="5"/>
+    <!-- Head -->
+    <ellipse cx="100" cy="68" rx="9" ry="10"/>
+    <!-- Neck -->
+    <rect x="97" y="76" width="6" height="6"/>
+    <!-- Torso (broadens at shoulders, narrows at waist) -->
+    <path d="M 86 86
+             Q 100 80 114 86
+             L 118 110
+             Q 100 116 82 110 Z"/>
+    <!-- Arms resting in mudra on knees -->
+    <path d="M 82 102 Q 70 110 70 124 Q 76 124 84 118 Q 92 113 86 105 Z"/>
+    <path d="M 118 102 Q 130 110 130 124 Q 124 124 116 118 Q 108 113 114 105 Z"/>
+    <!-- Lotus legs base — wide grounded oval -->
+    <path d="M 64 128
+             Q 60 122 70 116
+             Q 100 108 130 116
+             Q 140 122 136 128
+             Q 138 144 124 148
+             Q 100 152 76 148
+             Q 62 144 64 128 Z"/>
+  </g>
+
+  <!-- Chakra spine — 7 green dots up the centre line -->
+  <g fill="#4CAF50" stroke="#2E7D32" stroke-width="0.6">
+    <circle cx="100" cy="86" r="2.6"/>
+    <circle cx="100" cy="93" r="2.6"/>
+    <circle cx="100" cy="100" r="2.6"/>
+    <circle cx="100" cy="107" r="2.6"/>
+    <circle cx="100" cy="114" r="2.6"/>
+    <circle cx="100" cy="121" r="2.6"/>
+    <circle cx="100" cy="128" r="2.6"/>
+  </g>
+
+  <!-- Mat / ground curve below the lotus base -->
+  <path d="M 50 158 Q 100 168 150 158" fill="none" stroke="#1B2D5E" stroke-width="2.4" stroke-linecap="round"/>
 </svg>

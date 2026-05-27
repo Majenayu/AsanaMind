@@ -873,7 +873,7 @@ INDEX_HTML = """
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a href="/" class="brand">
-      <img class="brand-mark" src="/assets/brand/logo.svg" alt="" width="32" height="32">
+      <img class="brand-mark" src="/assets/brand/logo1.png" alt="AsanMinds" width="32" height="32">
       <span class="brand-name">sunday <em>· asanminds</em></span>
     </a>
     <nav class="nav-links" aria-label="Primary">
@@ -1064,7 +1064,7 @@ INDEX_HTML = """
     <div class="foot-grid">
       <div>
         <div class="brand" style="margin-bottom:12px;">
-          <img class="brand-mark" src="/assets/brand/logo.svg" alt="" width="32" height="32">
+          <img class="brand-mark" src="/assets/brand/logo1.png" alt="AsanMinds" width="32" height="32">
           <span class="brand-name">sunday <em>· asanminds</em></span>
         </div>
         <p style="color: var(--text-3); font-size: 13.5px; max-width: 360px; line-height: 1.6;">An AI yoga programme that meets you where you are. Built calm, on purpose.</p>
@@ -1110,7 +1110,7 @@ INDEX_HTML = """
 <!-- Redirect curtain — forest green, branded, covers the post-signin transition -->
 <div class="loader-back" id="loader">
   <div class="brand-row">
-    <img class="mark" src="/assets/brand/logo.svg" alt="" width="36" height="36">
+    <img class="mark" src="/assets/brand/logo1.png" alt="AsanMinds" width="36" height="36">
     <span class="name">sunday <span style="color: var(--gold-soft); font-weight: 400; font-size: 14px;">· asanminds</span></span>
   </div>
   <div class="spinner"></div>
@@ -2971,7 +2971,7 @@ button:hover{background:#1F5A44}
 </style></head>
 <body><form class="card" method="POST" action="/admin/login">
 <div class="brand-row">
-  <img src="/assets/brand/logo.svg" alt="" width="30" height="30" style="display:block;border-radius:8px">
+  <img src="/assets/brand/logo1.png" alt="AsanMinds" width="30" height="30" style="display:block;border-radius:8px;object-fit:contain">
   <span class="brand-word">sunday</span>
   <span class="brand-tag">Admin</span>
 </div>
