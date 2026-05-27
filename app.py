@@ -594,7 +594,7 @@ INDEX_HTML = """
     <meta name="theme-color" content="#0F3D2E">
     <link rel="apple-touch-icon" href="/assets/logo.png">
     <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
-    <link rel="icon" type="image/png" href="/assets/logo.png">
+    <link rel="alternate icon" type="image/png" href="/assets/logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -645,7 +645,7 @@ INDEX_HTML = """
         }
         .topbar-inner { display: flex; align-items: center; justify-content: space-between; height: 72px; }
         .brand { display: flex; align-items: center; gap: 10px; }
-        .brand-mark { width: 32px; height: 32px; border-radius: 9999px; background: var(--primary); color: var(--bg); font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+        .brand-mark { width: 32px; height: 32px; border-radius: 8px; display: block; flex-shrink: 0; background: transparent; }
         .brand-name { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
         .brand-name em { font-style: normal; color: var(--text-3); font-size: 13px; font-weight: 400; }
         .nav-links { display: none; gap: 28px; align-items: center; }
@@ -861,7 +861,7 @@ INDEX_HTML = """
         }
         .loader-back.on { display: flex; opacity: 1; }
         .loader-back .brand-row { display: flex; align-items: center; gap: 12px; opacity: .92; }
-        .loader-back .brand-row .mark { width: 36px; height: 36px; border-radius: 9999px; background: var(--bg); color: var(--primary); font-family: 'Fraunces', serif; font-size: 19px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+        .loader-back .brand-row .mark { width: 36px; height: 36px; border-radius: 8px; display: block; }
         .loader-back .brand-row .name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 400; color: var(--bg); letter-spacing: -0.01em; }
         .spinner { width: 32px; height: 32px; border-radius: 9999px; border: 3px solid rgba(245,242,235,0.18); border-top-color: var(--gold); animation: spin 0.8s linear infinite; }
         .loader-back .label { font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
@@ -873,7 +873,7 @@ INDEX_HTML = """
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a href="/" class="brand">
-      <span class="brand-mark">s</span>
+      <img class="brand-mark" src="/assets/brand/logo.svg" alt="" width="32" height="32">
       <span class="brand-name">sunday <em>· asanminds</em></span>
     </a>
     <nav class="nav-links" aria-label="Primary">
@@ -1064,7 +1064,7 @@ INDEX_HTML = """
     <div class="foot-grid">
       <div>
         <div class="brand" style="margin-bottom:12px;">
-          <span class="brand-mark">s</span>
+          <img class="brand-mark" src="/assets/brand/logo.svg" alt="" width="32" height="32">
           <span class="brand-name">sunday <em>· asanminds</em></span>
         </div>
         <p style="color: var(--text-3); font-size: 13.5px; max-width: 360px; line-height: 1.6;">An AI yoga programme that meets you where you are. Built calm, on purpose.</p>
@@ -1110,7 +1110,7 @@ INDEX_HTML = """
 <!-- Redirect curtain — forest green, branded, covers the post-signin transition -->
 <div class="loader-back" id="loader">
   <div class="brand-row">
-    <span class="mark">s</span>
+    <img class="mark" src="/assets/brand/logo.svg" alt="" width="36" height="36">
     <span class="name">sunday <span style="color: var(--gold-soft); font-weight: 400; font-size: 14px;">· asanminds</span></span>
   </div>
   <div class="spinner"></div>
@@ -2510,7 +2510,7 @@ def _verify_html(cert, requested_id, state):
     return f"""<!DOCTYPE html>
 <html><head><meta charset=\"utf-8\"><title>Verify Certificate · AsanMinds</title>
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
-<link rel=\"icon\" href=\"/assets/logo.png\">
+<link rel=\"icon\" type=\"image/svg+xml\" href=\"/assets/brand/favicon.svg\">
 <link href=\"https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap\" rel=\"stylesheet\">
 <style>body{{font-family:Inter,sans-serif;background:#F5F2EB;color:#14120E;margin:0;padding:32px;line-height:1.5}}
 .kicker{{font-weight:500;font-size:11px;letter-spacing:0.22em;text-transform:uppercase}}
@@ -2822,7 +2822,7 @@ def delete_account():
 PRIVACY_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Privacy · AsanMinds</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" href="/assets/logo.png">
+<link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>body{font-family:Inter,sans-serif;background:#F5F2EB;color:#14120E;margin:0;padding:48px 24px;line-height:1.65}
 .wrap{max-width:720px;margin:0 auto}
@@ -2947,7 +2947,7 @@ except Exception as _e:
 ADMIN_LOGIN_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Admin · AsanMinds</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" href="/assets/logo.png">
+<link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 body{margin:0;background:#F5F2EB;color:#14120E;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;-webkit-font-smoothing:antialiased}
@@ -2971,7 +2971,7 @@ button:hover{background:#1F5A44}
 </style></head>
 <body><form class="card" method="POST" action="/admin/login">
 <div class="brand-row">
-  <span class="brand-dot">s</span>
+  <img src="/assets/brand/logo.svg" alt="" width="30" height="30" style="display:block;border-radius:8px">
   <span class="brand-word">sunday</span>
   <span class="brand-tag">Admin</span>
 </div>

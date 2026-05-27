@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Admin · AsanMinds</title>
 <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
-<link rel="icon" href="/assets/logo.png">
+<link rel="alternate icon" href="/assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -30,6 +30,7 @@ a{color:var(--primary);text-decoration:none}
 .topbar{position:sticky;top:0;z-index:30;background:rgba(245,242,235,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(26,24,20,.06)}
 .topbar-inner{max-width:1400px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:30px;height:30px;border-radius:8px;display:block;flex-shrink:0}
 .brand-dot{width:30px;height:30px;border-radius:8px;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:Fraunces,serif;font-size:15px;font-weight:500}
 .brand-word{font-family:Fraunces,serif;font-size:19px;font-weight:500;letter-spacing:-0.01em}
 .brand-tag{background:var(--accent);color:var(--bg);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase}
@@ -231,7 +232,7 @@ a{color:var(--primary);text-decoration:none}
 <header class="topbar">
     <div class="topbar-inner">
         <a class="brand" href="/admin">
-            <span class="brand-dot">s</span>
+            <img class="brand-mark" src="/assets/brand/logo.svg" alt="" width="30" height="30">
             <span class="brand-word">sunday</span>
             <span class="brand-tag">Admin</span>
         </a>

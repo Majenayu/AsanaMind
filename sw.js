@@ -9,8 +9,8 @@
  * response, otherwise the browser throws "Request method 'POST' is
  * unsupported".
  */
-// Bumped to v8 — fixed Cache.put() crash on POST requests.
-const CACHE_NAME = 'sunday-v8';
+// Bumped to v9 — switched to new SVG brand mark; force fresh cache.
+const CACHE_NAME = 'sunday-v9';
 const STATIC_ASSETS = [
     '/',
     '/home',
@@ -22,7 +22,8 @@ const STATIC_ASSETS = [
     '/static/pose-notes.js',
     '/static/courses.js',
     '/manifest.json',
-    '/assets/logo.png',
+    '/assets/brand/logo.svg',
+    '/assets/brand/favicon.svg',
     '/assets/poses/tadasana.jpg',
     '/assets/poses/urdhva.png',
     '/assets/poses/anjali.png',
@@ -128,8 +129,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(title, {
         body,
         tag,
-        icon: '/assets/logo.png',
-        badge: '/assets/logo.png',
+        icon: '/assets/brand/logo.svg',
+        badge: '/assets/brand/favicon.svg',
         vibrate: [120, 60, 120],
         data: { url },
         actions: [

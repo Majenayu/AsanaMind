@@ -1,12 +1,24 @@
 {
-  "name": "SUNDAY - Yoga Wellness Platform",
-  "short_name": "SUNDAY",
-  "description": "Your Personal Holistic Yoga & Wellness Companion",
+  "name": "Sunday — AsanMinds",
+  "short_name": "Sunday",
+  "description": "AI yoga that watches, listens, and teaches you back.",
   "start_url": "/home",
   "display": "standalone",
-  "background_color": "#0c0e12",
-  "theme_color": "#2563eb",
+  "background_color": "#F5F2EB",
+  "theme_color": "#0F3D2E",
   "icons": [
+    {
+      "src": "/assets/brand/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/brand/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
     {
       "src": "/assets/logo.png",
       "sizes": "192x192",

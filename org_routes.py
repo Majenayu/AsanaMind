@@ -1490,7 +1490,7 @@ def register_org_routes(app, deps):
         # Render a tiny standalone page that does the Google sign-in redirect.
         body = f"""<!DOCTYPE html>
 <html><head><meta charset=utf-8><title>AsanMinds invitation</title>
-<link rel=icon href=/assets/logo.png>
+<link rel=icon type=image/svg+xml href=/assets/brand/favicon.svg>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>body{{margin:0;background:#F5F2EB;color:#14120E;font-family:Inter,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}}
 .card{{background:#fff;border:1px solid #D4CCB8;border-radius:22px;padding:40px 36px;max-width:440px;width:100%;text-align:center}}
