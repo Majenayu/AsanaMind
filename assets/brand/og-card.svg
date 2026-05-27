@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Open Graph / Twitter card — 1200×630, the standard social-share aspect.
+  Cream paper background, big mark on the left, type on the right, soft
+  saffron blob radial in the corner. Export to PNG for og:image use.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="AsanMinds — AI yoga coaching">
+  <title>AsanMinds — AI yoga coaching</title>
+
+  <defs>
+    <radialGradient id="blob" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(1100 80) scale(420)">
+      <stop offset="0" stop-color="#E0A23F" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#E0A23F" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blob2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(80 600) scale(360)">
+      <stop offset="0" stop-color="#C2552F" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C2552F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#F5F2EB"/>
+  <rect width="1200" height="630" fill="url(#blob)"/>
+  <rect width="1200" height="630" fill="url(#blob2)"/>
+
+  <!-- Big mark, left -->
+  <g transform="translate(80 175) scale(4.4)">
+    <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+    <path d="M16 44 C 16 32, 22 24, 26 24 C 24 30, 22 38, 22 46 Z" fill="#1F5A44"/>
+    <path d="M48 44 C 48 32, 42 24, 38 24 C 40 30, 42 38, 42 46 Z" fill="#1F5A44"/>
+    <path d="M32 12 C 26 18, 22 26, 22 36 C 22 44, 26 50, 32 50 C 38 50, 42 44, 42 36 C 42 26, 38 18, 32 12 Z" fill="#F5F2EB"/>
+    <path d="M32 22 C 28 27, 26 33, 26 38 C 26 43, 29 47, 32 47 C 35 47, 38 43, 38 38 C 38 33, 36 27, 32 22 Z" fill="#E0A23F"/>
+    <circle cx="32" cy="40" r="2.4" fill="#0F3D2E"/>
+  </g>
+
+  <!-- Wordmark + tagline, right -->
+  <text x="430" y="280" font-family="Georgia, 'Times New Roman', serif"
+        font-size="92" font-weight="300" font-style="italic"
+        fill="#14120E" letter-spacing="-0.025em">sunday</text>
+  <text x="436" y="332" font-family="'Inter', system-ui, sans-serif"
+        font-size="20" font-weight="500"
+        fill="#7A7364" letter-spacing="0.32em">A S A N M I N D S</text>
+
+  <text x="430" y="430" font-family="Georgia, 'Times New Roman', serif"
+        font-size="42" font-weight="300"
+        fill="#0F3D2E" letter-spacing="-0.015em">AI yoga that watches,</text>
+  <text x="430" y="478" font-family="Georgia, 'Times New Roman', serif"
+        font-size="42" font-weight="300"
+        fill="#0F3D2E" letter-spacing="-0.015em">listens, and teaches you back.</text>
+
+  <text x="430" y="540" font-family="'Inter', system-ui, sans-serif"
+        font-size="16" font-weight="500"
+        fill="#C2552F" letter-spacing="0.22em">S I X   S E M E S T E R S   ·   T W E N T Y   A S A N A S</text>
+</svg>

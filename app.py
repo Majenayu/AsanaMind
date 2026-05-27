@@ -593,6 +593,7 @@ INDEX_HTML = """
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0F3D2E">
     <link rel="apple-touch-icon" href="/assets/logo.png">
+    <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
     <link rel="icon" type="image/png" href="/assets/logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AsanMinds — logo preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#F5F2EB; --surface:#FFFFFF; --border:#D4CCB8; --text-1:#14120E; --text-2:#4A453B; --text-3:#7A7364; --primary:#0F3D2E; --accent:#C2552F; --gold:#E0A23F; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text-1);font-family:'Inter',sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1100px;margin:0 auto;padding:48px 24px 96px}
+  .head{margin-bottom:48px}
+  .kicker{font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h1{font-family:'Fraunces',serif;font-size:56px;font-weight:300;letter-spacing:-0.025em;line-height:1.05;margin-top:12px}
+  h1 em{color:var(--accent);font-style:italic;font-weight:400}
+  .lede{color:var(--text-2);max-width:680px;margin-top:18px;font-size:17px}
+
+  section{margin-top:56px}
+  h2{font-family:'Fraunces',serif;font-size:28px;font-weight:400;letter-spacing:-0.015em;margin-bottom:8px}
+  h2 + p{color:var(--text-3);font-size:14px;margin-bottom:24px;max-width:680px}
+
+  .grid{display:grid;gap:18px}
+  .grid.three{grid-template-columns:repeat(3,1fr)}
+  .grid.four{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:780px){.grid.three,.grid.four{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.grid.three,.grid.four{grid-template-columns:1fr}}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+  .card.dark{background:var(--primary)}
+  .card.dark span,.card.dark p{color:rgba(245,242,235,0.7)}
+  .card span{font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-3);font-weight:600}
+  .card p{font-size:12px;color:var(--text-3)}
+  .card img{display:block}
+
+  .sizes{display:flex;align-items:end;gap:32px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:32px}
+  .size{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .size span{font-size:11px;color:var(--text-3);letter-spacing:0.18em;text-transform:uppercase;font-weight:600}
+
+  .mock-bar{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .mock-bar .left{display:flex;align-items:center;gap:12px}
+  .mock-bar .word{font-family:'Fraunces',serif;font-size:20px;font-weight:500;letter-spacing:-0.01em}
+  .mock-bar .word em{font-style:normal;color:var(--text-3);font-size:13px;font-weight:400;margin-left:4px}
+  .mock-bar.dark{background:var(--primary)}
+  .mock-bar.dark .word{color:#F5F2EB}
+  .mock-bar.dark .word em{color:rgba(199,219,206,0.7)}
+
+  .og-frame{width:100%;max-width:900px;border:1px solid var(--border);border-radius:18px;overflow:hidden}
+  .og-frame img{width:100%;display:block}
+
+  .swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}
+  .sw{border-radius:14px;padding:18px;border:1px solid var(--border)}
+  .sw .hex{font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:8px;opacity:.75}
+  .sw .name{font-size:13px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <span class="kicker">Brand identity</span>
+    <h1>The <em>AsanMinds</em> mark.</h1>
+    <p class="lede">An upright lotus petal cradling a saffron flame, on the forest tile. The petal is yoga and growth. The flame is the awakened mind. The bindu is stillness. Designed to read at favicon size and scale to billboards.</p>
+  </div>
+
+  <section>
+    <h2>Primary mark</h2>
+    <p>Use this version everywhere by default. It works on cream, white, and most photo backgrounds.</p>
+    <div class="sizes">
+      <div class="size"><img src="logo.svg" width="128" height="128" alt=""><span>128 px</span></div>
+      <div class="size"><img src="logo.svg" width="64" height="64" alt=""><span>64 px</span></div>
+      <div class="size"><img src="logo.svg" width="40" height="40" alt=""><span>40 px</span></div>
+      <div class="size"><img src="logo.svg" width="24" height="24" alt=""><span>24 px</span></div>
+      <div class="size"><img src="favicon.svg" width="16" height="16" alt=""><span>16 px favicon</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Horizontal lockup</h2>
+    <p>Mark + wordmark. Use this in topbars, email headers, and presentation title cards.</p>
+    <div class="card" style="padding:32px"><img src="logo-horizontal.svg" alt="" style="max-width:380px;width:100%"></div>
+    <div style="height:14px"></div>
+    <div class="card dark" style="padding:32px"><img src="logo-horizontal.svg" alt="" style="max-width:380px;width:100%;filter:brightness(0) invert(1)"></div>
+  </section>
+
+  <section>
+    <h2>In context</h2>
+    <p>Topbar mockups — both cream and forest variants.</p>
+    <div class="mock-bar">
+      <div class="left">
+        <img src="logo.svg" width="32" height="32" alt="">
+        <span class="word">sunday <em>· asanminds</em></span>
+      </div>
+      <span style="font-size:13px;color:var(--text-3)">Sign in</span>
+    </div>
+    <div class="mock-bar dark">
+      <div class="left">
+        <img src="logo.svg" width="32" height="32" alt="">
+        <span class="word">sunday <em>· asanminds</em></span>
+      </div>
+      <span style="font-size:13px;color:rgba(199,219,206,0.85)">Sign in</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>App icon &amp; favicon</h2>
+    <p>The favicon is a simplified lockup so it survives the 16×16 pixel grid. Side leaves and mat hairline removed; the petal and flame remain.</p>
+    <div class="grid four">
+      <div class="card"><img src="logo.svg" width="120" height="120" alt=""><span>App icon · iOS / Android</span></div>
+      <div class="card"><img src="favicon.svg" width="32" height="32" style="image-rendering:auto" alt=""><span>Browser tab favicon</span></div>
+      <div class="card"><img src="favicon.svg" width="48" height="48" alt=""><span>PWA homescreen</span></div>
+      <div class="card dark"><img src="logo.svg" width="120" height="120" alt=""><span>On forest</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Mono variants</h2>
+    <p>Single-colour fallbacks for print, embroidery, dark mode, and email signatures.</p>
+    <div class="grid three">
+      <div class="card"><img src="logo-mono-dark.svg" width="120" height="120" alt=""><span>Mono · forest on cream</span></div>
+      <div class="card dark"><img src="logo-mono-light.svg" width="120" height="120" alt=""><span>Mono · cream on forest</span></div>
+      <div class="card" style="background:#000"><img src="logo-mono-light.svg" width="120" height="120" alt="" style="filter:none"><span style="color:rgba(245,242,235,0.6)">Mono · cream on black</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Open Graph card</h2>
+    <p>1200×630 social-share image. WhatsApp, LinkedIn, Twitter, iMessage all use this when someone pastes an AsanMinds link.</p>
+    <div class="og-frame"><img src="og-card.svg" alt="AsanMinds open-graph share card"></div>
+  </section>
+
+  <section>
+    <h2>Colour system</h2>
+    <p>The brand lives in five anchor colours. Cream paper holds it together; forest gives it weight; saffron is the brand's eye-light.</p>
+    <div class="swatches">
+      <div class="sw" style="background:#F5F2EB"><div class="name">Cream paper</div><div class="hex">#F5F2EB</div></div>
+      <div class="sw" style="background:#0F3D2E;color:#F5F2EB"><div class="name">Forest</div><div class="hex">#0F3D2E</div></div>
+      <div class="sw" style="background:#1F5A44;color:#F5F2EB"><div class="name">Forest soft</div><div class="hex">#1F5A44</div></div>
+      <div class="sw" style="background:#E0A23F"><div class="name">Saffron flame</div><div class="hex">#E0A23F</div></div>
+      <div class="sw" style="background:#C2552F;color:#F5F2EB"><div class="name">Terracotta accent</div><div class="hex">#C2552F</div></div>
+      <div class="sw" style="background:#14120E;color:#F5F2EB"><div class="name">Ink</div><div class="hex">#14120E</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Files included</h2>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.9;color:var(--text-2)">
+      <a href="logo.svg">logo.svg</a> &nbsp;— primary mark, full colour, 64×64<br>
+      <a href="logo-horizontal.svg">logo-horizontal.svg</a> &nbsp;— mark + wordmark, 380×80<br>
+      <a href="favicon.svg">favicon.svg</a> &nbsp;— simplified mark, optimised for 16–32px<br>
+      <a href="logo-mono-dark.svg">logo-mono-dark.svg</a> &nbsp;— forest on light<br>
+      <a href="logo-mono-light.svg">logo-mono-light.svg</a> &nbsp;— cream on dark<br>
+      <a href="og-card.svg">og-card.svg</a> &nbsp;— social share card, 1200×630
+    </p>
+  </section>
+
+</div>
+</body>
+</html>

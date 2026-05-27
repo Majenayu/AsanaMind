@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Favicon — simplified for tiny sizes. Drops the side leaves, the bindu,
+  and the mat hairline since they wouldn't survive a 16×16 render.
+  What's left: forest tile + cream petal silhouette + saffron flame.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+  <path d="M32 10 C 24 18, 20 27, 20 38 C 20 47, 25 52, 32 52 C 39 52, 44 47, 44 38 C 44 27, 40 18, 32 10 Z"
+        fill="#F5F2EB"/>
+  <path d="M32 22 C 27 28, 25 34, 25 40 C 25 45, 28 49, 32 49 C 36 49, 39 45, 39 40 C 39 34, 37 28, 32 22 Z"
+        fill="#E0A23F"/>
+</svg>

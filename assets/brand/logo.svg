@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AsanMinds — primary mark.
+  An upright lotus petal cradling a saffron flame on the forest tile.
+  Petal = yoga, growth, asana. Flame = awakened mind.
+  64×64 base, scales identically from 16px favicon to billboard.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AsanMinds">
+  <title>AsanMinds</title>
+  <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+
+  <!-- Two side leaves anchoring the bud (subtle, in deep teal so they recede) -->
+  <path d="M16 44 C 16 32, 22 24, 26 24 C 24 30, 22 38, 22 46 Z"
+        fill="#1F5A44"/>
+  <path d="M48 44 C 48 32, 42 24, 38 24 C 40 30, 42 38, 42 46 Z"
+        fill="#1F5A44"/>
+
+  <!-- Central upright petal — cream, defines the silhouette -->
+  <path d="M32 12
+           C 26 18, 22 26, 22 36
+           C 22 44, 26 50, 32 50
+           C 38 50, 42 44, 42 36
+           C 42 26, 38 18, 32 12 Z"
+        fill="#F5F2EB"/>
+
+  <!-- Inner flame — saffron, soft droplet shape -->
+  <path d="M32 22
+           C 28 27, 26 33, 26 38
+           C 26 43, 29 47, 32 47
+           C 35 47, 38 43, 38 38
+           C 38 33, 36 27, 32 22 Z"
+        fill="#E0A23F"/>
+
+  <!-- Bindu — the still point, deepest in -->
+  <circle cx="32" cy="40" r="2.4" fill="#0F3D2E"/>
+
+  <!-- Single hairline at the base — the mat -->
+  <line x1="20" y1="53" x2="44" y2="53" stroke="#E0A23F" stroke-width="0.7" opacity="0.65" stroke-linecap="round"/>
+</svg>

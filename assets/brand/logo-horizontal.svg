@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Horizontal lockup — primary mark + wordmark. Use this in topbars, email
+  headers, social og:image, and presentation title cards.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 80" role="img" aria-label="sunday · asanminds">
+  <title>sunday · asanminds</title>
+
+  <!-- Mark -->
+  <g transform="translate(0 8)">
+    <rect width="64" height="64" rx="14" fill="#0F3D2E"/>
+    <path d="M16 44 C 16 32, 22 24, 26 24 C 24 30, 22 38, 22 46 Z" fill="#1F5A44"/>
+    <path d="M48 44 C 48 32, 42 24, 38 24 C 40 30, 42 38, 42 46 Z" fill="#1F5A44"/>
+    <path d="M32 12 C 26 18, 22 26, 22 36 C 22 44, 26 50, 32 50 C 38 50, 42 44, 42 36 C 42 26, 38 18, 32 12 Z" fill="#F5F2EB"/>
+    <path d="M32 22 C 28 27, 26 33, 26 38 C 26 43, 29 47, 32 47 C 35 47, 38 43, 38 38 C 38 33, 36 27, 32 22 Z" fill="#E0A23F"/>
+    <circle cx="32" cy="40" r="2.4" fill="#0F3D2E"/>
+    <line x1="20" y1="53" x2="44" y2="53" stroke="#E0A23F" stroke-width="0.7" opacity="0.65" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="80" y="46"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="34" font-weight="300" font-style="italic"
+        fill="#14120E" letter-spacing="-0.02em">sunday</text>
+  <text x="83" y="64"
+        font-family="'Inter', system-ui, sans-serif"
+        font-size="9.5" font-weight="500"
+        fill="#7A7364" letter-spacing="0.24em">A S A N M I N D S</text>
+</svg>
