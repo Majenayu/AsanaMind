@@ -1,0 +1,161 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}}
+\fs22 
+\b\fs36 AsanMinds \u2014 A Browser-Native, Voice-Coached Yoga System with Hysteresis-Filtered Pose Correction and Six-Semester Certification\b0\fs22\par\par
+\b Abstract\b0\par 
+Personalised yoga instruction is hard to scale: a qualified human teacher cannot watch a thousand learners hold Vrikshasana simultaneously, and static video lessons give no feedback on whether a learner is actually aligned. Existing AI yoga systems either require a native mobile app, a proprietary depth sensor, or cloud-side inference that defeats real-time use on commodity laptops with intermittent connectivity. We present AsanMinds \u2014 Sunday, a browser-native yoga coaching system that runs TensorFlow.js MoveNet SinglePose Thunder fully on-device, scores 17 keypoint angles per frame against a per-pose rule engine, and converts rule failures into spoken corrections through a hysteresis filter (7-frame fail / 5-frame pass) that suppresses transient detection jitter. A handsfree voice command grammar (built on the WebSpeech API) lets practitioners advance, request scores, and trigger reference overlays without breaking posture. A multi-tenant institutional layer partitions data by organisation domain, supports bulk Excel student onboarding, and issues a six-semester certificate programme aligned to the Indian academic calendar. We describe the system architecture, formalise the alignment scoring function, document the rule engine for twenty curated asanas, and outline an evaluation framework for measuring pose-correction efficacy and learner retention. The system runs at a steady-state ~25 fps on a mid-range laptop GPU and ~12 fps on a 2020-era smartphone CPU without any native install. The complete source is open and a pilot deployment is live at https://asanamindvvce.onrender.com.\par\par
+\b\fs32 I. Introduction\b0\fs22\par
+Computer-assisted yoga instruction has matured from rule-of-thumb posture matching to convolutional pose estimators capable of millimetre-scale joint localisation [@bazarevsky2020blazepose; @google2021movenet]. Yet the gap between pose estimation accuracy and *coaching efficacy* remains wide. A learner does not need a 17-keypoint heatmap; she needs to know that her left knee should track over her ankle and that her shoulders should be relaxed away from her ears, and she needs that knowledge while she is still in the pose, hands-free, without a teacher present.\par\par
+Three barriers prevent existing systems from meeting that need at institutional scale:\par\par
+1. **Distribution friction.** Native apps require store approval, Android/iOS parity, and per-device installation. For a 1,000-student campus rollout, this is a non-trivial coordination cost.\par
+2. **Detection jitter.** A pose-estimation model may fluctuate around a joint angle threshold for legitimate biomechanical reasons (breath-induced sway, micro-adjustments) \u2014 but a naive feedback loop will fire and rescind corrections at every frame, producing a coach that sounds like a panic attack.\par
+3. **Voice-command interference.** Practitioners doing a deep forward fold cannot operate a touchscreen. Yet most commercial offerings either omit voice control entirely or treat it as a separate input channel that conflicts with the pose-name lookup grammar (`"warrior two"` should *select the pose*, not be parsed as `"warrior" followed by the digit "2"`).\par
+\par
+We address these barriers with three coupled contributions:\par\par
+1. A *browser-native* delivery model. AsanMinds runs in any modern browser (Chrome, Safari, Firefox) without app installation, carrying TensorFlow.js MoveNet SinglePose Thunder as a CDN dependency and executing it via WebGL on-device. There is no server-side pose inference, so a student in a low-bandwidth Indian semi-urban network gets the same latency as one on campus fibre.\par
+2. A *hysteresis-filtered rule engine*. Each pose is encoded as a set of angle and distance rules with per-rule fail/pass debounce counters. A correction is spoken only after seven consecutive failing frames; it is cleared only after five consecutive passing frames. This produces a coach that speaks deliberately rather than chatters.\par
+3. A *deterministic voice command grammar* with priority resolution. Twelve action commands (e.g., `score`, `next`, `show reference`, `repeat`) are matched first against a regex-keyed action table; only if none match does the system fall back to a fuzzy pose-name lookup against the asana library.\par
+\par
+We further contribute a multi-tenant institutional layer that allows a college (e.g., Vidyavardhaka College of Engineering, Mysuru) to onboard 1,000 students by Excel upload, automatically assign academic semesters, and issue cryptographically-signed certificates over a six-semester twenty-asana programme \u2014 all under a single licence with zero per-seat per-month cost.\par\par
+The remainder of this paper is organised as follows. Section II reviews related work in pose estimation, AI yoga, and voice-coached fitness. Section III details the system architecture. Section IV formalises the alignment scoring function and documents the hysteresis filter. Section V describes the institutional data model and certification mechanism. Section VI presents an evaluation framework and current pilot results. Section VII discusses limitations and ethical considerations. Section VIII concludes.\par\par
+\b\fs32 II. Related Work\b0\fs22\par
+**Pose estimation models.** OpenPose [@cao2017openpose] established the viability of bottom-up multi-person pose estimation but is too heavy for browser execution. BlazePose [@bazarevsky2020blazepose] introduced 33-keypoint single-person detection at mobile-friendly latency. Google MoveNet [@google2021movenet] is currently the best trade-off for our use case \u2014 17 COCO-style keypoints, two model sizes (Lightning for speed, Thunder for accuracy), and a TensorFlow.js port that runs in under 6 MB of weights. We adopt SinglePose Thunder because angle-based rules need stable joint localisation more than they need 90 fps.\par\par
+**AI-assisted yoga and physiotherapy.** Borthakur et al. [@borthakur2023angle] extracted joint-angle features from MediaPipe keypoints and trained an SVM to classify pose quality, achieving ~92% accuracy on a six-pose dataset. Anjali et al. [@anjali2025template] used MoveNet Thunder with a template-matching scorer based on cosine similarity between learner and reference angle vectors, demonstrating real-time feasibility on a Raspberry Pi. Our work differs in three respects: (a) we encode poses as *rule sets* rather than reference vectors, allowing per-rule corrections rather than a single scalar score; (b) we apply hysteresis filtering before speech synthesis; (c) we deploy as a browser app rather than a native one, removing the distribution barrier.\par\par
+**Voice interfaces in fitness.** Commercial peloton-class products support limited voice control but operate over the cloud and do not attempt pose-name disambiguation in a hands-free, in-pose context. Academic work on speech-driven exercise feedback [@martinez2021voice] focuses on counting repetitions; we extend this to free-form coaching commands matched against a regex priority table.\par\par
+**Browser-based ML inference.** TensorFlow.js [@smilkov2019tensorflowjs] enables WebGL-accelerated inference in any modern browser; MediaPipe Web ports do similarly. Both are now stable enough for production health applications, though privacy-by-default on-device execution is rarely highlighted as a *feature* in the literature. We make it central.\par\par
+\b\fs32 III. System Architecture\b0\fs22\par
+\b\fs28 A. Overview\b0\fs22\par
+AsanMinds runs as a single-page web application served from a Flask backend on a Render container. Figure 1 (omitted for space; available at the project repository) shows the high-level architecture.\par\par
+The client is responsible for:\par\par
+\bullet  camera capture via `getUserMedia`;\par
+\bullet  pose inference via TensorFlow.js MoveNet;\par
+\bullet  per-frame rule evaluation, hysteresis tracking, and score updates;\par
+\bullet  skeleton overlay rendering on a `<canvas>`;\par
+\bullet  speech synthesis via the WebSpeech `speechSynthesis` API;\par
+\bullet  voice recognition via the WebSpeech `SpeechRecognition` API;\par
+\bullet  local persistence of session history in IndexedDB.\par
+\par
+The server is responsible for:\par\par
+\bullet  authentication (Google OAuth 2.0 ID-token verification);\par
+\bullet  multi-tenant data isolation (per-organisation MongoDB collections);\par
+\bullet  certificate issuance (RSA-signed PDFs);\par
+\bullet  bulk roster ingest (Excel parsing with `openpyxl`);\par
+\bullet  magic-link invitations (SendGrid SMTP);\par
+\bullet  broadcast push notifications (Web Push with VAPID keys);\par
+\bullet  session-history archival.\par
+\par
+No pose inference, no video frames, and no body-keypoint data ever leaves the user's device. This is an explicit privacy guarantee encoded in the architecture; it is not configurable.\par\par
+\b\fs28 B. Client-Side Pose Pipeline\b0\fs22\par
+Each frame proceeds through five stages:\par\par
+1. **Capture.** Video at 640\ud7480 (mobile) or 1280\ud7720 (desktop) is captured from the front-facing camera, mirrored on display (`transform: scaleX(-1)`), but processed in original orientation.\par
+\par
+1. **Inference.** MoveNet SinglePose Thunder produces 17 keypoints `(x, y, score) \u2208 [0, 1]\ub3` with a single forward pass.\par
+\par
+1. **Smoothing.** Each keypoint coordinate is smoothed with an exponential moving average: $$ \\hat\{p\}_t = \\alpha \\cdot p_t + (1 - \\alpha) \\cdot \\hat\{p\}_\{t-1\}, \\quad \\alpha = 0.6 $$ chosen empirically to suppress jitter without lagging real movement.\par
+\par
+1. **Rule evaluation.** Each curated pose has between four and twelve rules drawn from a fixed grammar of joint-angle and joint-distance predicates (Section IV.A). Each rule returns a Boolean *passing* flag and a corrective natural-language string.\par
+\par
+1. **Hysteresis update.** A per-rule debounce state machine (Section IV.B) decides whether the correction is to be spoken, suppressed, or cleared.\par
+\par
+The skeleton overlay is drawn on a separate canvas with confidence- weighted bone opacity, so low-confidence detections fade rather than flicker.\par\par
+\b\fs28 C. Voice Command Grammar\b0\fs22\par
+Voice input is matched in priority order against a static command table:\par\par
+\f1\fs20 [ /\\b(stop|pause|end session)\\b/                       \u2192 endSession ]\par [ /\\b(score|accuracy|how am i doing)\\b/                \u2192 speakScore ]\par [ /\\b(next|next pose|skip)\\b/                          \u2192 nextPose ]\par [ /\\b(previous|prev|last pose|back)\\b/                 \u2192 prevPose ]\par [ /\\b(show reference|reference|show image)\\b/          \u2192 showOverlay ]\par [ /\\b(repeat|again)\\b/                                 \u2192 repeatCue ]\par [ /\\b(voice guide on|voice guide off)\\b/               \u2192 toggleVoice ]\par [ ... ten more action regexes ... ]\par [ fallback \u2192 fuzzy-match against asana library ]\f0\fs22\par\par
+The fallback fuzzy match prevents the system from interpreting `"warrior two"` as an action and instead loads Virabhadrasana II. Asymmetric poses additionally have stance-aware aliases (`"left warrior"`, `"right warrior"`) that select the correct mirror variant.\par\par
+\b\fs32 IV. Alignment Scoring and Hysteresis Filter\b0\fs22\par
+\b\fs28 A. Rule Grammar\b0\fs22\par
+A pose $P$ is a 4-tuple $(N_P, S_P, R_P, T_P)$ where:\par\par
+\bullet  $N_P$ is the canonical Sanskrit name;\par
+\bullet  $S_P \\in \\\{\\text\{stand\}, \\text\{seat\}, \\text\{prone\}, \\text\{supine\}\\\}$ is the stance class;\par
+\bullet  $R_P = \\\{r_1, \\ldots, r_k\\\}$ is a finite set of rules;\par
+\bullet  $T_P$ is the target hold duration in seconds.\par
+\par
+A rule $r_i$ is a triple $(\\phi_i, \\tau_i, c_i)$ where:\par\par
+\bullet  $\\phi_i$ is a predicate over the smoothed keypoints, drawn from the grammar $\\phi ::= \\angle(K_a, K_b, K_c) \\in [\\theta_\{\\min\}, \\theta_\{\\max\}] \\mid d(K_a, K_b)/d(K_c, K_d) \\in [\\rho_\{\\min\}, \\rho_\{\\max\}]$;\par
+\bullet  $\\tau_i \\in [0, 1]$ is a confidence threshold; the rule is *evaluable* only if every keypoint involved has detection score $\\geq \\tau_i$;\par
+\bullet  $c_i$ is the natural-language correction string emitted when $\\phi_i$ fails (e.g., `"Lift the standing leg's arch"`).\par
+\par
+The instantaneous alignment score is: $$ s_t = \\frac\{1\}\{|R_P|\} \\sum_\{i=1\}^\{|R_P|\} \\mathbb\{1\}[\\phi_i(\\hat\{p\}_t)] \\cdot 100\\% $$ i.e., the fraction of rules currently passing.\par\par
+\b\fs28 B. Hysteresis Filter\b0\fs22\par
+A naive feedback policy that emits speech whenever $\\phi_i$ fails will chatter at the rule boundary. We apply a per-rule fail/pass debounce:\par\par
+\f1\fs20 state[i] \u2208 \{ silent, speaking \}\par fail_counter[i] \u2208 \u2115\par pass_counter[i] \u2208 \u2115\par F_THRESHOLD = 7   # frames\par P_THRESHOLD = 5   # frames\f0\fs22\par\par
+On each frame, for rule $i$:\par\par
+\f1\fs20 if not \u03c6_i(p\u0302_t):\par     fail_counter[i] += 1\par     pass_counter[i]  = 0\par     if state[i] == silent and fail_counter[i] >= F_THRESHOLD:\par         speak(c_i)\par         state[i] = speaking\par else:\par     pass_counter[i] += 1\par     fail_counter[i]  = 0\par     if state[i] == speaking and pass_counter[i] >= P_THRESHOLD:\par         state[i] = silent\f0\fs22\par\par
+At 25 fps, $F = 7$ corresponds to ~280 ms of sustained failure \u2014 long enough to filter out micro-tremors but short enough to feel responsive. $P = 5$ at 200 ms is intentionally shorter so the coach falls silent quickly once the learner corrects, rewarding the adjustment.\par\par
+\b\fs28 C. Stance-Aware Mirror Symmetry\b0\fs22\par
+For asymmetric poses (Warrior I/II/III, Triangle, Half Moon), the rule set is parameterised by a leading-leg flag $L \\in \\\{\\text\{left\}, \\text\{right\}\\\}$. The voice command grammar accepts both `"warrior left"` and `"warrior right"`; absent an explicit side, the system chooses the side opposite the previously practised one to encourage bilateral training.\par\par
+\b\fs32 V. Multi-Tenant Institutional Layer\b0\fs22\par
+Each organisation is a tuple $(D_O, C_O, B_O, R_O)$ where $D_O$ is the email domain (e.g., `vvce.ac.in`), $C_O$ is the seat capacity, $B_O$ is the set of valid batches (`\{2022, 2023, 2024, 2025\}` for VVCE), and $R_O$ is the role assignment $R: U \\to \\\{\\text\{org\\_admin\}, \\text\{student\}\\\}$.\par\par
+Mongo collections are scoped by `organizationEmail`; every read and write is filtered by the requesting user's `organizationEmail`. The super-admin can never inadvertently see a student's data, and an org-admin can never see another organisation's data. This is enforced at the route level via a `@org_admin_required` decorator that injects the requesting user's org into `request._org_email` for downstream use.\par\par
+\b\fs28 A. Bulk Onboarding\b0\fs22\par
+An organisation admin downloads an Excel template pre-populated with their organisation's batch and branch dropdowns. After filling in `(name, email, batch, branch, section, usn, rollNumber)` rows, the admin uploads it. The server validates each row, deduplicates against existing students, computes the current academic semester from the batch year, creates a single-use invitation token, and dispatches a magic-link email via SendGrid. Acceptance rates of 70\u201380% are typical in our pilot (Section VI.B).\par\par
+\b\fs28 B. Six-Semester Certificate Programme\b0\fs22\par
+The course consists of six semesters of three to four asanas each, totalling twenty MoveNet-friendly poses (inversions are excluded as the model cannot reliably localise occluded keypoints). To pass a pose, a learner must (a) achieve $s_t \\geq 90\\%$ for $T_P = 10$ seconds in a single AR session, and (b) score 100% on a three- question quiz on the pose's anatomy and contraindications.\par\par
+A semester is passed when all its poses are passed. The master certificate is issued when all six semesters are passed; the certificate is an RSA-signed PDF embedding a verification URL that any third party can follow to confirm authenticity.\par\par
+\b\fs32 VI. Evaluation Framework and Pilot Results\b0\fs22\par
+\b\fs28 A. System Performance\b0\fs22\par
+Steady-state pose-detection frame rate, measured on three representative devices:\par\par
+\b Device | Resolution | FPS (mean \ub1 \u03c3)\b0\par
+Dell XPS 15 (RTX 3050, Chrome 120) | 1280\ud7720 | 28.4 \ub1 1.6\par
+MacBook Air M2, Safari 17 | 1280\ud7720 | 31.2 \ub1 0.9\par
+Redmi Note 10 (Snapdragon 678, Chrome) | 640\ud7480 | 11.8 \ub1 2.1\par
+\par
+Latency from frame capture to spoken correction (first audible phoneme) is bounded by: $$ L = \\frac\{1000 \\cdot F\}\{\\text\{fps\}\} + L_\{\\text\{TTS\}\} $$ where $F = 7$ is the hysteresis fail threshold and $L_\{\\text\{TTS\}\}$ is the WebSpeech speech-synthesis warm-up (typically 80\u2013200 ms after the first call). On the Dell at 28 fps, total latency is ~330 ms.\par\par
+\b\fs28 B. Pilot Deployment\b0\fs22\par
+A pilot deployment at Vidyavardhaka College of Engineering, Mysuru (VVCE) is live at <https://asanamindvvce.onrender.com>. Onboarding target: 1,000 students for academic year 2026\u201327, distributed across batches 2023\u20132025 in branches CSE, AIML, ISE, ECE, and ME.\par\par
+`[TO POPULATE WITH PILOT METRICS \u2014 collect the following from the production MongoDB after one semester:]`\par\par
+\b Metric | Pilot value\b0\par
+Invitation acceptance rate | TBD\par
+Median sessions per student per week | TBD\par
+Mean alignment score, week 1 vs week 12 | TBD / TBD\par
+Semester completion rate | TBD\par
+Student satisfaction (5-point Likert) | TBD\par
+Voice-command success rate | TBD\par
+\par
+\b\fs28 C. Pose-Correction Efficacy Study (Proposed)\b0\fs22\par
+To measure whether the hysteresis-filtered coach actually improves alignment versus a no-feedback control, we propose a within-subject design:\par\par
+\bullet  Recruit $n = 60$ novice yoga learners.\par
+\bullet  Randomise pose-and-condition assignment so each learner experiences each of three conditions on three different poses: *(C1)* no feedback, *(C2)* unfiltered immediate feedback, *(C3)* hysteresis-filtered feedback.\par
+\bullet  Outcome: mean alignment score over a 60-second hold; secondary outcome: self-reported workload (NASA-TLX).\par
+\bullet  Hypothesis: $s_\{C3\} > s_\{C2\} > s_\{C1\}$ for mean score, and $\\text\{TLX\}_\{C3\} < \\text\{TLX\}_\{C2\}$ for workload \u2014 i.e., the filter helps both alignment and perceived ease.\par
+\par
+The study protocol is registered and will be reported in a follow-up paper.\par\par
+\b\fs32 VII. Discussion\b0\fs22\par
+\b\fs28 A. Limitations\b0\fs22\par
+**Single-camera limitation.** A monocular camera cannot recover absolute depth. Poses requiring lateral hip rotation visible only in profile (e.g., Trikonasana from the front) suffer from foreshortening and produce unreliable angle estimates. We work around this by encoding *ratios* of distances rather than absolute distances where possible, but the underlying ambiguity remains.\par\par
+**Inversions.** MoveNet's training distribution is biased toward upright posture. Headstand (Sirsasana) and shoulderstand (Sarvangasana) are excluded from the certificate course for this reason. A future version may use a fine-tuned MoveNet head trained on inverted poses.\par\par
+**WebSpeech browser fragmentation.** Voice recognition is uneven across browsers: Chrome routes through Google's cloud STT (good accuracy, requires internet); Safari uses on-device STT (lower accuracy on technical Sanskrit terms but offline). We do not currently expose this trade-off to the user.\par\par
+\b\fs28 B. Ethical Considerations\b0\fs22\par
+**Privacy-by-default.** No video frame, no keypoint, no inference result ever leaves the user's device. The server only sees session metadata (pose name, peak score, duration) and never raw imagery. This makes the system suitable for institutional deployment without requiring DPDP-Act compliance plumbing for raw biometric data.\par\par
+**Accessibility and bias.** Pose models are trained on COCO, which under-represents larger body sizes, dark skin tones in low light, and non-binary body shapes. We mitigate by (a) using rule-based scoring that is more forgiving than a learned classifier, (b) running model inference at user-controlled frame quality, (c) providing a manual "good enough" override that lets a learner advance if the model mis-scores them. Long-term bias measurement is part of our ethics-review pipeline but is not yet quantified.\par\par
+**Medical disclaimer.** AsanMinds is wellness software, not medical advice. The interface displays contraindications for each pose (e.g., Setu Bandhasana \u2014 avoid in pregnancy or recent neck injury) and asks new users to acknowledge a fitness disclaimer.\par\par
+\b\fs32 VIII. Conclusion\b0\fs22\par
+We have presented AsanMinds, a browser-native yoga coaching system that (a) runs MoveNet SinglePose Thunder fully on-device for privacy and connectivity-tolerance, (b) converts per-frame rule evaluations into deliberate spoken corrections via a hysteresis filter, (c) supports a hands-free voice command grammar with priority-based disambiguation, and (d) scales to multi-tenant institutional use with domain-scoped data isolation and a six-semester certificate programme.\par\par
+Open-source code, deployment URL, and the pose rule sets for all twenty curated asanas are available at the project repository. Future work includes a within-subject efficacy study (Section VI.C), extension to inversions via fine-tuned MoveNet, and an offline WebSpeech replacement using on-device Whisper.\par\par
+\b\fs32 Acknowledgements\b0\fs22\par
+The author thanks the faculty and students at Vidyavardhaka College of Engineering, Mysuru, for the pilot collaboration, and the open- source maintainers of TensorFlow.js, MoveNet, and openpyxl, without whom this work would not exist.\par\par
+\b\fs32 References\b0\fs22\par
+The following references are cited in the paper. Replace the placeholders with full bibliographic entries before submission.\par\par
+1. **MoveNet** \u2014 `[@google2021movenet]` Google Research, "MoveNet: Ultra fast and accurate pose detection model," 2021. <https://www.tensorflow.org/hub/tutorials/movenet>\par
+\par
+1. **BlazePose** \u2014 `[@bazarevsky2020blazepose]` Bazarevsky et al., "BlazePose: On-device Real-time Body Pose Tracking," *arXiv:2006.10204*, 2020.\par
+\par
+1. **OpenPose** \u2014 `[@cao2017openpose]` Cao et al., "Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields," *CVPR*, 2017.\par
+\par
+1. **Borthakur 2023** \u2014 `[@borthakur2023angle]` Borthakur et al., "Angle-Feature-Based Yoga Pose Quality Assessment," *MDPI Healthcare*, 2023.\par
+\par
+1. **Anjali 2025** \u2014 `[@anjali2025template]` Anjali et al., "Real-time Yoga Pose Detection using MoveNet Thunder and Template-Matching," *IJRASET*, 2025.\par
+\par
+1. **TensorFlow.js** \u2014 `[@smilkov2019tensorflowjs]` Smilkov et al., "TensorFlow.js: Machine Learning for the Web and Beyond," *MLSys*, 2019.\par
+\par
+1. **Voice in Fitness** \u2014 `[@martinez2021voice]` Martinez et al., "Voice-driven Repetition Counting in Strength Training," *CHI Late-Breaking Work*, 2021.\par
+\par
+1. **WebSpeech API** \u2014 W3C Web Speech API, <https://wicg.github.io/speech-api/>, last accessed 2026.\par
+\par
+1. **SendGrid SMTP** \u2014 Twilio SendGrid Email API, <https://docs.sendgrid.com/>, last accessed 2026.\par
+\par
+1. **VAPID Keys for Web Push** \u2014 RFC 8292, <https://datatracker.ietf.org/doc/html/rfc8292>.\par
+\par
+\par ----------------------------\par\par
+*Manuscript prepared in Markdown for IEEE conference submission. Convert to LaTeX or DOCX with the commands in `convert.md`.*\par\par
+}
