@@ -10,9 +10,14 @@
     <link rel="apple-touch-icon" href="/assets/logo.png">
     <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
     <link rel="alternate icon" type="image/png" href="/assets/logo.png">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.13.0/dist/tf.min.js"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+    <!-- TF.js + pose-detection: local-first so the app works fully
+         offline after first load. CDN fallback runs only if the local
+         scripts 404 (e.g., during local-dev before fetch_offline_assets
+         was run). -->
+    <script src="/static/vendor/tf.min.js"
+            onerror="document.write('<script src=\'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.13.0/dist/tf.min.js\'><\/script>')"></script>
+    <script src="/static/vendor/pose-detection.min.js"
+            onerror="document.write('<script src=\'https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js\'><\/script>')"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
@@ -22,6 +27,7 @@
     <script src="/static/practice-flow.js"></script>
     <script src="/static/pose-notes.js"></script>
     <script src="/static/courses.js"></script>
+    <script src="/static/offline-queue.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -341,6 +347,18 @@
             <nav id="top-nav" class="hidden md:flex items-center" style="gap:4px"></nav>
 
             <div class="flex items-center" style="gap:12px">
+                <span id="conn-pill" title="Connection status"
+                      class="hidden sm:inline-flex items-center"
+                      style="gap:6px; height:32px; padding:0 12px; border-radius:9999px;
+                             background:#D4F5DC; color:#3E8A52;
+                             border:1px solid rgba(62,138,82,0.25);
+                             font-size:11px; font-weight:600;
+                             letter-spacing:0.06em; text-transform:uppercase;
+                             transition: all .25s ease;">
+                    <span id="conn-dot" style="width:8px;height:8px;border-radius:9999px;
+                                                background:#3E8A52;display:inline-block"></span>
+                    <span id="conn-label">Online</span>
+                </span>
                 <button id="commands-btn" onclick="app.openCommandLibrary()" title="Command library" aria-label="Show voice commands"
                     class="flex items-center justify-center pressable" style="width:40px; height:40px; border-radius:9999px; background:#EEE9DE; border:1px solid #D4CCB8; color:#4A453B">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
@@ -2393,6 +2411,10 @@
                             modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
                             enableSmoothing: true,
                             minPoseScore: 0.3,
+                            // Local model URL — bypasses tfhub.dev (dead) and the
+                            // Kaggle redirect chain. Cached by the service worker so
+                            // it works fully offline after first visit.
+                            modelUrl: '/static/models/movenet/model.json',
                         };
                         this.detector = await poseDetection.createDetector(model, detectorConfig);
                         updateStatus("Model loaded. Requesting camera access...");
@@ -4186,14 +4208,19 @@
                     this.videoStream.getTracks().forEach(t => t.stop());
                 }
 
-                // Sync server (best-effort).
+                // Sync server (best-effort, queues offline via OfflineQueue).
                 if (success) {
-                    fetch('/api/complete_pose', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ pose_name: this.currentPose, accuracy: finalScore || 90, time_held: 10 }),
-                    }).catch(() => {});
+                    const _payload = { pose_name: this.currentPose, accuracy: finalScore || 90, time_held: 10 };
+                    if (window.OfflineQueue) {
+                        window.OfflineQueue.apiWrite('/api/complete_pose', _payload).catch(() => {});
+                    } else {
+                        fetch('/api/complete_pose', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(_payload),
+                        }).catch(() => {});
+                    }
                 }
 
                 let endMsg = success ? '✅ ' + message : '❌ ' + message;
@@ -4376,15 +4403,20 @@
             // ─────────────────────────────────────────────────
             _syncCourseProgress() {
                 // Debounced PUT — coalesces rapid mutations (e.g. quiz + AR
-                // both completing within seconds) into one request.
+                // both completing within seconds) into one request. Offline-aware:
+                // OfflineQueue.apiWrite queues the PUT for later replay if the
+                // network is down.
                 clearTimeout(this._syncTimer);
                 this._syncTimer = setTimeout(() => {
-                    fetch('/api/course-progress', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ progress: this.courseProgress }),
-                    }).catch(() => {});
+                    const _writer = window.OfflineQueue
+                        ? (u, b) => window.OfflineQueue.apiWrite(u, b, { method: 'PUT' })
+                        : (u, b) => fetch(u, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(b),
+                        });
+                    _writer('/api/course-progress', { progress: this.courseProgress }).catch(() => {});
                 }, 800);
             },
 
@@ -4407,12 +4439,17 @@
             _savePreferences(partial) {
                 this.preferences = { ...(this.preferences || {}), ...partial };
                 this._applyPreferences();
-                fetch('/api/preferences', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ preferences: this.preferences }),
-                }).catch(() => {});
+                if (window.OfflineQueue) {
+                    window.OfflineQueue.apiWrite('/api/preferences',
+                        { preferences: this.preferences }, { method: 'PUT' }).catch(() => {});
+                } else {
+                    fetch('/api/preferences', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ preferences: this.preferences }),
+                    }).catch(() => {});
+                }
             },
 
             _applyTheme(theme) {
@@ -4899,22 +4936,47 @@
 
                 if (!this.currentView) this.currentView = 'dashboard';
 
-                // Fetch user data for dashboard personalization
+                // Fetch user data for dashboard personalization (offline-aware)
                 try {
                     const res = await fetch('/api/profile', { credentials: 'same-origin' });
+                    let offlineFallback = false;
+                    let payload = null;
                     if (res.ok) {
-                        this.userData = await res.json();
-                        window.__user_name = this.userData.name || '';
+                        payload = await res.json();
+                        // Successful online fetch — stash a snapshot so the next
+                        // offline boot can render the dashboard with real data.
+                        try { localStorage.setItem('sunday_profile_cache', JSON.stringify({
+                            name: payload.name, email: payload.email,
+                            picture: payload.picture, created_at: payload.created_at,
+                            cachedAt: Date.now(),
+                        })); } catch (_) {}
+                    } else {
+                        // 503 with {offline:true} from the SW means we're offline.
+                        // Fall back to the cached profile snapshot.
+                        offlineFallback = true;
+                    }
+                    if (offlineFallback || !payload) {
+                        try {
+                            const cached = JSON.parse(localStorage.getItem('sunday_profile_cache') || 'null');
+                            if (cached && cached.email) {
+                                payload = cached;
+                                console.log('[boot] using cached profile (offline)');
+                            }
+                        } catch (_) {}
+                    }
+                    if (payload) {
+                        this.userData = payload;
+                        window.__user_name = payload.name || '';
                         // Update avatar initial — or Google profile photo if available
                         const av = document.getElementById('avatar-btn');
                         if (av) {
-                            if (this.userData.picture) {
-                                av.style.backgroundImage = `url(${this.userData.picture})`;
+                            if (payload.picture) {
+                                av.style.backgroundImage = `url(${payload.picture})`;
                                 av.style.backgroundSize = 'cover';
                                 av.style.backgroundPosition = 'center';
                                 av.textContent = '';
-                            } else if (this.userData.name) {
-                                av.textContent = (this.userData.name || 'A').trim().charAt(0).toUpperCase();
+                            } else if (payload.name) {
+                                av.textContent = (payload.name || 'A').trim().charAt(0).toUpperCase();
                             }
                         }
 
@@ -4922,7 +4984,7 @@
                         // Falls back to demo date only if user has no created_at.
                         try {
                             if (typeof CourseUtils !== 'undefined' && CourseUtils.setCourseStartDate) {
-                                const created = this.userData.created_at;
+                                const created = payload.created_at;
                                 if (created) CourseUtils.setCourseStartDate(created);
                             }
                         } catch (_) {}
@@ -4934,11 +4996,11 @@
                         // inherit course progress, quiz attempts, or session
                         // history from the previous user on this device.
                         try {
-                            const myEmail = (this.userData.email || '').toLowerCase();
+                            const myEmail = (payload.email || '').toLowerCase();
                             const owner = (localStorage.getItem('sunday_user_email') || '').toLowerCase();
                             if (myEmail && owner && myEmail !== owner) {
                                 console.log('account switch detected (' + owner + ' → ' + myEmail + '); clearing local cache');
-                                ['courseProgress', 'sundayCourseStartDate', 'sunday_voice_history', 'sunday_pose_difficulty', 'sunday_onboarding_done'].forEach(k => {
+                                ['courseProgress', 'sundayCourseStartDate', 'sunday_voice_history', 'sunday_pose_difficulty', 'sunday_onboarding_done', 'sunday_profile_cache'].forEach(k => {
                                     try { localStorage.removeItem(k); } catch (_) {}
                                 });
                                 // Rebuild a fresh progress shell — the next
@@ -5055,17 +5117,20 @@
                 this._logEvent('app_init', { view: this.currentView });
 
                 // ── Sync localStorage history to MongoDB (item 37) ──
-                // Runs once on init, non-blocking. Ensures history survives
-                // browser clears.
+                // Runs once on init, non-blocking. Queues if offline.
                 try {
                     const hist = JSON.parse(localStorage.getItem('sunday_voice_history') || '[]');
                     if (hist.length > 0) {
-                        fetch('/api/sync-history', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'same-origin',
-                            body: JSON.stringify({ sessions: hist }),
-                        }).catch(() => {});
+                        if (window.OfflineQueue) {
+                            window.OfflineQueue.apiWrite('/api/sync-history', { sessions: hist }).catch(() => {});
+                        } else {
+                            fetch('/api/sync-history', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ sessions: hist }),
+                            }).catch(() => {});
+                        }
                     }
                 } catch(_){}
 
@@ -5787,6 +5852,59 @@
 
             // Initialize App
             app.init();
+
+            // ── Connectivity pill ──
+            // Lightweight UI signal — green/Online, amber/Offline,
+            // saffron/Syncing N. Polls OfflineQueue.pending() whenever
+            // the queue or connectivity state changes.
+            (function setupConnectivityPill() {
+                const pill = document.getElementById('conn-pill');
+                const dot = document.getElementById('conn-dot');
+                const label = document.getElementById('conn-label');
+                if (!pill || !dot || !label) return;
+                let lastOnline = navigator.onLine !== false;
+                async function refresh() {
+                    const online = navigator.onLine !== false;
+                    let queued = 0;
+                    try {
+                        if (window.OfflineQueue) queued = await window.OfflineQueue.pending();
+                    } catch (_) {}
+                    if (!online) {
+                        pill.style.background = '#FDE9CC';
+                        pill.style.color = '#A16207';
+                        pill.style.borderColor = 'rgba(161,98,7,0.25)';
+                        dot.style.background = '#A16207';
+                        label.textContent = queued > 0 ? `Offline · ${queued} queued` : 'Offline';
+                    } else if (queued > 0) {
+                        pill.style.background = '#F3D58C';
+                        pill.style.color = '#9C6E1A';
+                        pill.style.borderColor = 'rgba(156,110,26,0.25)';
+                        dot.style.background = '#E0A23F';
+                        label.textContent = `Syncing · ${queued}`;
+                        // Nudge the SW to drain the queue.
+                        if (window.OfflineQueue) window.OfflineQueue.flush();
+                    } else {
+                        pill.style.background = '#D4F5DC';
+                        pill.style.color = '#3E8A52';
+                        pill.style.borderColor = 'rgba(62,138,82,0.25)';
+                        dot.style.background = '#3E8A52';
+                        label.textContent = 'Online';
+                    }
+                    if (online !== lastOnline) {
+                        // Toast on transition.
+                        try { app.speakCorrection(online
+                            ? 'Back online. Syncing your progress.'
+                            : 'Offline mode. Practice continues; we\'ll sync when you\'re back.', true); } catch (_) {}
+                        lastOnline = online;
+                    }
+                }
+                window.addEventListener('online', refresh);
+                window.addEventListener('offline', refresh);
+                if (window.OfflineQueue) window.OfflineQueue.onChange(refresh);
+                refresh();
+                // Re-check every 30s in case the OS lies about connectivity.
+                setInterval(refresh, 30 * 1000);
+            })();
 
             // Hide Premium Loader after a short delay to ensure assets are ready
             setTimeout(() => {
