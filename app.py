@@ -1270,6 +1270,15 @@ INDEX_HTML = """
 
 @app.route('/')
 def index():
+    # If the visitor is already signed in, send them to the right
+    # surface so the PWA's start_url ('/') lands them in the app
+    # (not on the marketing landing) when they tap the installed icon.
+    if session.get('logged_in'):
+        if session.get('role') == 'org_admin':
+            return redirect('/org')
+        if session.get('role') == 'super_admin':
+            return redirect('/admin')
+        return redirect(url_for('home'))
     return render_template_string(INDEX_HTML)
 
 @app.route('/main')
