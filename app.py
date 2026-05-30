@@ -592,9 +592,11 @@ INDEX_HTML = """
     <meta name="description" content="AsanMinds is an AI-guided yoga platform with real-time pose correction, voice coaching, six-semester courseware, and institutional dashboards. Built for colleges, scaled for everyone.">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0F3D2E">
-    <link rel="apple-touch-icon" href="/assets/logo.png">
+    <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/brand/logo-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/assets/brand/logo-512.png">
     <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/logo.png">
+    <link rel="alternate icon" type="image/png" href="/assets/brand/logo-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

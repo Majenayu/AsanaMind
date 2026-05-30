@@ -12,7 +12,7 @@
  *      returns. The page can also nudge us with a `flush-outbox`
  *      postMessage when the browser fires its `online` event.
  */
-const CACHE_NAME = 'sunday-v12';
+const CACHE_NAME = 'sunday-v13';
 
 // Tier 1 — must succeed at install or the offline experience is broken.
 // We allow the install to proceed even if any of these fail individually,
@@ -40,6 +40,9 @@ const ESSENTIAL_ASSETS = [
     '/static/models/movenet/group1-shard3of3.bin',
     '/manifest.json',
     '/assets/brand/logo1.png',
+    '/assets/brand/logo-192.png',
+    '/assets/brand/logo-512.png',
+    '/assets/brand/apple-touch-icon.png',
     '/assets/brand/logo.svg',
     '/assets/brand/favicon.svg',
 ];
@@ -336,7 +339,7 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(title, {
         body,
         tag,
-        icon: '/assets/brand/logo1.png',
+        icon: '/assets/brand/logo-192.png',
         badge: '/assets/brand/favicon.svg',
         vibrate: [120, 60, 120],
         data: { url },
