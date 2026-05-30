@@ -202,21 +202,69 @@
             border: 1px solid var(--primary-2);
             box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.18);
         }
-        /* Mobile-first portrait — fill the visible viewport so the camera
-           feels like a phone-native AR experience (item 8). */
+        /* ─── Mobile portrait AR layout ─────────────────────────────
+           Video dominates the screen. Feedback panel is compact and
+           sits below the video; user can scroll to see corrections.
+           No sticky-bottom feedback (that hides the video) and no
+           sticky video either (browser scroll fights AR canvas). */
         @media (max-width: 768px) and (orientation: portrait) {
+            #ar-session > div:first-child { gap: 10px !important; }
             #video-container {
-                height: 60vh;
-                max-height: none;
-                border-radius: 22px;
-                margin-bottom: 12px;
+                height: 58vh !important;
+                min-height: 360px;
+                max-height: none !important;
+                border-radius: 18px;
+                margin-bottom: 10px;
             }
             #ar-session #feedback-area {
-                position: sticky;
-                bottom: 0;
-                margin-top: 0;
-                border-radius: 22px 22px 0 0;
-                padding: 18px;
+                margin-top: 0 !important;
+                padding: 14px 16px !important;
+                border-radius: 18px !important;
+                font-size: 13px;
+            }
+            /* Smaller hero score on phones */
+            #ar-session #feedback-area .font-display {
+                font-size: 17px !important;
+                line-height: 1.3 !important;
+            }
+            #ar-session #pose-score {
+                font-size: 36px !important;
+                font-weight: 300 !important;
+            }
+            #ar-session #current-feedback-text {
+                font-size: 16px !important;
+                margin: 6px 0 0 !important;
+            }
+            #ar-session #correction-log {
+                max-height: 90px !important;
+                padding-top: 10px !important;
+            }
+            /* Tighter button row — single horizontal scroll */
+            #ar-session #feedback-area button {
+                padding: 8px 14px !important;
+                font-size: 12px !important;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            /* Drop kicker line-height so the heading isn't huge */
+            #ar-session #feedback-area .kicker {
+                font-size: 10px !important;
+                letter-spacing: 0.18em !important;
+            }
+            /* Reference container (if visible) — narrower height to match */
+            #reference-container #reference-media-container {
+                height: 38vh !important;
+                max-height: none !important;
+            }
+            /* Pull the AR session up flush with the topbar so the camera
+               feels like the focus — kill the page-level top padding. */
+            .content-main { padding-top: 12px !important; }
+        }
+        @media (max-width: 768px) and (orientation: landscape) {
+            #video-container {
+                height: 80vh !important;
+                max-height: none !important;
+                min-height: 280px;
             }
         }
         #video-feed {
