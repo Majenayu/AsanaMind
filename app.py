@@ -1827,6 +1827,18 @@ button:disabled{background:#A8A294;cursor:not-allowed}
   <button id="prompt-btn" disabled>Install now</button>
 </div>
 
+<div class="card" style="background:#FDF1E1;border-color:#E0A23F">
+  <h3 style="margin:0 0 10px;font-size:15px;color:#9C6E1A">If install button stays disabled</h3>
+  <p style="margin:0 0 8px;font-size:13px;color:#4A453B">Chrome only fires <code>beforeinstallprompt</code> once per device per origin — if AsanMinds was ever installed on this device, the prompt is permanently suppressed unless you fully reset:</p>
+  <ol style="font-size:13px;color:#4A453B;padding-left:20px;line-height:1.7;margin:0 0 8px">
+    <li>Long-press any AsanMinds icon on your home screen → <b>Uninstall</b> (or Remove app).</li>
+    <li>Open Chrome <b>⋮ menu → Settings → Site settings → All sites</b> → find <b>asanamindvvce.onrender.com</b> → tap <b>Clear &amp; reset</b>. <i>(Critical step.)</i></li>
+    <li>Force-stop Chrome (Settings → Apps → Chrome → Force stop), or simply restart your phone.</li>
+    <li>Open Chrome again, visit this site, scroll a bit, then return to /install-debug. The Install button should now be active.</li>
+  </ol>
+  <p style="margin:0;font-size:12px;color:#7A7364"><b>Why this is needed:</b> Chrome stores per-site install state in its profile data. Even after you remove the launcher shortcut, Chrome still believes the PWA is installed and will not offer it again until you clear that record.</p>
+</div>
+
 <div class="card">
   <h3 style="margin:0 0 10px;font-size:15px">Manifest snapshot</h3>
   <pre id="manifest">Loading...</pre>
@@ -1878,15 +1890,19 @@ button:disabled{background:#A8A294;cursor:not-allowed}
     row('maskable icon', hasMaskable ? 'yes' : 'no (recommended)', hasMaskable ? 'ok' : 'warn');
   }
 
-  // Test start_url cold
+  // Test start_url cold. Chrome's actual eligibility check follows
+  // redirects and accepts a final 200; our diagnostic should match
+  // that behaviour rather than artificially failing on `redirect: manual`.
   if (manifestData && manifestData.start_url) {
     try {
-      const r = await fetch(manifestData.start_url, { credentials: 'omit', redirect: 'manual' });
-      const isOk = r.type === 'opaqueredirect' ? false : r.ok;
-      const code = r.type === 'opaqueredirect' ? '302 redirect' : r.status;
-      row('start_url returns 200 cold', `${code}`, isOk ? 'ok' : 'bad');
+      const r = await fetch(manifestData.start_url, { credentials: 'omit' });
+      if (r.ok) {
+        row('start_url returns 200', `200 (${r.url})`, 'ok');
+      } else {
+        row('start_url returns 200', String(r.status), 'bad');
+      }
     } catch(e) {
-      row('start_url returns 200 cold', 'fetch error', 'bad');
+      row('start_url returns 200', 'fetch error', 'bad');
     }
   }
 
@@ -1903,11 +1919,28 @@ button:disabled{background:#A8A294;cursor:not-allowed}
     document.getElementById('sw').textContent = 'This browser has no service worker support.';
   }
 
-  // Display mode
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    row('Already installed', 'yes (running as PWA)', 'ok');
+  // Display mode + install history
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
+  if (isStandalone) {
+    row('Already installed', 'YES — running as PWA right now', 'ok');
   } else {
-    row('Already installed', 'no', 'warn');
+    // Chrome remembers if this PWA was ever installed on this device.
+    // If yes, beforeinstallprompt will NEVER fire again until the user
+    // (a) removes the launcher icon AND (b) clears site data for this
+    // origin in chrome://settings.
+    let everInstalled = false;
+    try {
+      if ('getInstalledRelatedApps' in navigator) {
+        const apps = await navigator.getInstalledRelatedApps();
+        if (apps && apps.length) everInstalled = true;
+      }
+    } catch(_) {}
+    if (everInstalled) {
+      row('Already installed', 'YES — Chrome thinks AsanMinds is installed elsewhere on this device', 'warn');
+    } else {
+      row('Already installed', 'no (good — install prompt should fire)', 'ok');
+    }
   }
 
   out.innerHTML = rows.join('');
