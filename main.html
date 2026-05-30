@@ -5142,6 +5142,33 @@
                     );
                 }
 
+                // ── PWA install prompt ──
+                // We capture the beforeinstallprompt event so the browser
+                // doesn't fire its own "Add to Home Screen" snackbar (the
+                // one with the Chrome logo on the icon). Instead we surface
+                // a branded "Install AsanMinds" pill in the UI and only
+                // fire prompt() when the user explicitly taps it. That
+                // produces the proper "Install" dialog where Chrome adds
+                // the app to the launcher with NO Chrome chevron badge.
+                window.__deferredInstallPrompt = null;
+                window.addEventListener('beforeinstallprompt', (ev) => {
+                    ev.preventDefault();
+                    window.__deferredInstallPrompt = ev;
+                    this._showInstallPill();
+                });
+                window.addEventListener('appinstalled', () => {
+                    window.__deferredInstallPrompt = null;
+                    try { localStorage.setItem('sunday_pwa_installed', '1'); } catch(_){}
+                    const pill = document.getElementById('install-pill');
+                    if (pill) pill.remove();
+                    console.log('AsanMinds installed as PWA');
+                });
+                // Hide the pill when running as an installed PWA.
+                if (window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true) {
+                    try { localStorage.setItem('sunday_pwa_installed', '1'); } catch(_){}
+                }
+
                 // ── Global error boundary (item 38) ──
                 window.addEventListener('error', (e) => {
                     console.error('Uncaught error:', e.message, e.filename, e.lineno);
@@ -5529,6 +5556,11 @@
                             <span class="kicker" style="color:#7A7364;font-size:10px">Tour</span>
                             <button onclick="app.replayTour(); document.getElementById('cert-share-modal').classList.remove('active')" class="pressable" style="margin-top:8px;height:38px;width:100%;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Replay the spotlight tour</button>
                         </div>
+                        <div>
+                            <span class="kicker" style="color:#7A7364;font-size:10px">Install</span>
+                            <button onclick="app.installApp(); document.getElementById('cert-share-modal').classList.remove('active')" class="pressable" style="margin-top:8px;height:38px;width:100%;border-radius:10px;background:#0F3D2E;color:#F5F2EB;border:1px solid #0F3D2E;font-size:12px;font-weight:600;cursor:pointer">Install AsanMinds as an app</button>
+                            <p style="margin-top:6px;color:#A8A294;font-size:10.5px;line-height:1.4">Adds AsanMinds to your launcher with a real app icon, fullscreen, no browser chrome. Works offline once installed.</p>
+                        </div>
                         <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account &amp; all data</button>
                     </div>
                 `;
@@ -5735,6 +5767,110 @@
                 el.onclick = () => el.remove();
                 document.body.appendChild(el);
                 setTimeout(() => { if (el.parentNode) el.remove(); }, 8000);
+            },
+
+            /** Show the floating "Install app" pill. Only appears when
+             *  beforeinstallprompt has fired and the app isn't already
+             *  installed. The user can dismiss it for the session, but
+             *  it returns on next page load if still installable. */
+            _showInstallPill() {
+                if (document.getElementById('install-pill')) return;
+                if (localStorage.getItem('sunday_pwa_installed') === '1') return;
+                if (sessionStorage.getItem('sunday_install_pill_dismissed') === '1') return;
+                const el = document.createElement('div');
+                el.id = 'install-pill';
+                el.style.cssText = `
+                    position: fixed; left: 50%; transform: translateX(-50%);
+                    bottom: 96px; z-index: 200;
+                    background: #0F3D2E; color: #F5F2EB;
+                    border: 1px solid rgba(245,242,235,0.18);
+                    border-radius: 9999px;
+                    padding: 12px 18px 12px 14px;
+                    display: flex; align-items: center; gap: 12px;
+                    font-size: 13px; font-weight: 500;
+                    box-shadow: 0 16px 40px rgba(20,18,14,0.35);
+                    max-width: calc(100% - 32px);
+                    animation: installPillIn .35s cubic-bezier(.22,.8,.3,1);
+                `;
+                el.innerHTML = `
+                    <img src="/assets/brand/logo-192.png" alt=""
+                         style="width:28px;height:28px;border-radius:8px;flex-shrink:0">
+                    <span style="line-height:1.3">Install AsanMinds<br>
+                        <span style="color:#C7DBCE;font-size:11px;font-weight:400">Free, no app store, opens like a real app</span>
+                    </span>
+                    <button id="install-pill-go" style="
+                        background:#E0A23F;color:#0F3D2E;border:0;
+                        border-radius:9999px;padding:8px 16px;
+                        font-size:12px;font-weight:600;cursor:pointer;
+                        font-family:inherit;flex-shrink:0;
+                    ">Install</button>
+                    <button id="install-pill-x" aria-label="Dismiss" style="
+                        background:transparent;border:0;color:#A8A294;
+                        font-size:18px;cursor:pointer;padding:0 4px;
+                        font-family:inherit;flex-shrink:0;
+                    ">×</button>
+                `;
+                if (!document.getElementById('install-pill-anim-style')) {
+                    const s = document.createElement('style');
+                    s.id = 'install-pill-anim-style';
+                    s.textContent = '@keyframes installPillIn { from { opacity:0; transform:translateX(-50%) translateY(20px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }';
+                    document.head.appendChild(s);
+                }
+                document.body.appendChild(el);
+                document.getElementById('install-pill-go').onclick = () => this.installApp();
+                document.getElementById('install-pill-x').onclick = () => {
+                    try { sessionStorage.setItem('sunday_install_pill_dismissed', '1'); } catch(_) {}
+                    el.remove();
+                };
+            },
+
+            /** Trigger the real PWA install prompt. */
+            async installApp() {
+                const ev = window.__deferredInstallPrompt;
+                if (!ev) {
+                    // Fallback for iOS Safari (no beforeinstallprompt).
+                    this._showIosInstallSheet();
+                    return;
+                }
+                try {
+                    ev.prompt();
+                    const choice = await ev.userChoice;
+                    if (choice && choice.outcome === 'accepted') {
+                        try { localStorage.setItem('sunday_pwa_installed', '1'); } catch(_) {}
+                    }
+                } catch (e) {
+                    console.warn('install prompt failed', e);
+                }
+                window.__deferredInstallPrompt = null;
+                const pill = document.getElementById('install-pill');
+                if (pill) pill.remove();
+            },
+
+            /** iOS doesn't expose beforeinstallprompt. Show a one-time
+             *  instruction sheet for Safari users so they know how to
+             *  install via Share -> Add to Home Screen. */
+            _showIosInstallSheet() {
+                const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+                if (!isIos) return;
+                if (document.getElementById('ios-install-sheet')) return;
+                const el = document.createElement('div');
+                el.id = 'ios-install-sheet';
+                el.style.cssText = 'position:fixed;inset:0;z-index:210;background:rgba(20,18,14,.65);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;padding:16px';
+                el.innerHTML = `
+                    <div style="background:#F5F2EB;border-radius:24px 24px 24px 24px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 24px 60px rgba(20,18,14,.4)">
+                        <img src="/assets/brand/logo-192.png" style="width:48px;height:48px;border-radius:12px;display:block;margin-bottom:14px">
+                        <h3 style="font-family:'Fraunces',serif;font-size:24px;font-weight:300;margin:0 0 10px;color:#14120E;letter-spacing:-0.02em">Install on iPhone</h3>
+                        <ol style="padding-left:20px;color:#4A453B;font-size:14px;line-height:1.7">
+                            <li>Tap the <b>Share</b> button at the bottom of Safari</li>
+                            <li>Scroll down and choose <b>Add to Home Screen</b></li>
+                            <li>Tap <b>Add</b> in the top right</li>
+                        </ol>
+                        <p style="margin-top:14px;color:#7A7364;font-size:12px;line-height:1.5">AsanMinds will appear as its own icon, fullscreen, no browser chrome — runs offline once installed.</p>
+                        <button id="ios-sheet-close" style="margin-top:18px;width:100%;background:#0F3D2E;color:#F5F2EB;border:0;padding:14px;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Got it</button>
+                    </div>
+                `;
+                document.body.appendChild(el);
+                document.getElementById('ios-sheet-close').onclick = () => el.remove();
             },
 
             /** Accessibility: cycle font size (item 34). */

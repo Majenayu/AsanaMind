@@ -12,7 +12,7 @@
  *      returns. The page can also nudge us with a `flush-outbox`
  *      postMessage when the browser fires its `online` event.
  */
-const CACHE_NAME = 'sunday-v13';
+const CACHE_NAME = 'sunday-v14';
 
 // Tier 1 — must succeed at install or the offline experience is broken.
 // We allow the install to proceed even if any of these fail individually,
@@ -42,6 +42,8 @@ const ESSENTIAL_ASSETS = [
     '/assets/brand/logo1.png',
     '/assets/brand/logo-192.png',
     '/assets/brand/logo-512.png',
+    '/assets/brand/logo-192-maskable.png',
+    '/assets/brand/logo-512-maskable.png',
     '/assets/brand/apple-touch-icon.png',
     '/assets/brand/logo.svg',
     '/assets/brand/favicon.svg',
