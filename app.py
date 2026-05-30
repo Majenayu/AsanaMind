@@ -1752,12 +1752,30 @@ def logout():
 
 # Serve PWA Static Assets (Manifest & Service Worker)
 @app.route('/manifest.json')
+@app.route('/manifest.webmanifest')
 def serve_manifest():
-    return send_from_directory('.', 'manifest.json')
+    """Serve the PWA manifest with the correct MIME type.
+
+    Chrome's installability check is strict about Content-Type:
+    `application/manifest+json` is preferred over plain
+    `application/json`. Render's default static handler returns the
+    latter, which has been observed to silently downgrade installs
+    to "Add to Home Screen" on some devices.
+    """
+    resp = send_from_directory('.', 'manifest.json')
+    resp.headers['Content-Type'] = 'application/manifest+json; charset=utf-8'
+    resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    return resp
+
 
 @app.route('/sw.js')
 def serve_sw():
-    return send_from_directory('.', 'sw.js')
+    """Serve the service worker with Service-Worker-Allowed for full scope."""
+    resp = send_from_directory('.', 'sw.js')
+    resp.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    return resp
 
 # Serve static assets
 @app.route('/assets/<path:filename>')
@@ -1766,6 +1784,161 @@ def serve_asset(filename):
         return send_from_directory('assets', filename)
     except FileNotFoundError:
         return "Asset not found.", 404
+
+
+# PWA install diagnostic — visit /install-debug on your phone to see
+# exactly what Chrome thinks of the install eligibility. Useful when
+# the install banner refuses to appear.
+@app.route('/install-debug')
+def install_debug():
+    return """<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PWA install diagnostic · AsanMinds</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0F3D2E">
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#F5F2EB;color:#14120E;margin:0;padding:24px;line-height:1.55;max-width:680px;margin:0 auto}
+h1{font-size:22px;margin:0 0 8px;color:#0F3D2E}
+.card{background:#fff;border:1px solid #D4CCB8;border-radius:14px;padding:16px;margin:12px 0}
+.ok{color:#3E8A52;font-weight:600}
+.bad{color:#C2552F;font-weight:600}
+.warn{color:#A16207;font-weight:600}
+code{background:#EEE9DE;padding:2px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,monospace}
+pre{background:#EEE9DE;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.5}
+button{background:#0F3D2E;color:#F5F2EB;border:0;padding:14px 24px;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;width:100%;font-family:inherit}
+button:disabled{background:#A8A294;cursor:not-allowed}
+.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #EEE9DE}
+.row:last-child{border-bottom:0}
+.label{color:#7A7364;font-size:13px}
+</style>
+</head><body>
+<h1>PWA install diagnostic</h1>
+<p style="color:#7A7364;font-size:13px;margin:4px 0 18px">If install isn't working on this device, this page tells you why.</p>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;font-size:15px">Chrome's install criteria</h3>
+  <div id="criteria">Loading...</div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;font-size:15px">Try the install prompt</h3>
+  <p id="prompt-status" style="font-size:13px;color:#7A7364;margin:0 0 8px">Waiting for the browser to fire <code>beforeinstallprompt</code>...</p>
+  <button id="prompt-btn" disabled>Install now</button>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;font-size:15px">Manifest snapshot</h3>
+  <pre id="manifest">Loading...</pre>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;font-size:15px">Service worker</h3>
+  <div id="sw">Loading...</div>
+</div>
+
+<script>
+(async function(){
+  const out = document.getElementById('criteria');
+  const rows = [];
+  function row(label, val, kind){
+    const cls = kind === 'ok' ? 'ok' : kind === 'bad' ? 'bad' : 'warn';
+    rows.push(`<div class="row"><span class="label">${label}</span><span class="${cls}">${val}</span></div>`);
+  }
+
+  row('HTTPS', location.protocol === 'https:' ? 'yes' : 'NO (required)', location.protocol === 'https:' ? 'ok' : 'bad');
+
+  // Manifest fetch
+  let manifestOk = false;
+  let manifestData = null;
+  try {
+    const r = await fetch('/manifest.json');
+    if (r.ok) {
+      manifestData = await r.json();
+      manifestOk = true;
+      row('Manifest reachable', `200, type=${r.headers.get('content-type')||'?'}`, 'ok');
+    } else {
+      row('Manifest reachable', `${r.status}`, 'bad');
+    }
+  } catch(e) {
+    row('Manifest reachable', 'fetch failed', 'bad');
+  }
+  document.getElementById('manifest').textContent = manifestData ? JSON.stringify(manifestData, null, 2) : 'Could not load.';
+
+  if (manifestData) {
+    row('manifest.name', manifestData.name || manifestData.short_name || 'MISSING', (manifestData.name || manifestData.short_name) ? 'ok' : 'bad');
+    row('manifest.start_url', manifestData.start_url || 'MISSING', manifestData.start_url ? 'ok' : 'bad');
+    row('manifest.display', manifestData.display, ['standalone','fullscreen','minimal-ui'].includes(manifestData.display) ? 'ok' : 'bad');
+    const icons = manifestData.icons || [];
+    const has192 = icons.some(i => (i.sizes||'').includes('192'));
+    const has512 = icons.some(i => (i.sizes||'').includes('512'));
+    const hasMaskable = icons.some(i => (i.purpose||'').includes('maskable'));
+    row('icon 192x192', has192 ? 'yes' : 'NO (required)', has192 ? 'ok' : 'bad');
+    row('icon 512x512', has512 ? 'yes' : 'NO (required)', has512 ? 'ok' : 'bad');
+    row('maskable icon', hasMaskable ? 'yes' : 'no (recommended)', hasMaskable ? 'ok' : 'warn');
+  }
+
+  // Test start_url cold
+  if (manifestData && manifestData.start_url) {
+    try {
+      const r = await fetch(manifestData.start_url, { credentials: 'omit', redirect: 'manual' });
+      const isOk = r.type === 'opaqueredirect' ? false : r.ok;
+      const code = r.type === 'opaqueredirect' ? '302 redirect' : r.status;
+      row('start_url returns 200 cold', `${code}`, isOk ? 'ok' : 'bad');
+    } catch(e) {
+      row('start_url returns 200 cold', 'fetch error', 'bad');
+    }
+  }
+
+  // SW
+  if ('serviceWorker' in navigator) {
+    const reg = await navigator.serviceWorker.getRegistration();
+    row('Service worker registered', reg ? 'yes' : 'NO (required)', reg ? 'ok' : 'bad');
+    document.getElementById('sw').innerHTML = reg
+      ? `<p style="font-size:13px;margin:0">Active: <code>${reg.active ? reg.active.scriptURL : 'pending'}</code></p>
+         <p style="font-size:13px;margin:6px 0 0">Scope: <code>${reg.scope}</code></p>`
+      : '<p class="bad">Not registered. The install prompt requires an active service worker.</p>';
+  } else {
+    row('Service worker support', 'no', 'bad');
+    document.getElementById('sw').textContent = 'This browser has no service worker support.';
+  }
+
+  // Display mode
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    row('Already installed', 'yes (running as PWA)', 'ok');
+  } else {
+    row('Already installed', 'no', 'warn');
+  }
+
+  out.innerHTML = rows.join('');
+})();
+
+let deferred = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferred = e;
+  document.getElementById('prompt-btn').disabled = false;
+  document.getElementById('prompt-status').innerHTML =
+    '<span class="ok">Browser fired <code>beforeinstallprompt</code> — install is supported on this device.</span>';
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('prompt-status').innerHTML =
+    '<span class="ok">Installed. Check your launcher.</span>';
+});
+document.getElementById('prompt-btn').onclick = async () => {
+  if (!deferred) return;
+  deferred.prompt();
+  const choice = await deferred.userChoice;
+  document.getElementById('prompt-status').innerHTML =
+    `<span class="ok">User choice: ${choice.outcome}</span>`;
+  deferred = null;
+  document.getElementById('prompt-btn').disabled = true;
+};
+
+// SW
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+</script>
+</body></html>"""
 
 
 # =============================================================
