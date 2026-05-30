@@ -1,19 +1,13 @@
 {
-  "id": "asanminds-sunday",
-  "name": "AsanMinds — Sunday",
+  "name": "AsanMinds",
   "short_name": "AsanMinds",
-  "description": "AI yoga that watches, listens, and teaches you back. Real-time pose correction, voice coaching, six-semester certificate course — all in your browser.",
-  "categories": ["health", "fitness", "lifestyle", "education"],
-  "lang": "en-IN",
-  "dir": "ltr",
-  "start_url": "/?source=pwa",
+  "description": "AI yoga that watches, listens, and teaches you back.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#F5F2EB",
   "theme_color": "#0F3D2E",
-  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/assets/brand/logo-192.png",
@@ -38,22 +32,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Start practice",
-      "short_name": "Practice",
-      "description": "Open the AR coach",
-      "url": "/?source=pwa-shortcut&view=ar_correction",
-      "icons": [{ "src": "/assets/brand/logo-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "Pose library",
-      "short_name": "Library",
-      "description": "Browse all 20 asanas",
-      "url": "/?source=pwa-shortcut&view=asana",
-      "icons": [{ "src": "/assets/brand/logo-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

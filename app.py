@@ -1123,6 +1123,30 @@ INDEX_HTML = """
     // Year stamp
     document.getElementById('yr').textContent = new Date().getFullYear();
 
+    // If we're an installed PWA OR we already have a valid session,
+    // skip the marketing page and go straight to /home. This keeps
+    // the cold install-check (which fetches '/' without cookies) on
+    // a stable 200 marketing page, but makes the installed app open
+    // directly to the dashboard.
+    (async function autoRouteLoggedInUsers() {
+        try {
+            const isPwa = window.matchMedia('(display-mode: standalone)').matches
+                       || window.navigator.standalone === true;
+            // Cheap session check — /api/profile returns 401 if logged out.
+            const r = await fetch('/api/profile', { credentials: 'same-origin' });
+            if (r.ok) {
+                if (isPwa) {
+                    window.location.replace('/home');
+                } else {
+                    // For tab visitors, only redirect if they explicitly
+                    // arrived via the install shortcut (?source=pwa).
+                    const params = new URLSearchParams(location.search);
+                    if (params.has('source')) window.location.replace('/home');
+                }
+            }
+        } catch (_) { /* offline or no session — stay on landing */ }
+    })();
+
     // Service worker
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
@@ -1270,15 +1294,12 @@ INDEX_HTML = """
 
 @app.route('/')
 def index():
-    # If the visitor is already signed in, send them to the right
-    # surface so the PWA's start_url ('/') lands them in the app
-    # (not on the marketing landing) when they tap the installed icon.
-    if session.get('logged_in'):
-        if session.get('role') == 'org_admin':
-            return redirect('/org')
-        if session.get('role') == 'super_admin':
-            return redirect('/admin')
-        return redirect(url_for('home'))
+    # Render the landing page unconditionally — Chrome's WebAPK
+    # install check fetches start_url cold and any conditional 302
+    # redirect (e.g., bouncing logged-in users to /home) appears to
+    # confuse the eligibility heuristic on some Android builds. Let
+    # the SPA-side router carry signed-in users into /home after the
+    # page loads (the landing JS already does that).
     return render_template_string(INDEX_HTML)
 
 @app.route('/main')
