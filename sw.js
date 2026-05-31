@@ -12,7 +12,7 @@
  *      returns. The page can also nudge us with a `flush-outbox`
  *      postMessage when the browser fires its `online` event.
  */
-const CACHE_NAME = 'sunday-v19';
+const CACHE_NAME = 'sunday-v20';
 
 // Tier 1 — must succeed at install or the offline experience is broken.
 // We allow the install to proceed even if any of these fail individually,
@@ -26,6 +26,7 @@ const CACHE_NAME = 'sunday-v19';
 const ESSENTIAL_ASSETS = [
     '/',
     '/static/poses.js',
+    '/static/pose-models.js',
     '/static/voice-kb.js',
     '/static/pose-cues.js',
     '/static/practice-flow.js',

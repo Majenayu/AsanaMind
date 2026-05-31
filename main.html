@@ -24,6 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
     <script src="/static/poses.js"></script>
+    <script src="/static/pose-models.js"></script>
     <script src="/static/voice-kb.js"></script>
     <script src="/static/pose-cues.js"></script>
     <script src="/static/practice-flow.js"></script>
@@ -2451,39 +2452,49 @@
                 }
 
 
-                // 1. Load Model
-                if (!this.detector) {
-                    try {
+                // 1. Load Model — pick best per pose via PoseModelDispatcher
+                // Some poses (Balasana, Sukhasana, Bridge, etc.) score
+                // poorly under MoveNet because of self-occlusion — those
+                // are tagged with preferredModel='blazepose-lite' or
+                // 'blazepose-heavy' in static/poses.js and the dispatcher
+                // lazy-loads MediaPipe BlazePose for them.
+                const _selectedPose = (typeof asanaData !== 'undefined' && this.currentPose)
+                    ? asanaData.find(a => a.name === this.currentPose) : null;
+                const _modelKey = (window.PoseModelDispatcher && _selectedPose)
+                    ? PoseModelDispatcher.modelFor(_selectedPose)
+                    : 'movenet-thunder';
+                this._activeModelKey = _modelKey;
+                try {
+                    if (window.PoseModelDispatcher) {
+                        updateStatus(_modelKey === 'movenet-thunder'
+                            ? 'Loading MoveNet model...'
+                            : 'Loading specialised pose model...');
+                        this.detector = await PoseModelDispatcher.getDetector(_modelKey);
+                        updateStatus('Model loaded. Requesting camera access...');
+                    } else {
+                        // Fallback if pose-models.js failed to load —
+                        // use the legacy MoveNet path so the app keeps
+                        // working without the dispatcher.
                         const model = poseDetection.SupportedModels.MoveNet;
                         const detectorConfig = {
-                            // Thunder is ~3x more accurate than Lightning on joint
-                            // angles, which is what yoga pose rules rely on. Slower
-                            // fps (~10-15 on CPU, ~25 on GPU) is an acceptable trade.
-                            // Healer fallback: if Thunder failed last attempt
-                            // and HealthMonitor flagged it, retry with Lightning.
-                            modelType: (function () {
-                                try {
-                                    return sessionStorage.getItem('sunday_movenet_fallback') === 'lightning'
-                                        ? poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
-                                        : poseDetection.movenet.modelType.SINGLEPOSE_THUNDER;
-                                } catch (_) {
-                                    return poseDetection.movenet.modelType.SINGLEPOSE_THUNDER;
-                                }
-                            })(),
+                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
                             enableSmoothing: true,
                             minPoseScore: 0.3,
-                            // Local model URL — bypasses tfhub.dev (dead) and the
-                            // Kaggle redirect chain. Cached by the service worker so
-                            // it works fully offline after first visit.
                             modelUrl: '/static/models/movenet/model.json',
                         };
                         this.detector = await poseDetection.createDetector(model, detectorConfig);
-                        updateStatus("Model loaded. Requesting camera access...");
-                    } catch (e) {
-                        updateStatus(`Failed to load MoveNet model: ${e.message}`, true);
-                        console.error(e);
-                        return;
+                        updateStatus('Model loaded. Requesting camera access...');
                     }
+                } catch (e) {
+                    updateStatus(`Failed to load pose model: ${e.message}`, true);
+                    console.error(e);
+                    if (window.HealthMonitor) {
+                        window.HealthMonitor.report({
+                            type: 'model-load-failed',
+                            message: 'modelKey=' + _modelKey + ' err=' + e.message,
+                        });
+                    }
+                    return;
                 }
 
                 // 2. Get Camera Stream (ask for decent resolution so keypoints are precise)
@@ -2559,7 +2570,19 @@
 
                     if (poses.length > 0) {
                         const pose = poses[0];
-                        const keypoints = pose.keypoints;
+                        // Normalise keypoints to MoveNet COCO-17 shape so the
+                        // existing rule engine works regardless of which model
+                        // is active (MoveNet returns 17 named, BlazePose returns
+                        // 33 indexed — dispatcher maps them).
+                        const keypoints = (window.PoseModelDispatcher && this._activeModelKey)
+                            ? PoseModelDispatcher.normaliseKeypoints(pose.keypoints, this._activeModelKey)
+                            : pose.keypoints;
+                        // Cache BlazePose bonus keypoints so the rule engine
+                        // can opt into them for poses that benefit (Balasana
+                        // spine angle, Bridge hip-back).
+                        this._lastBonusKeypoints = (window.PoseModelDispatcher && this._activeModelKey)
+                            ? PoseModelDispatcher.bonusKeypoints(pose.keypoints, this._activeModelKey)
+                            : {};
 
                         // 1. Correction Logic - Get corrections with affected parts
                         let affectedKeypoints = new Set(); // Track all affected keypoints for coloring

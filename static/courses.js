@@ -104,7 +104,12 @@
             accent: '#E0A23F',
             icon: '🏆',
             durationMonths: 6,
-            poses: ['Virabhadrasana III', 'Ardha Chandrasana', 'Natarajasana'],
+            poses: ['Virabhadrasana III', 'Ardha Chandrasana'],
+            // Natarajasana is intentionally excluded from the
+            // certificate path — it is a showcase pose with monocular
+            // pose-estimation reliability below the 80 percent
+            // threshold required for grading. It remains available in
+            // the library for reference and free practice.
         },
     ];
 

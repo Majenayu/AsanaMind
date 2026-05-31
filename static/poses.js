@@ -224,6 +224,23 @@
                 const dx = Math.abs(A.x - B.x) / torso, dy = Math.abs(A.y - B.y) / torso;
                 return { pass: dx > (rule.minDx || 0.6) && dy < (rule.maxDy || 0.3), measured: `${dx.toFixed(2)}x ${dy.toFixed(2)}y` };
             }
+            case 'tiltFromVertical': {
+                // Measure the angle of the line from joint A (lower) to
+                // joint B (upper) relative to the screen's vertical
+                // axis. Used by Ardha Chandrasana to detect the
+                // characteristic torso lean: ~90 degrees from vertical
+                // means the torso is parallel to the floor (correct);
+                // 0 degrees means standing upright (incorrect).
+                const A = kp[j[0]], B = kp[j[1]];
+                if (!A || !B) return { pass: true, skipped: true };
+                const dx = B.x - A.x;
+                const dy = B.y - A.y;
+                // atan2(|dx|, -dy) gives 0 when B is directly above A
+                // (upright torso) and 90 when B is to the side (horizontal).
+                const tilt = Math.atan2(Math.abs(dx), -dy) * 180 / Math.PI;
+                const [min, max] = rule.range || [60, 120];
+                return { pass: tilt >= min && tilt <= max, measured: Math.round(tilt) };
+            }
         }
         return { pass: true, skipped: true, reason: 'unknown-rule' };
     }
@@ -1248,6 +1265,7 @@
             name: 'Uttanasana', imageKey: 'uttanasana', imagePath: '/assets/poses/uttanasana.png',
             sanskrit: 'Standing Forward Fold',
             category: 'Beginner',
+            preferredModel: 'blazepose-lite',
             emoji: '🙇',
             view: 'side',
             benefits: 'Lengthens the hamstrings and spine. Calms the nervous system and releases the neck.',
@@ -1274,6 +1292,7 @@
             name: 'Sukhasana', imageKey: 'sukhasana', imagePath: '/assets/poses/sukhasana.png',
             sanskrit: 'Easy Seated Pose',
             category: 'Beginner',
+            preferredModel: 'blazepose-lite',
             emoji: '🧘',
             view: 'front',
             benefits: 'A foundational seat for breath work and meditation. Opens the hips and tall spine.',
@@ -1328,6 +1347,7 @@
             name: 'Baddha Konasana', imageKey: 'baddha', imagePath: '/assets/poses/baddha.png',
             sanskrit: 'Bound Angle Pose',
             category: 'Beginner',
+            preferredModel: 'blazepose-lite',
             emoji: '🦋',
             view: 'front',
             benefits: 'Opens the inner thighs and hips. Stimulates abdominal organs and improves circulation.',
@@ -1355,6 +1375,7 @@
             name: 'Paschimottanasana', imageKey: 'paschimottanasana', imagePath: '/assets/poses/paschimottanasana.png',
             sanskrit: 'Seated Forward Fold',
             category: 'Beginner',
+            preferredModel: 'blazepose-lite',
             emoji: '🧎',
             view: 'side',
             benefits: 'Stretches the entire back body from heels to crown. Soothes the mind and eases tension.',
@@ -1380,6 +1401,7 @@
             name: 'Balasana', imageKey: 'balasana', imagePath: '/assets/poses/balasana.png',
             sanskrit: 'Child\u2019s Pose',
             category: 'Beginner',
+            preferredModel: 'blazepose-lite',
             emoji: '🧸',
             view: 'side',
             benefits: 'A resting pose between stronger asanas. Releases the back and quiets the mind.',
@@ -1571,6 +1593,7 @@
             name: 'Setu Bandhasana', imageKey: 'setubandhasana', imagePath: '/assets/poses/setubandhasana.png',
             sanskrit: 'Bridge Pose',
             category: 'Intermediate',
+            preferredModel: 'blazepose-heavy',
             emoji: '🌉',
             view: 'side',
             benefits: 'Opens the chest and hip flexors. Strengthens the back body.',
@@ -1642,6 +1665,12 @@
             rules: [
                 { type: 'angle', joints: ['forward_hip', 'forward_knee', 'forward_ankle'], range: [160, 200], message: 'Straighten the standing leg fully', priority: 1 },
                 { type: 'alignY', joints: ['left_ankle', 'left_hip'], tolFrac: 0.3, message: 'Float the top leg parallel to the floor', priority: 1 },
+                // Torso lean detection — Half Moon's defining feature is
+                // a torso tilted ~85-110 degrees from vertical (almost
+                // parallel to the floor on the standing-leg side).
+                // Without this rule the pose was scoring like a partial
+                // Triangle. Critical for monocular front-view detection.
+                { type: 'tiltFromVertical', joints: ['left_hip', 'left_shoulder'], range: [55, 115], message: 'Lean the torso toward parallel with the floor', priority: 1 },
                 { type: 'higher', joints: ['left_wrist', 'left_shoulder'], bufferFrac: 0.2, message: 'Stack the top arm straight up', priority: 2 },
                 { type: 'alignX', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.3, message: 'Line the top arm above the bottom arm', priority: 2 },
                 { type: 'angle', joints: ['back_hip', 'back_knee', 'back_ankle'], range: [160, 200], message: 'Extend the lifted leg, flex the foot', priority: 2 },
@@ -1652,6 +1681,12 @@
             name: 'Natarajasana', imageKey: 'natarajasana', imagePath: '/assets/poses/natarajasana.png',
             sanskrit: 'Dancer Pose',
             category: 'Advanced',
+            preferredModel: 'blazepose-heavy',
+            // Showcase pose — excluded from the certificate course.
+            // Available for free practice only because monocular
+            // pose-estimation reliability for this pose is below the
+            // 80 percent grading threshold.
+            showcaseOnly: true,
             emoji: '💃',
             view: 'side',
             benefits: 'Elegant balance that opens the chest, shoulders, and front body.',
