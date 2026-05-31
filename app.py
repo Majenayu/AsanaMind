@@ -3423,10 +3423,12 @@ PRIVACY_BODY = """
 
 <h2>8. Security</h2>
 <ul>
-  <li>All traffic is over HTTPS with a valid TLS certificate.</li>
-  <li>Passwords for non-Google accounts (admins) are hashed with PBKDF2 and a per-account salt.</li>
-  <li>Certificates are signed with an RSA-2048 key whose public half is published at the verification URL embedded in each certificate.</li>
-  <li>We follow least-privilege: the application's database user can only read and write to the AsanMinds collections, not anything else in the cluster.</li>
+  <li>All traffic is over HTTPS with a valid TLS certificate provisioned by our hosting provider.</li>
+  <li>Sessions use HttpOnly + Secure + SameSite=Lax cookies and a server secret that lives only in the production environment.</li>
+  <li>The admin password is compared in constant time and the admin login is configured to refuse access entirely if the server's environment is not properly configured.</li>
+  <li>Certificates carry a unique verification ID and are confirmable through a public verification URL (<code>/verify/&lt;id&gt;</code>) backed by our authoritative database. We are working toward issuing every certificate as a cryptographically-signed PDF so third parties can verify offline as well.</li>
+  <li>Multi-tenant data isolation is enforced at the route-decorator level: every database read and write is automatically scoped to the requesting user's organisation.</li>
+  <li>We follow least-privilege at the database tier: the application has only the access it needs and no more.</li>
 </ul>
 
 <h2>9. Changes to this policy</h2>
@@ -3479,7 +3481,7 @@ TERMS_BODY = """
 </div>
 
 <h2>5. Certificates</h2>
-<p>Certificates issued by AsanMinds are records of having completed the Service's curriculum (the AR test plus the quiz for each pose, totalling 20 poses across six semesters). They are not academic credit, not a Yoga Alliance / RYT credential, and do not authorise the holder to teach yoga professionally. The certificate's RSA-signed verification URL allows any third party to confirm authenticity.</p>
+<p>Certificates issued by AsanMinds are records of having completed the Service's curriculum (the AR test plus the quiz for each pose, totalling 20 poses across six semesters). They are not academic credit, not a Yoga Alliance / RYT credential, and do not authorise the holder to teach yoga professionally. Each certificate carries a unique verification ID and a <code>/verify/&lt;id&gt;</code> URL that any third party can follow to confirm authenticity through our authoritative database. We are working toward issuing every certificate as a cryptographically-signed PDF so verification works offline as well.</p>
 
 <h2>6. Institutional licences</h2>
 <ul>
