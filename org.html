@@ -12,6 +12,56 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/static/org_helpers.js"></script>
+<!-- CSRF — wrap fetch() so every state-changing same-origin call carries
+     X-CSRF-Token. window.__csrf_token is injected by /org via
+     _inject_csrf_token in app.py. -->
+<script>
+(function(){
+    if (window.__csrfFetchInstalled) return;
+    window.__csrfFetchInstalled = true;
+    var EXEMPT = {
+        '/auth/google': 1, '/api/health/report': 1, '/login': 1,
+        '/register': 1, '/api/live/upload': 1, '/api/live/stop': 1,
+        '/api/assistant': 1
+    };
+    var origFetch = window.fetch.bind(window);
+    async function ensureToken() {
+        if (window.__csrf_token) return window.__csrf_token;
+        try {
+            var r = await origFetch('/api/csrf', { credentials: 'same-origin' });
+            var j = await r.json();
+            window.__csrf_token = j && j.token || '';
+        } catch (_) {}
+        return window.__csrf_token || '';
+    }
+    window.__getCsrfToken = ensureToken;
+    window.fetch = async function(input, init) {
+        init = init || {};
+        var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+        var url = (typeof input === 'string') ? input : (input && input.url) || '';
+        var path = url;
+        try {
+            if (/^https?:/i.test(url)) {
+                var u = new URL(url, window.location.href);
+                if (u.origin !== window.location.origin) return origFetch(input, init);
+                path = u.pathname;
+            } else if (url.indexOf('?') >= 0) {
+                path = url.split('?')[0];
+            }
+        } catch (_) {}
+        if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return origFetch(input, init);
+        if (EXEMPT[path]) return origFetch(input, init);
+        var headers = new Headers(init.headers || (input && input.headers) || {});
+        if (!headers.has('X-CSRF-Token')) {
+            var tok = await ensureToken();
+            if (tok) headers.set('X-CSRF-Token', tok);
+        }
+        init.headers = headers;
+        if (!init.credentials) init.credentials = 'same-origin';
+        return origFetch(input, init);
+    };
+})();
+</script>
 <style>
 :root {
     --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
@@ -180,6 +230,14 @@ a{color:var(--primary);text-decoration:none}
 </div>
 
 <script>
+// HTML-escape helper used throughout this admin SPA. Every dynamic value
+// inserted into innerHTML / template-literal HTML must go through esc()
+// to prevent stored XSS via student / feedback / org-name fields.
+function esc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 // ─────────────────────────────────────────────────
 // Mobile nav drawer
 // ─────────────────────────────────────────────────
@@ -342,8 +400,8 @@ async function renderDashboard() {
     $('#content').innerHTML = `
         <div class="page-head">
             <div>
-                <span class="kicker">${myOrg.name}</span>
-                <h1>Welcome${myProfile?.name ? ', ' + myProfile.name.split(' ')[0] : ''}</h1>
+                <span class="kicker">${esc(myOrg.name)}</span>
+                <h1>Welcome${myProfile?.name ? ', ' + esc(myProfile.name.split(' ')[0]) : ''}</h1>
             </div>
             <div style="display:flex;gap:8px">
                 <a class="btn btn-primary" href="#import">⤓ Bulk import</a>
@@ -370,7 +428,7 @@ let _studentCache = [];
 async function renderStudents() {
     $('#content').innerHTML = `
         <div class="page-head">
-            <div><span class="kicker">Students</span><h1>${myOrg.name}</h1></div>
+            <div><span class="kicker">Students</span><h1>${esc(myOrg.name)}</h1></div>
         </div>
         <div class="section">
             <div class="toolbar">
@@ -571,23 +629,24 @@ function renderStudentsTable(rows) {
                 const a = s.academic || {};
                 const isTest = a.batch === 'test';
                 const checked = _selected.has(s.email) ? 'checked' : '';
+                const safeEm = String(s.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
                 return `
                 <tr class="row">
-                    <td><input type="checkbox" class="row-check" ${checked} onchange="_toggleRow('${s.email.replace(/'/g,"\\'")}', this)"></td>
+                    <td><input type="checkbox" class="row-check" ${checked} onchange="_toggleRow('${safeEm}', this)"></td>
                     <td><div class="cell-name">
-                        <div class="av" ${s.picture ? `style="background-image:url(${s.picture})"` : ''}>${s.picture ? '' : initials(s.name)}</div>
-                        <div class="meta"><span class="n">${s.name||'—'}</span><span class="e">${s.email}</span></div>
+                        <div class="av" ${s.picture ? `style="background-image:url(&quot;${esc(s.picture)}&quot;)"` : ''}>${s.picture ? '' : esc(initials(s.name))}</div>
+                        <div class="meta"><span class="n">${esc(s.name||'—')}</span><span class="e">${esc(s.email)}</span></div>
                     </div></td>
-                    <td class="mono" style="font-size:11px">${a.usn || '—'}</td>
-                    <td>${a.batch || '—'}</td>
-                    <td>${a.branch || '—'}</td>
-                    <td>${a.section || '—'}</td>
-                    <td>${a.currentSemester || (a.batch && a.batch !== 'test' ? OrgHelpers.currentSemester(a.batch) : '—')}</td>
+                    <td class="mono" style="font-size:11px">${esc(a.usn || '—')}</td>
+                    <td>${esc(a.batch || '—')}</td>
+                    <td>${esc(a.branch || '—')}</td>
+                    <td>${esc(a.section || '—')}</td>
+                    <td>${esc(a.currentSemester || (a.batch && a.batch !== 'test' ? OrgHelpers.currentSemester(a.batch) : '—'))}</td>
                     <td>${isTest ? '<span class="badge badge-test">Test</span>' : (s.paidStatus === 'paid' ? '<span class="badge badge-paid">Paid</span>' : '<span class="badge badge-unpaid">Unpaid</span>')}</td>
                     <td>${fmtDate(s.last_active)}</td>
                     <td style="white-space:nowrap">
-                        <button class="btn btn-sm" onclick="openEditModal('${s.email.replace(/'/g,"\\'")}')">✎</button>
-                        <button class="btn btn-sm btn-danger" onclick="confirmDelete('${s.email.replace(/'/g,"\\'")}')">🗑</button>
+                        <button class="btn btn-sm" onclick="openEditModal('${safeEm}')">✎</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDelete('${safeEm}')">🗑</button>
                     </td>
                 </tr>`;
             }).join('')}
@@ -600,25 +659,26 @@ function openEditModal(email) {
     const s = _studentCache.find(x => x.email === email);
     if (!s) return;
     const a = s.academic || {};
+    const safeEm = String(email).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     showModal(`
         <div class="modal-h"><h3>Edit student</h3></div>
         <div class="modal-b">
-            <p style="color:var(--text-3);margin:0 0 4px;font-size:12px">${s.email}</p>
+            <p style="color:var(--text-3);margin:0 0 4px;font-size:12px">${esc(s.email)}</p>
             <label>Name</label>
-            <input class="input" id="ed-name" style="width:100%" value="${(s.name||'').replace(/"/g,'&quot;')}">
+            <input class="input" id="ed-name" style="width:100%" value="${esc(s.name||'')}">
             <label>Batch</label>
-            <select class="select" id="ed-batch" style="width:100%">${(myOrg.batches||[]).map(b=>`<option ${a.batch===b?'selected':''}>${b}</option>`).join('')}</select>
+            <select class="select" id="ed-batch" style="width:100%">${(myOrg.batches||[]).map(b=>`<option ${a.batch===b?'selected':''}>${esc(b)}</option>`).join('')}</select>
             <label>Branch</label>
-            <select class="select" id="ed-branch" style="width:100%">${(myOrg.branches||[]).map(b=>`<option value="${b.code}" ${a.branch===b.code?'selected':''}>${b.code} · ${b.name}</option>`).join('')}</select>
+            <select class="select" id="ed-branch" style="width:100%">${(myOrg.branches||[]).map(b=>`<option value="${esc(b.code)}" ${a.branch===b.code?'selected':''}>${esc(b.code)} · ${esc(b.name)}</option>`).join('')}</select>
             <label>Section</label>
-            <select class="select" id="ed-section" style="width:100%">${(myOrg.sections||[]).map(x=>`<option ${a.section===x?'selected':''}>${x}</option>`).join('')}</select>
+            <select class="select" id="ed-section" style="width:100%">${(myOrg.sections||[]).map(x=>`<option ${a.section===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
             <label>USN</label>
-            <input class="input" id="ed-usn" style="width:100%" value="${(a.usn||'').replace(/"/g,'&quot;')}">
+            <input class="input" id="ed-usn" style="width:100%" value="${esc(a.usn||'')}">
             <label>Roll number</label>
-            <input class="input" id="ed-roll" style="width:100%" value="${(a.rollNumber||'').replace(/"/g,'&quot;')}">
+            <input class="input" id="ed-roll" style="width:100%" value="${esc(a.rollNumber||'')}">
             <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
                 <button class="btn" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveEdit('${email.replace(/'/g,"\\'")}')">Save</button>
+                <button class="btn btn-primary" onclick="saveEdit('${safeEm}')">Save</button>
             </div>
         </div>
     `);
@@ -673,7 +733,7 @@ function renderInvite() {
         <div class="section" style="max-width:640px">
             <p style="color:var(--text-3);margin:0 0 16px;font-size:13px">Send a magic-link email to one student. They'll click the link and sign in with Google to complete their enrolment. For batches &gt; 10 use Bulk import instead.</p>
             <label class="kicker" style="color:var(--accent);display:block;margin-bottom:6px">Email</label>
-            <input class="input" id="inv-email" style="width:100%" placeholder="student@${myOrg.domain || 'example.com'}">
+            <input class="input" id="inv-email" style="width:100%" placeholder="student@${esc(myOrg.domain || 'example.com')}">
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px">
                 <div><label class="kicker" style="display:block;margin-bottom:6px">Batch</label>
                     <select class="select" id="inv-batch" style="width:100%"><option value="">—</option>${(myOrg.batches||[]).map(b=>`<option>${b}</option>`).join('')}</select></div>
@@ -715,8 +775,8 @@ async function sendInvite() {
         const j = await r.json();
         if (j.success) {
             $('#inv-status').innerHTML = j.emailSent
-                ? `✓ Invitation sent to <b>${payload.email}</b>.`
-                : `Invitation created. Email did not send (server config). Send this link manually:<br><span class="mono" style="color:var(--primary)">${j.inviteLink}</span>`;
+                ? `✓ Invitation sent to <b>${esc(payload.email)}</b>.`
+                : `Invitation created. Email did not send (server config). Send this link manually:<br><span class="mono" style="color:var(--primary)">${esc(j.inviteLink)}</span>`;
         } else {
             $('#inv-status').textContent = '✗ ' + (j.error || 'Failed');
         }
@@ -778,7 +838,7 @@ function renderPreview(j) {
         <div class="preview-row"><span>Updates to existing students</span><span class="v">${j.updateCount}</span></div>
         <div class="preview-row"><span>Duplicates within file</span><span class="v">${(j.duplicateInFile||[]).length}</span></div>
         <div class="preview-row"><span>Seats remaining after import</span><span class="v">${Math.max(0, (j.seatsLeft||0) - (j.newCount||0))}</span></div>
-        ${errs.length ? `<div class="errors-list">${errs.map(e => '• ' + e).join('<br>')}</div>` : ''}
+        ${errs.length ? `<div class="errors-list">${errs.map(e => '• ' + esc(e)).join('<br>')}</div>` : ''}
         <div style="margin-top:18px;display:flex;gap:8px">
             <button class="btn btn-accent" onclick="commitImport()" ${j.newCount + j.updateCount > 0 ? '' : 'disabled'}>Send ${j.newCount} invitations + update ${j.updateCount}</button>
             <button class="btn" onclick="document.getElementById('xls-input').value=''; document.getElementById('preview-box').innerHTML=''">Cancel</button>
@@ -798,7 +858,7 @@ async function commitImport() {
             <div class="section" style="margin-top:14px;background:var(--surface-2)">
                 <h3 style="font-family:Fraunces,serif;font-size:18px;font-weight:400;margin:0 0 10px">Import complete</h3>
                 <p style="margin:0;color:var(--text-2);font-size:13px">✓ ${j.invited} invitations sent · ${j.updated} students updated</p>
-                ${errs.length ? `<div class="errors-list">${errs.map(e => '• ' + e).join('<br>')}</div>` : ''}
+                ${errs.length ? `<div class="errors-list">${errs.map(e => '• ' + esc(e)).join('<br>')}</div>` : ''}
                 <div style="margin-top:14px"><a class="btn btn-primary" href="#students">View students →</a></div>
             </div>
         `;
@@ -865,19 +925,19 @@ function renderFeedbackList() {
         <div style="padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface-2)">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
                 <div class="cell-name">
-                    <div class="av" ${f.picture ? `style="background-image:url(${f.picture})"` : ''}>${f.picture ? '' : initials(f.name)}</div>
+                    <div class="av" ${f.picture ? `style="background-image:url(&quot;${esc(f.picture)}&quot;)"` : ''}>${f.picture ? '' : esc(initials(f.name))}</div>
                     <div class="meta">
-                        <span class="n">${f.name || '—'}</span>
-                        <span class="e">${f.email}</span>
+                        <span class="n">${esc(f.name || '—')}</span>
+                        <span class="e">${esc(f.email)}</span>
                     </div>
                 </div>
                 <span style="color:var(--highlight);font-size:14px;letter-spacing:1px">${stars(f.rating)}</span>
-                <span style="color:var(--text-3);font-size:11px">${f.course_id || 'general'} · ${fmtDate(f.submitted_at)}</span>
+                <span style="color:var(--text-3);font-size:11px">${esc(f.course_id || 'general')} · ${fmtDate(f.submitted_at)}</span>
             </div>
             <div style="font-size:13px;color:var(--text-2);line-height:1.55">
-                ${f.helpful ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Most helpful:</strong> ${f.helpful}</p>` : ''}
-                ${f.hardest ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Hardest:</strong> ${f.hardest}</p>` : ''}
-                ${f.nps ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Recommend:</strong> ${f.nps}</p>` : ''}
+                ${f.helpful ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Most helpful:</strong> ${esc(f.helpful)}</p>` : ''}
+                ${f.hardest ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Hardest:</strong> ${esc(f.hardest)}</p>` : ''}
+                ${f.nps ? `<p style="margin:6px 0"><strong style="color:var(--text-1)">Recommend:</strong> ${esc(f.nps)}</p>` : ''}
             </div>
         </div>
     `).join('');
@@ -898,7 +958,7 @@ function renderBroadcast() {
             <label class="kicker" style="color:var(--accent);display:block;margin:14px 0 6px">Message (max 300 chars)</label>
             <textarea id="br-body" placeholder="A few minutes of practice today goes a long way." maxlength="300"></textarea>
             <div style="margin-top:18px;display:flex;gap:8px">
-                <button class="btn btn-accent" onclick="sendOrgBroadcast()">📣 Send to everyone in ${myOrg.name}</button>
+                <button class="btn btn-accent" onclick="sendOrgBroadcast()">📣 Send to everyone in ${esc(myOrg.name)}</button>
             </div>
             <p id="br-status" style="margin-top:14px;color:var(--text-3);font-size:13px"></p>
             <div style="margin-top:24px;padding:14px;background:var(--surface-2);border-radius:14px;font-size:12px;color:var(--text-3)">
@@ -933,7 +993,7 @@ async function sendOrgBroadcast() {
 async function renderAnalytics() {
     $('#content').innerHTML = `
         <div class="page-head">
-            <div><span class="kicker">Analytics</span><h1>Insights for ${myOrg.name}</h1></div>
+            <div><span class="kicker">Analytics</span><h1>Insights for ${esc(myOrg.name)}</h1></div>
             <button class="btn" onclick="recomputeSems()">↻ Recompute semesters</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr;gap:18px" id="charts-grid">

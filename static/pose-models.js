@@ -28,27 +28,59 @@
     }
 
     // ─────────────────────────────────────────────────────────
-    // BlazePose CDN — loaded lazily on first use
+    // BlazePose vendor files — try the locally-vendored copy first
+    // (so the campus / offline kiosk works without internet), fall
+    // back to the JSDelivr CDN if the local copy isn't present yet.
+    //
+    // To populate /static/vendor/mediapipe-pose/, run:
+    //     python scripts/fetch_offline_assets.py
+    //
+    // The MediaPipe pose runtime auto-loads its wasm + tflite siblings
+    // from the same `solutionPath` directory, so vendoring all of them
+    // together is required. If even one file is missing we transparently
+    // fall back to the CDN by detecting the script load error.
     // ─────────────────────────────────────────────────────────
-    const BLAZEPOSE_DEPS = [
-        'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js',
-    ];
+    const BLAZEPOSE_LOCAL_BASE = '/static/vendor/mediapipe-pose';
+    const BLAZEPOSE_CDN_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404';
 
     let _depsLoaded = false;
+    let _depsBase = BLAZEPOSE_LOCAL_BASE; // resolved during ensureBlazePoseDeps()
     async function ensureBlazePoseDeps() {
         if (_depsLoaded) return;
-        for (const src of BLAZEPOSE_DEPS) {
-            await new Promise((resolve, reject) => {
-                if (document.querySelector(`script[src="${src}"]`)) return resolve();
-                const s = document.createElement('script');
-                s.src = src;
-                s.crossOrigin = 'anonymous';
-                s.async = true;
-                s.onload = resolve;
-                s.onerror = reject;
-                document.head.appendChild(s);
-            });
+        // Try local first; on script error, fall back to the CDN. We probe
+        // the local path with a HEAD request so we don't spuriously inject a
+        // <script> that 404s and produces a noisy console error.
+        async function probe(base) {
+            try {
+                const r = await fetch(base + '/pose.js', { method: 'HEAD' });
+                return r.ok;
+            } catch (_) { return false; }
         }
+        const useLocal = await probe(BLAZEPOSE_LOCAL_BASE);
+        _depsBase = useLocal ? BLAZEPOSE_LOCAL_BASE : BLAZEPOSE_CDN_BASE;
+        const src = _depsBase + '/pose.js';
+        await new Promise((resolve, reject) => {
+            if (document.querySelector(`script[src="${src}"]`)) return resolve();
+            const s = document.createElement('script');
+            s.src = src;
+            // Local same-origin doesn't need crossOrigin; CDN does.
+            if (!useLocal) s.crossOrigin = 'anonymous';
+            s.async = true;
+            s.onload = resolve;
+            s.onerror = () => {
+                // Last-ditch CDN fallback — the local copy partially loaded
+                // but threw. Replace with the CDN version.
+                _depsBase = BLAZEPOSE_CDN_BASE;
+                const fallback = document.createElement('script');
+                fallback.src = BLAZEPOSE_CDN_BASE + '/pose.js';
+                fallback.crossOrigin = 'anonymous';
+                fallback.async = true;
+                fallback.onload = resolve;
+                fallback.onerror = reject;
+                document.head.appendChild(fallback);
+            };
+            document.head.appendChild(s);
+        });
         _depsLoaded = true;
     }
 
@@ -84,7 +116,8 @@
                 runtime: 'mediapipe',
                 modelType: modelKey === 'blazepose-heavy' ? 'heavy' : 'lite',
                 enableSmoothing: true,
-                solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404',
+                // Same base as the pose.js script — local if vendored, CDN otherwise.
+                solutionPath: _depsBase,
             };
             detectorCache[modelKey] = await poseDetection.createDetector(
                 poseDetection.SupportedModels.BlazePose, cfg

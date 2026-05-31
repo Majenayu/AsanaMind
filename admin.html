@@ -11,6 +11,56 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- CSRF — wrap fetch() so every state-changing same-origin call carries
+     X-CSRF-Token. window.__csrf_token is injected by /admin via
+     _inject_csrf_token in app.py. -->
+<script>
+(function(){
+    if (window.__csrfFetchInstalled) return;
+    window.__csrfFetchInstalled = true;
+    var EXEMPT = {
+        '/auth/google': 1, '/api/health/report': 1, '/login': 1,
+        '/register': 1, '/api/live/upload': 1, '/api/live/stop': 1,
+        '/api/assistant': 1
+    };
+    var origFetch = window.fetch.bind(window);
+    async function ensureToken() {
+        if (window.__csrf_token) return window.__csrf_token;
+        try {
+            var r = await origFetch('/api/csrf', { credentials: 'same-origin' });
+            var j = await r.json();
+            window.__csrf_token = j && j.token || '';
+        } catch (_) {}
+        return window.__csrf_token || '';
+    }
+    window.__getCsrfToken = ensureToken;
+    window.fetch = async function(input, init) {
+        init = init || {};
+        var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+        var url = (typeof input === 'string') ? input : (input && input.url) || '';
+        var path = url;
+        try {
+            if (/^https?:/i.test(url)) {
+                var u = new URL(url, window.location.href);
+                if (u.origin !== window.location.origin) return origFetch(input, init);
+                path = u.pathname;
+            } else if (url.indexOf('?') >= 0) {
+                path = url.split('?')[0];
+            }
+        } catch (_) {}
+        if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return origFetch(input, init);
+        if (EXEMPT[path]) return origFetch(input, init);
+        var headers = new Headers(init.headers || (input && input.headers) || {});
+        if (!headers.has('X-CSRF-Token')) {
+            var tok = await ensureToken();
+            if (tok) headers.set('X-CSRF-Token', tok);
+        }
+        init.headers = headers;
+        if (!init.credentials) init.credentials = 'same-origin';
+        return origFetch(input, init);
+    };
+})();
+</script>
 <style>
 :root {
     --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
@@ -278,6 +328,16 @@ const $$ = (s, p) => Array.from((p || document).querySelectorAll(s));
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' }) : '—';
 const initials = (n) => (n || 'A').trim().charAt(0).toUpperCase();
 
+// HTML-escape any runtime value before interpolating into innerHTML / template
+// strings. Defense in depth — a malicious org name, student name, or feedback
+// comment cannot inject markup. Use this for every dynamic value that's
+// inserted into innerHTML or a template literal building HTML.
+function esc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 const ROUTES = [
     { path: 'dashboard', label: 'Dashboard' },
     { path: 'organizations', label: 'Organizations' },
@@ -353,7 +413,7 @@ async function renderDashboard() {
         <div class="page-head">
             <div>
                 <span class="kicker">Overview</span>
-                <h1>Welcome${adminProfile ? ', ' + adminProfile.name.split(' ')[0] : ''}</h1>
+                <h1>Welcome${adminProfile ? ', ' + esc((adminProfile.name || '').split(' ')[0]) : ''}</h1>
             </div>
             <div style="display:flex;gap:8px">
                 <button class="btn btn-accent" onclick="openBroadcastModal()">📣 Send broadcast push</button>
@@ -505,13 +565,16 @@ function renderStudentsTable(rows) {
             <tbody>
             ${rows.map(s => {
                 const pct = Math.round(((s.sems_completed || 0) / 6) * 100);
-                const safeEm = s.email.replace(/'/g,"\\'");
+                // Escape both backslash and single-quote for safe inline JS arg.
+                const safeEm = String(s.email || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const safeName = String(s.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const safePic = String(s.picture || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 return `
                 <tr class="row" onclick="if(!event.target.closest('.row-act') && !event.target.closest('.live-cell'))location.hash='#students/${encodeURIComponent(s.email)}'">
                     <td>
                         <div class="cell-name">
-                            <div class="av" ${s.picture ? `style="background-image:url(${s.picture})"` : ''}>${s.picture ? '' : initials(s.name)}</div>
-                            <div class="meta"><span class="n">${s.name || '—'}</span><span class="e">${s.email}</span></div>
+                            <div class="av" ${s.picture ? `style="background-image:url(&quot;${esc(s.picture)}&quot;)"` : ''}>${s.picture ? '' : esc(initials(s.name))}</div>
+                            <div class="meta"><span class="n">${esc(s.name || '—')}</span><span class="e">${esc(s.email)}</span></div>
                         </div>
                     </td>
                     <td><span class="badge badge-${s.auth_provider === 'google' ? 'google' : 'email'}">${s.auth_provider === 'google' ? 'Google' : 'Email'}</span></td>
@@ -529,11 +592,11 @@ function renderStudentsTable(rows) {
                         </div>
                     </td>
                     <td>${s.has_master ? '<span class="badge badge-master">★</span>' : '—'}</td>
-                    <td class="live-cell" data-email="${s.email}" ondblclick="openLiveViewer('${safeEm}')" title="Double-click to watch when active">
+                    <td class="live-cell" data-email="${esc(s.email)}" ondblclick="openLiveViewer('${safeEm}')" title="Double-click to watch when active">
                         <span class="live-dot live-off"></span>
                     </td>
                     <td class="row-act" style="white-space:nowrap">
-                        <button class="btn btn-sm" onclick="openEditModal('${safeEm}', '${(s.name || '').replace(/'/g,"\\'")}', '${(s.picture || '').replace(/'/g,"\\'")}', '${s.auth_provider || 'email'}')" title="Edit">✎</button>
+                        <button class="btn btn-sm" onclick="openEditModal('${safeEm}', '${safeName}', '${safePic}', '${(s.auth_provider || 'email').replace(/'/g,"\\'")}')" title="Edit">✎</button>
                         <button class="btn btn-sm btn-danger" onclick="confirmDelete('${safeEm}')" title="Delete permanently">🗑</button>
                     </td>
                 </tr>`;
@@ -560,17 +623,17 @@ async function renderStudentDeep(email) {
         <div style="margin-bottom:18px"><a href="#students" class="btn btn-sm">← Back to all students</a></div>
         <div class="section">
             <div class="profile-hero">
-                <div class="av" ${u.picture ? `style="background-image:url(${u.picture})"` : ''}>${u.picture ? '' : initials(u.name)}</div>
+                <div class="av" ${u.picture ? `style="background-image:url(&quot;${esc(u.picture)}&quot;)"` : ''}>${u.picture ? '' : esc(initials(u.name))}</div>
                 <div style="flex:1;min-width:220px">
                     <span class="kicker">${u.auth_provider === 'google' ? 'Google account' : 'Email account'} · joined ${fmtDate(u.created_at)}</span>
-                    <h1>${u.name || '—'}</h1>
-                    <div class="meta">${u.email}</div>
+                    <h1>${esc(u.name || '—')}</h1>
+                    <div class="meta">${esc(u.email)}</div>
                 </div>
                 <div class="actions">
-                    <button class="btn" onclick="openEditModal('${u.email.replace(/'/g,"\\'")}', '${(u.name || '').replace(/'/g,"\\'")}', '${(u.picture || '').replace(/'/g,"\\'")}', '${u.auth_provider || 'email'}')">✎ Edit</button>
-                    <button class="btn" onclick="openNotifyModal('${u.email}')">🔔 Send push</button>
-                    <button class="btn btn-danger" onclick="confirmReset('${u.email}')">Reset progress</button>
-                    <button class="btn btn-danger" onclick="confirmDelete('${u.email}')">🗑 Delete</button>
+                    <button class="btn" onclick="openEditModal('${String(u.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}', '${String(u.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}', '${String(u.picture||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}', '${(u.auth_provider || 'email').replace(/'/g,"\\'")}')">✎ Edit</button>
+                    <button class="btn" onclick="openNotifyModal('${String(u.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">🔔 Send push</button>
+                    <button class="btn btn-danger" onclick="confirmReset('${String(u.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">Reset progress</button>
+                    <button class="btn btn-danger" onclick="confirmDelete('${String(u.email||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">🗑 Delete</button>
                 </div>
             </div>
         </div>
@@ -596,12 +659,12 @@ async function renderStudentDeep(email) {
                     return `
                     <div class="${cls}">
                         <div class="s">Sem ${c.semesterNumber}</div>
-                        <div class="t">${c.name}</div>
+                        <div class="t">${esc(c.name)}</div>
                         <div style="margin-top:10px;height:6px;background:${trackBg};border-radius:3px;overflow:hidden">
                             <div style="height:100%;width:${pct}%;background:${fillBg};border-radius:3px;transition:width .4s"></div>
                         </div>
                         <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;opacity:.85">
-                            <span>${status}</span>
+                            <span>${esc(status)}</span>
                             <span>${pct}%</span>
                         </div>
                         ${!c.locked && !c.completed && c.totalPoses ? `
@@ -620,7 +683,7 @@ async function renderStudentDeep(email) {
                 <div class="section-head"><div><span class="kicker">Top poses</span><h2>Most practised</h2></div></div>
                 ${(data.topPoses || []).length ? data.topPoses.map(p => `
                     <div class="bar-row">
-                        <span class="label">${p.name}</span>
+                        <span class="label">${esc(p.name)}</span>
                         <span class="track"><span class="fill" style="width:${p.pct}%"></span></span>
                         <span class="pct">${p.count}</span>
                     </div>
@@ -633,10 +696,10 @@ async function renderStudentDeep(email) {
                         <tbody>
                         ${data.certificates.map(c => `
                             <tr>
-                                <td><strong>${c.courseTitle}</strong><br><span class="mono" style="color:#7A7364;font-size:11px">${c.certId}</span></td>
+                                <td><strong>${esc(c.courseTitle)}</strong><br><span class="mono" style="color:#7A7364;font-size:11px">${esc(c.certId)}</span></td>
                                 <td>${c.score}%</td>
                                 <td>${fmtDate(c.issuedAt)}</td>
-                                <td><a class="btn btn-sm" href="/verify/${c.certId}" target="_blank">Verify ↗</a></td>
+                                <td><a class="btn btn-sm" href="/verify/${encodeURIComponent(c.certId)}" target="_blank">Verify ↗</a></td>
                             </tr>
                         `).join('')}
                         </tbody>
@@ -654,7 +717,7 @@ async function renderStudentDeep(email) {
                     ${data.recentSessions.slice(0, 30).map(s => `
                         <tr>
                             <td>${new Date(s.ts).toLocaleString()}</td>
-                            <td>${s.pose}</td>
+                            <td>${esc(s.pose)}</td>
                             <td>${Math.round(s.peakScore || 0)}%</td>
                             <td>${Math.round(s.durationS || 0)}s</td>
                         </tr>
@@ -671,12 +734,12 @@ async function renderStudentDeep(email) {
                 <div class="feedback-card">
                     <div class="head">
                         <span class="stars">${stars(f.rating || 0)}</span>
-                        <span style="color:#7A7364;font-size:11px">${f.course_id || 'general'} · ${fmtDate(f.submitted_at)}</span>
+                        <span style="color:#7A7364;font-size:11px">${esc(f.course_id || 'general')} · ${fmtDate(f.submitted_at)}</span>
                     </div>
                     <div class="body">
-                        ${f.helpful ? `<p><strong>Most helpful:</strong> ${f.helpful}</p>` : ''}
-                        ${f.hardest ? `<p><strong>Hardest:</strong> ${f.hardest}</p>` : ''}
-                        ${f.nps ? `<p><strong>Recommend:</strong> ${f.nps}</p>` : ''}
+                        ${f.helpful ? `<p><strong>Most helpful:</strong> ${esc(f.helpful)}</p>` : ''}
+                        ${f.hardest ? `<p><strong>Hardest:</strong> ${esc(f.hardest)}</p>` : ''}
+                        ${f.nps ? `<p><strong>Recommend:</strong> ${esc(f.nps)}</p>` : ''}
                     </div>
                 </div>
             `).join('')}
@@ -745,19 +808,19 @@ function filterFeedback() {
         <div class="feedback-card">
             <div class="head">
                 <div class="cell-name">
-                    <div class="av" ${f.picture ? `style="background-image:url(${f.picture})"` : ''}>${f.picture ? '' : initials(f.name)}</div>
+                    <div class="av" ${f.picture ? `style="background-image:url(&quot;${esc(f.picture)}&quot;)"` : ''}>${f.picture ? '' : esc(initials(f.name))}</div>
                     <div class="meta">
-                        <span class="n">${f.name || '—'}</span>
-                        <span class="e">${f.email}</span>
+                        <span class="n">${esc(f.name || '—')}</span>
+                        <span class="e">${esc(f.email)}</span>
                     </div>
                 </div>
                 <span class="stars">${stars(f.rating)}</span>
-                <span style="color:#7A7364;font-size:11px">${f.course_id || 'general'} · ${fmtDate(f.submitted_at)}</span>
+                <span style="color:#7A7364;font-size:11px">${esc(f.course_id || 'general')} · ${fmtDate(f.submitted_at)}</span>
             </div>
             <div class="body">
-                ${f.helpful ? `<p><strong>Most helpful:</strong> ${f.helpful}</p>` : ''}
-                ${f.hardest ? `<p><strong>Hardest:</strong> ${f.hardest}</p>` : ''}
-                ${f.nps ? `<p><strong>Recommend:</strong> ${f.nps}</p>` : ''}
+                ${f.helpful ? `<p><strong>Most helpful:</strong> ${esc(f.helpful)}</p>` : ''}
+                ${f.hardest ? `<p><strong>Hardest:</strong> ${esc(f.hardest)}</p>` : ''}
+                ${f.nps ? `<p><strong>Recommend:</strong> ${esc(f.nps)}</p>` : ''}
             </div>
         </div>
     `).join('');
@@ -785,12 +848,12 @@ async function renderCertificates() {
                 <tbody>
                 ${rows.map(c => `
                     <tr>
-                        <td><strong>${c.userName || '—'}</strong><br><span style="color:#7A7364;font-size:11px">${c.email}</span></td>
-                        <td>${c.courseTitle}${c.isMaster ? ' <span class="badge badge-master">Master</span>' : ''}</td>
+                        <td><strong>${esc(c.userName || '—')}</strong><br><span style="color:#7A7364;font-size:11px">${esc(c.email)}</span></td>
+                        <td>${esc(c.courseTitle)}${c.isMaster ? ' <span class="badge badge-master">Master</span>' : ''}</td>
                         <td>${c.score}%</td>
                         <td>${fmtDate(c.issuedAt)}</td>
-                        <td class="mono" style="font-size:11px">${c.certId}</td>
-                        <td><a class="btn btn-sm" href="/verify/${c.certId}" target="_blank">Verify ↗</a></td>
+                        <td class="mono" style="font-size:11px">${esc(c.certId)}</td>
+                        <td><a class="btn btn-sm" href="/verify/${encodeURIComponent(c.certId)}" target="_blank">Verify ↗</a></td>
                     </tr>
                 `).join('')}
                 </tbody>
@@ -1186,11 +1249,11 @@ function openEditModal(email, name, picture, provider) {
         <div class="modal-h"><h3>Edit student</h3></div>
         <div class="modal-b">
             <p style="color:#7A7364;font-size:12px;margin:0 0 4px">Email cannot be changed (it's the primary key).</p>
-            <p style="margin:0;color:#14120E;font-weight:500;font-size:13px">${email}</p>
+            <p style="margin:0;color:#14120E;font-weight:500;font-size:13px">${esc(email)}</p>
             <label>Name</label>
-            <input class="input" id="ed-name" style="width:100%" value="${name || ''}" maxlength="120">
+            <input class="input" id="ed-name" style="width:100%" value="${esc(name || '')}" maxlength="120">
             <label>Profile picture URL <span style="color:#A8A294;font-weight:400;letter-spacing:0">(optional)</span></label>
-            <input class="input" id="ed-pic" style="width:100%" value="${picture || ''}" placeholder="https://…">
+            <input class="input" id="ed-pic" style="width:100%" value="${esc(picture || '')}" placeholder="https://…">
             <label>Auth provider</label>
             <select class="input" id="ed-prov" style="width:100%">
                 <option value="google" ${provider === 'google' ? 'selected' : ''}>Google</option>
@@ -1198,7 +1261,7 @@ function openEditModal(email, name, picture, provider) {
             </select>
             <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
                 <button class="btn" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveEdit('${email.replace(/'/g,"\\'")}')">Save changes</button>
+                <button class="btn btn-primary" onclick="saveEdit('${String(email).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">Save changes</button>
             </div>
         </div>
     `);
@@ -1257,7 +1320,7 @@ async function sendBroadcast() {
 
 function openNotifyModal(email) {
     showModal(`
-        <div class="modal-h"><h3>Send a push to ${email}</h3></div>
+        <div class="modal-h"><h3>Send a push to ${esc(email)}</h3></div>
         <div class="modal-b">
             <label>Title</label>
             <input class="input" id="nf-title" style="width:100%" value="A note from your coach" />
@@ -1265,7 +1328,7 @@ function openNotifyModal(email) {
             <textarea id="nf-body">Keep going — your form is improving.</textarea>
             <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
                 <button class="btn" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-accent" onclick="sendNotify('${email}')">Send</button>
+                <button class="btn btn-accent" onclick="sendNotify('${String(email).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">Send</button>
             </div>
         </div>
     `);

@@ -120,20 +120,119 @@ def _security_headers(resp):
         )
     return resp
 
-# Rate limiting — 30/min for /api/assistant, generous defaults elsewhere.
+
+# ─────────────────────────────────────────────────────────────
+# CSRF protection — per-session token, header-based.
+#
+# Every state-changing /api/* request (POST/PUT/DELETE/PATCH) must
+# carry an X-CSRF-Token header that matches session['csrf_token'].
+# The token is generated lazily on first session access and exposed:
+#   - via GET /api/csrf for clients to fetch on boot
+#   - via window.__csrf_token injected by /home (see render of main.html)
+#
+# Endpoints exempted (must be reachable pre-session OR are anonymous):
+#   /auth/google, /login, /register   — pre-session sign-in flows
+#   /api/health/report                 — anonymous bug telemetry
+#   /api/live/upload, /api/live/stop   — high-frequency camera frame push
+#                                        from AR session; gated by its own
+#                                        session check + signed cookie path
+#   /api/assistant                     — rate-limited (30/min/IP) and
+#                                        idempotent voice flow; CSRF would
+#                                        break the existing speech UX
+# Other writes (admin login form POST) ride on SameSite=Lax cookies and
+# the standard Origin/Referer check by Flask.
+# ─────────────────────────────────────────────────────────────
+CSRF_EXEMPT_PATHS = {
+    '/auth/google',
+    '/api/health/report',
+    '/api/live/upload',
+    '/api/live/stop',
+    '/api/assistant',
+    '/login',
+    '/register',
+}
+
+
+def _ensure_csrf_token():
+    """Lazily create a CSRF token on first session access."""
+    if not session.get('csrf_token'):
+        session['csrf_token'] = secrets.token_urlsafe(32)
+    return session['csrf_token']
+
+
+@app.before_request
+def _csrf_guard():
+    """Block state-changing /api/* requests that lack a valid CSRF token."""
+    method = request.method
+    if method in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    path = request.path or ''
+    if not path.startswith('/api/'):
+        return None
+    if path in CSRF_EXEMPT_PATHS:
+        return None
+    submitted = request.headers.get('X-CSRF-Token') or ''
+    if not submitted and request.is_json:
+        try:
+            submitted = (request.get_json(silent=True) or {}).get('_csrf') or ''
+        except Exception:
+            submitted = ''
+    expected = session.get('csrf_token') or ''
+    if not expected or not submitted or not _hmac.compare_digest(str(submitted), str(expected)):
+        return jsonify({'success': False, 'error': 'CSRF check failed', 'code': 'csrf_mismatch'}), 403
+    return None
+
+
+@app.route('/api/csrf', methods=['GET'])
+def csrf_token_endpoint():
+    """Returns the per-session CSRF token. Clients fetch this once at
+    boot and refetch on any 403 with code=csrf_mismatch."""
+    return jsonify({'token': _ensure_csrf_token()})
+
+# Rate limiting — 30/min for /api/assistant, 5 per 15 min for /admin/login,
+# generous defaults elsewhere. Storage is Mongo-backed when MONGO_URI is set
+# so the budget survives Render's free-tier sleep + redeploy cycles. Without
+# Mongo (local dev) we fall back to in-memory.
+_mongodb_uri_early = os.environ.get('MONGO_URI', '').strip()
 if LIMITER_AVAILABLE:
-    limiter = Limiter(get_remote_address, app=app, default_limits=['600 per hour'], storage_uri='memory://')
+    if _mongodb_uri_early:
+        # flask-limiter understands mongodb:// for storage out of the box
+        # via limits[mongodb]. The storage_uri can carry the same URI we
+        # use for application data; flask-limiter uses its own collection.
+        try:
+            limiter = Limiter(
+                get_remote_address, app=app,
+                default_limits=['600 per hour'],
+                storage_uri=_mongodb_uri_early,
+                storage_options={'database_name': 'admin_data'},
+            )
+            print('✓ flask-limiter using MongoDB-backed storage')
+        except Exception as _le:
+            # If the limits[mongodb] extra is not installed, fall back to
+            # in-memory so the app still boots.
+            print(f'⚠ flask-limiter mongo storage failed ({_le}); falling back to memory://')
+            limiter = Limiter(get_remote_address, app=app,
+                              default_limits=['600 per hour'], storage_uri='memory://')
+    else:
+        limiter = Limiter(get_remote_address, app=app,
+                          default_limits=['600 per hour'], storage_uri='memory://')
+
     def rate_limit_assistant(f):
         return limiter.limit('30 per minute')(f)
+
+    def rate_limit_admin_login(f):
+        return limiter.limit('5 per 15 minutes')(f)
 else:
     limiter = None
     def rate_limit_assistant(f):
+        return f
+    def rate_limit_admin_login(f):
         return f
     print('⚠ flask-limiter not installed — rate-limiting disabled')
 
 # MongoDB connection — the URI MUST come from the environment.
 db_connected = False
-mongodb_uri = os.environ.get('MONGO_URI', '')
+mongodb_uri = _mongodb_uri_early
 if not mongodb_uri:
     if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
         raise RuntimeError('MONGO_URI env var is required in production.')
@@ -1343,6 +1442,7 @@ def home():
         'user_email': session.get('user_email') or '',
         'user_name': session.get('user_name') or '',
         'user_picture': session.get('picture') or '',
+        'csrf_token': _ensure_csrf_token(),
     }
 
     injection = """
@@ -1352,6 +1452,7 @@ def home():
         window.__user_email = """ + json.dumps(inj_data['user_email']) + """;
         window.__user_name = """ + json.dumps(inj_data['user_name']) + """;
         window.__user_picture = """ + json.dumps(inj_data['user_picture']) + """;
+        window.__csrf_token = """ + json.dumps(inj_data['csrf_token']) + """;
         // CRITICAL — wipe stale local state if it belongs to a different user.
         // Runs BEFORE any application script reads localStorage. This is the
         // only way to guarantee no cross-account state bleed on the same
@@ -3596,10 +3697,29 @@ def org_page():
         return "Error: org.html not found in app directory.", 500
     with open('org.html', 'r', encoding='utf-8') as f:
         content = f.read()
+    content = _inject_csrf_token(content)
     response = app.make_response(content)
     response.headers['Content-Type'] = 'text/html; charset=utf-8'
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
+
+
+def _inject_csrf_token(html: str) -> str:
+    """Inject the per-session CSRF token into an HTML document. Used by
+    /admin and /org so client JS in those panels can read window.__csrf_token
+    and send it on every state-changing fetch.
+
+    Idempotent — if the placeholder is missing we just inject before
+    </head>; if neither is found, prepend.
+    """
+    token = _ensure_csrf_token()
+    snippet = (
+        '<script>window.__csrf_token = ' + json.dumps(token) + ';</script>\n'
+        '<meta name="csrf-token" content="' + _html.escape(token) + '">'
+    )
+    if '</head>' in html:
+        return html.replace('</head>', snippet + '\n</head>', 1)
+    return snippet + html
 
 
 # ─────────────────────────────────────────────────────────────
@@ -3700,6 +3820,7 @@ def admin_login_diag():
 
 
 @app.route('/admin/login', methods=['GET', 'POST'])
+@rate_limit_admin_login
 def admin_login_page():
     """Standalone admin login — independent of Google or the student email flow.
 
@@ -3755,6 +3876,7 @@ def admin_page():
         return "Error: admin.html not found", 500
     with open('admin.html', 'r', encoding='utf-8') as f:
         content = f.read()
+    content = _inject_csrf_token(content)
     response = app.make_response(content)
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response

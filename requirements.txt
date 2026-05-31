@@ -3,6 +3,7 @@ pymongo[srv]
 gunicorn
 dnspython
 flask-limiter
+limits[mongodb]
 sendgrid
 pywebpush
 cryptography

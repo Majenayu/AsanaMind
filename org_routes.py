@@ -30,6 +30,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
@@ -1060,9 +1061,31 @@ def register_org_routes(app, deps):
                 idx = col_idx.get(name)
                 return row[idx] if idx is not None and idx < len(row) else None
             email = (cell('email') or '')
+            # Defense in depth — coerce to plain string and reject anything
+            # containing characters Mongo operators use, even though the
+            # PyMongo dict literal pattern below is already injection-safe.
+            # If a malicious uploader puts {"$ne": null} or similar in an
+            # email cell, openpyxl returns it as either a string or a dict
+            # depending on the cell type. We force it to be a clean string
+            # before any downstream query touches it.
+            if isinstance(email, (dict, list, tuple, set)):
+                errors.append(f'Row {i}: invalid email type "{type(email).__name__}"')
+                continue
             email = str(email).strip().lower() if email else ''
+            # Belt-and-braces: reject any email that contains characters
+            # outside the standard email charset (letters, digits, dot,
+            # dash, underscore, plus, percent, at-sign). This blocks
+            # NoSQL operator strings like "$ne" before they reach the DB.
+            if email and not re.match(r'^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$', email):
+                errors.append(f'Row {i}: invalid email format "{email[:60]}"')
+                continue
             if not email or '@' not in email:
                 errors.append(f'Row {i}: invalid email "{email}"')
+                continue
+            # RFC 5321 caps an email at 254 chars; anything longer is almost
+            # certainly garbage (or an attempt to blow up downstream queries).
+            if len(email) > 254:
+                errors.append(f'Row {i}: email too long ({len(email)} chars)')
                 continue
             if domain and domain != '*' and not email.endswith('@' + domain):
                 errors.append(f'Row {i}: email "{email}" does not match @{domain}')

@@ -1,18 +1,23 @@
 """
-Fetch the TensorFlow.js runtime, the pose-detection wrapper, and the
-MoveNet SinglePose Thunder model weights into static/ so the app
-runs fully offline after first load.
+Fetch the TensorFlow.js runtime, the pose-detection wrapper, the
+MoveNet SinglePose Thunder model weights, and the MediaPipe BlazePose
+runtime into static/ so the app runs fully offline after first load.
 
 Run this once locally:
     python scripts/fetch_offline_assets.py
 
 The downloaded files are committed to git so Render serves them with
-the rest of the static bundle. Total size ~13 MB.
+the rest of the static bundle. Total size ~30 MB (BlazePose wasm + the
+three tflite landmark models account for most of it).
 
 The MoveNet weights are pulled from Kaggle (the new home of TF Hub
 models — tfhub.dev itself is dead as of 2024). The query string
 ``?tfjs-format=file&tfhub-redirect=true`` triggers a 302 to the
 signed GCS URL.
+
+The BlazePose runtime is pulled from JSDelivr; pose-models.js prefers
+the local copy and falls back to the same CDN at runtime if any file
+is missing, so partial downloads degrade gracefully.
 """
 
 from __future__ import annotations
@@ -25,9 +30,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VENDOR_DIR = ROOT / "static" / "vendor"
 MODEL_DIR = ROOT / "static" / "models" / "movenet"
+BLAZEPOSE_DIR = ROOT / "static" / "vendor" / "mediapipe-pose"
 
 TFJS_VERSION = "3.13.0"
 POSEDET_VERSION = "2.0.0"
+BLAZEPOSE_VERSION = "0.5.1675469404"
 
 KAGGLE_BASE = (
     "https://www.kaggle.com/models/google/movenet/frameworks/tfJs/"
@@ -53,6 +60,23 @@ MODEL_FILES = [
     "group1-shard1of3.bin",
     "group1-shard2of3.bin",
     "group1-shard3of3.bin",
+]
+
+# MediaPipe BlazePose runtime — loaded by /static/pose-models.js when a
+# pose tagged blazepose-lite or blazepose-heavy is opened. The runtime
+# auto-loads the wasm + tflite siblings from the same directory as
+# pose.js, so all of these have to live next to each other under
+# static/vendor/mediapipe-pose/.
+BLAZEPOSE_BASE = f"https://cdn.jsdelivr.net/npm/@mediapipe/pose@{BLAZEPOSE_VERSION}"
+BLAZEPOSE_FILES = [
+    "pose.js",
+    "pose_solution_packed_assets_loader.js",
+    "pose_solution_simd_wasm_bin.js",
+    "pose_solution_simd_wasm_bin.wasm",
+    "pose_solution_packed_assets.data",
+    "pose_landmark_full.tflite",
+    "pose_landmark_lite.tflite",
+    "pose_landmark_heavy.tflite",
 ]
 
 
@@ -86,6 +110,29 @@ def main() -> int:
             print(f"  [cached] {dest.relative_to(ROOT)} ({dest.stat().st_size // 1024} KB)")
             continue
         fetch(KAGGLE_BASE + name + KAGGLE_QS, dest)
+
+    print()
+    print("MediaPipe BlazePose runtime (from JSDelivr):")
+    blazepose_failures = []
+    for name in BLAZEPOSE_FILES:
+        dest = BLAZEPOSE_DIR / name
+        if dest.exists() and dest.stat().st_size > 1024:
+            print(f"  [cached] {dest.relative_to(ROOT)} ({dest.stat().st_size // 1024} KB)")
+            continue
+        try:
+            fetch(f"{BLAZEPOSE_BASE}/{name}", dest)
+        except Exception as exc:
+            # JSDelivr occasionally 404s a sibling that has been renamed
+            # in a later mediapipe build. Note the failure but keep going
+            # so the operator at least gets pose.js + the wasm + tflite
+            # files; pose-models.js will fall back to the CDN at runtime
+            # if any of these are missing.
+            blazepose_failures.append((name, str(exc)))
+            print(f"  ! Failed: {name} ({exc})")
+    if blazepose_failures:
+        print()
+        print(f"  ! {len(blazepose_failures)} BlazePose file(s) could not be fetched.")
+        print(f"    pose-models.js will fall back to the CDN automatically when this happens.")
 
     # Sanity-check the model JSON references the same shard names we
     # downloaded. If Kaggle silently switches numbering, this catches it.

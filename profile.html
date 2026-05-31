@@ -16,6 +16,56 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
+    <!-- CSRF — wrap fetch() so every state-changing same-origin call carries
+         X-CSRF-Token. Lazily fetches /api/csrf if no token is injected. -->
+    <script>
+    (function(){
+        if (window.__csrfFetchInstalled) return;
+        window.__csrfFetchInstalled = true;
+        var EXEMPT = {
+            '/auth/google': 1, '/api/health/report': 1, '/login': 1,
+            '/register': 1, '/api/live/upload': 1, '/api/live/stop': 1,
+            '/api/assistant': 1
+        };
+        var origFetch = window.fetch.bind(window);
+        async function ensureToken() {
+            if (window.__csrf_token) return window.__csrf_token;
+            try {
+                var r = await origFetch('/api/csrf', { credentials: 'same-origin' });
+                var j = await r.json();
+                window.__csrf_token = j && j.token || '';
+            } catch (_) {}
+            return window.__csrf_token || '';
+        }
+        window.__getCsrfToken = ensureToken;
+        window.fetch = async function(input, init) {
+            init = init || {};
+            var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+            var url = (typeof input === 'string') ? input : (input && input.url) || '';
+            var path = url;
+            try {
+                if (/^https?:/i.test(url)) {
+                    var u = new URL(url, window.location.href);
+                    if (u.origin !== window.location.origin) return origFetch(input, init);
+                    path = u.pathname;
+                } else if (url.indexOf('?') >= 0) {
+                    path = url.split('?')[0];
+                }
+            } catch (_) {}
+            if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return origFetch(input, init);
+            if (EXEMPT[path]) return origFetch(input, init);
+            var headers = new Headers(init.headers || (input && input.headers) || {});
+            if (!headers.has('X-CSRF-Token')) {
+                var tok = await ensureToken();
+                if (tok) headers.set('X-CSRF-Token', tok);
+            }
+            init.headers = headers;
+            if (!init.credentials) init.credentials = 'same-origin';
+            return origFetch(input, init);
+        };
+    })();
+    </script>
+
     <style>
     :root {
         --bg:#F5F2EB; --surface:#FFFFFF; --surface-2:#EEE9DE; --surface-3:#E0D9C8; --border:#D4CCB8;
@@ -283,6 +333,14 @@
     </footer>
 
     <script>
+    // HTML-escape any runtime value before interpolating into innerHTML.
+    // Pose names come from voice history which is user-controlled, and
+    // certificate metadata reflects user names from Google profiles.
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
     (async function(){
         const $ = (id) => document.getElementById(id);
         let data;
@@ -390,7 +448,7 @@
                 const row = document.createElement('div');
                 row.className = 'dist-row';
                 row.innerHTML = `
-                    <div class="dist-top"><span>${n}</span><span class="dist-pct">${pct}%</span></div>
+                    <div class="dist-top"><span>${esc(n)}</span><span class="dist-pct">${pct}%</span></div>
                     <div class="dist-track"><div class="dist-fill" style="width:${pct}%"></div></div>`;
                 dist.appendChild(row);
             }
@@ -432,8 +490,8 @@
             el.innerHTML = `
                 <span class="badge-star">${b.e ? '★' : '☆'}</span>
                 <div>
-                    <div class="badge-label">${b.t}</div>
-                    <div class="kicker" style="color:${b.e ? 'var(--primary-3)' : 'var(--text-4)'};font-size:9px;margin-top:4px">${b.s}</div>
+                    <div class="badge-label">${esc(b.t)}</div>
+                    <div class="kicker" style="color:${b.e ? 'var(--primary-3)' : 'var(--text-4)'};font-size:9px;margin-top:4px">${esc(b.s)}</div>
                 </div>`;
             ach.appendChild(el);
         }
@@ -451,7 +509,7 @@
                         const card = document.createElement('div');
                         card.style.cssText = 'background:var(--surface-2);border-radius:16px;padding:14px';
                         const asana = history.find(r => r.pose === pose);
-                        card.innerHTML = `<span class="kicker" style="color:var(--primary);font-size:10px">${asana?.poseSanskrit || pose}</span>${svg}`;
+                        card.innerHTML = `<span class="kicker" style="color:var(--primary);font-size:10px">${esc(asana?.poseSanskrit || pose)}</span>${svg}`;
                         graphsEl.appendChild(card);
                     }
                 }
@@ -503,14 +561,14 @@
                         card.innerHTML = `
                             <div>
                                 <span class="kicker" style="color:${s.accent};font-size:9px">SEM ${s.n} · CERTIFICATE</span>
-                                <h4 style="font-family:Fraunces,serif;font-size:22px;font-weight:300;margin:8px 0 0;color:var(--bg);letter-spacing:-0.01em">${s.name}</h4>
+                                <h4 style="font-family:Fraunces,serif;font-size:22px;font-weight:300;margin:8px 0 0;color:var(--bg);letter-spacing:-0.01em">${esc(s.name)}</h4>
                             </div>
                             <div style="display:flex;justify-content:space-between;align-items:flex-end">
                                 <div>
                                     <span class="kicker" style="color:${s.accent};font-size:9px">Mark</span>
                                     <div style="font-family:Fraunces,serif;font-size:30px;font-weight:300;color:var(--bg);line-height:1">${got.score || 0}%</div>
                                 </div>
-                                <span style="font-size:10px;color:${s.accent};letter-spacing:0.18em;text-transform:uppercase">${issued}</span>
+                                <span style="font-size:10px;color:${s.accent};letter-spacing:0.18em;text-transform:uppercase">${esc(issued)}</span>
                             </div>
                         `;
                         if (got.verifyUrl) card.onclick = () => window.open(got.verifyUrl, '_blank');
@@ -519,7 +577,7 @@
                         card.innerHTML = `
                             <div>
                                 <span class="kicker" style="color:var(--text-4);font-size:9px">SEM ${s.n} · LOCKED</span>
-                                <h4 style="font-family:Fraunces,serif;font-size:22px;font-weight:300;margin:8px 0 0;color:var(--text-3);letter-spacing:-0.01em">${s.name}</h4>
+                                <h4 style="font-family:Fraunces,serif;font-size:22px;font-weight:300;margin:8px 0 0;color:var(--text-3);letter-spacing:-0.01em">${esc(s.name)}</h4>
                             </div>
                             <div style="display:flex;justify-content:space-between;align-items:flex-end">
                                 <span style="font-size:11px;color:var(--text-4)">Complete the course to earn</span>
@@ -536,17 +594,23 @@
                 if (masterCert) {
                     const issued = new Date(masterCert.issuedAt).toLocaleDateString('en-US', { day:'numeric', month:'long', year:'numeric' });
                     master.innerHTML = `
-                        <div onclick="${masterCert.verifyUrl ? `window.open('${masterCert.verifyUrl}','_blank')` : ''}" style="background:linear-gradient(135deg,#0F3D2E 0%,#1F5A44 100%);border:2px solid #E0A23F;border-radius:22px;padding:24px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;cursor:pointer">
+                        <div id="master-cert-card" style="background:linear-gradient(135deg,#0F3D2E 0%,#1F5A44 100%);border:2px solid #E0A23F;border-radius:22px;padding:24px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;cursor:pointer">
                             <div>
                                 <span class="kicker" style="color:#E0A23F">Master programme</span>
                                 <h4 style="font-family:Fraunces,serif;font-size:28px;font-weight:300;margin:6px 0 0;color:var(--bg);letter-spacing:-0.02em">AsanMinds 3-Year Yoga Master</h4>
-                                <p style="margin:6px 0 0;color:#C7DBCE;font-size:12px">Issued ${issued}</p>
+                                <p style="margin:6px 0 0;color:#C7DBCE;font-size:12px">Issued ${esc(issued)}</p>
                             </div>
                             <div style="text-align:right">
                                 <span class="kicker" style="color:#E0A23F;font-size:9px">Final mark</span>
                                 <div style="font-family:Fraunces,serif;font-size:48px;font-weight:300;color:var(--bg);line-height:1">${masterCert.score || 0}%</div>
                             </div>
                         </div>`;
+                    if (masterCert.verifyUrl) {
+                        const card = master.querySelector('#master-cert-card');
+                        if (card) card.addEventListener('click', () => {
+                            try { window.open(String(masterCert.verifyUrl), '_blank'); } catch(_) {}
+                        });
+                    }
                 } else {
                     master.innerHTML = `
                         <div style="background:var(--surface-3);border:2px dashed var(--border);border-radius:22px;padding:24px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
@@ -814,13 +878,13 @@
                     const sec = document.createElement('section');
                     sec.style.cssText = 'margin-bottom:22px';
                     sec.innerHTML = `
-                        <span class="kicker" style="color:#0F3D2E">${cat}</span>
+                        <span class="kicker" style="color:#0F3D2E">${esc(cat)}</span>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:8px">
                             ${items.map(c => `
                                 <div style="background:#EEE9DE;border:1px solid #D4CCB8;border-radius:16px;padding:14px">
-                                    <div style="font-family:Fraunces,serif;font-size:18px;font-weight:400;color:#14120E">${c.phrases[0]}</div>
-                                    <div style="color:#4A453B;font-size:13px;line-height:1.5;margin-top:4px">${c.description}</div>
-                                    ${c.phrases.length > 1 ? `<div class="kicker" style="color:#7A7364;font-size:10px;margin-top:8px">Also: ${c.phrases.slice(1, 4).join(' \u00b7 ')}</div>` : ''}
+                                    <div style="font-family:Fraunces,serif;font-size:18px;font-weight:400;color:#14120E">${esc(c.phrases[0])}</div>
+                                    <div style="color:#4A453B;font-size:13px;line-height:1.5;margin-top:4px">${esc(c.description)}</div>
+                                    ${c.phrases.length > 1 ? `<div class="kicker" style="color:#7A7364;font-size:10px;margin-top:8px">Also: ${esc(c.phrases.slice(1, 4).join(' \u00b7 '))}</div>` : ''}
                                 </div>`).join('')}
                         </div>`;
                     container.appendChild(sec);

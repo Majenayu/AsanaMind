@@ -12,6 +12,62 @@
     <link rel="icon" type="image/png" sizes="512x512" href="/assets/brand/logo-512.png">
     <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
     <link rel="alternate icon" type="image/png" href="/assets/brand/logo-192.png">
+    <!-- CSRF — wrap fetch() so every state-changing same-origin call carries
+         X-CSRF-Token. The token is injected by the Flask /home route into
+         window.__csrf_token; if it's missing (e.g., direct refresh after
+         deploy) we lazily fetch /api/csrf. Carve-outs match the server-side
+         CSRF_EXEMPT_PATHS list in app.py. -->
+    <script>
+    (function(){
+        if (window.__csrfFetchInstalled) return;
+        window.__csrfFetchInstalled = true;
+        var EXEMPT = {
+            '/auth/google': 1, '/api/health/report': 1, '/login': 1,
+            '/register': 1, '/api/live/upload': 1, '/api/live/stop': 1,
+            '/api/assistant': 1
+        };
+        var origFetch = window.fetch.bind(window);
+        async function ensureToken() {
+            if (window.__csrf_token) return window.__csrf_token;
+            try {
+                var r = await origFetch('/api/csrf', { credentials: 'same-origin' });
+                var j = await r.json();
+                window.__csrf_token = j && j.token || '';
+            } catch (_) {}
+            return window.__csrf_token || '';
+        }
+        window.__getCsrfToken = ensureToken;
+        window.fetch = async function(input, init) {
+            init = init || {};
+            var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+            var url = (typeof input === 'string') ? input : (input && input.url) || '';
+            var path = url;
+            try {
+                if (/^https?:/i.test(url)) {
+                    var u = new URL(url, window.location.href);
+                    if (u.origin !== window.location.origin) {
+                        return origFetch(input, init);
+                    }
+                    path = u.pathname;
+                } else if (url.indexOf('?') >= 0) {
+                    path = url.split('?')[0];
+                }
+            } catch (_) {}
+            if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+                return origFetch(input, init);
+            }
+            if (EXEMPT[path]) return origFetch(input, init);
+            var headers = new Headers(init.headers || (input && input.headers) || {});
+            if (!headers.has('X-CSRF-Token')) {
+                var tok = await ensureToken();
+                if (tok) headers.set('X-CSRF-Token', tok);
+            }
+            init.headers = headers;
+            if (!init.credentials) init.credentials = 'same-origin';
+            return origFetch(input, init);
+        };
+    })();
+    </script>
     <!-- TF.js + pose-detection: local-first so the app works fully
          offline after first load. CDN fallback runs only if the local
          scripts 404 (e.g., during local-dev before fetch_offline_assets
@@ -733,6 +789,18 @@
         // --- API Configuration and Helper (Moved outside app object) ---
         const OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
         const VIRTUAL_ASSISTANT_SYSTEM_PROMPT = "You are SUNDAY, a supportive, knowledgeable, and certified yoga and wellness assistant. Your tone is calming and encouraging. Provide concise, helpful answers. For yoga pose questions, include the Sanskrit name and a brief description of the benefit. Always format your advice clearly. Keep responses brief (2-3 sentences max).";
+
+        // HTML-escape any runtime value before inserting it into innerHTML
+        // or a template literal that builds HTML. The user's name (from
+        // their Google profile) flows into greetings and certificate
+        // dialogs, and pose feedback echoes back assistant replies — so
+        // every dynamic value gets escaped here as defense in depth.
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        window.esc = esc;
 
         /**
          * Global App State and Routing
@@ -1926,9 +1994,12 @@
                 const asana = (typeof ASANA_LIBRARY !== 'undefined') ? ASANA_LIBRARY.find(a => a.name === poseName) : null;
                 if (!asana) return;
 
-                // Remove any existing overlay
-                const existing = document.getElementById('reference-overlay');
-                if (existing) existing.remove();
+                // Idempotence guard: clear any pending dismiss timer and remove
+                // any existing overlay before mounting a new one, so rapid
+                // re-trigger cannot stack duplicates or let a stale timeout
+                // dismiss the freshly-mounted overlay early.
+                clearTimeout(this._refOverlayTimer);
+                document.getElementById('reference-overlay')?.remove();
 
                 const overlay = document.createElement('div');
                 overlay.id = 'reference-overlay';
@@ -1979,7 +2050,7 @@
                     const bar = document.getElementById('reference-overlay-bar');
                     if (bar) { bar.style.width = '0%'; }
                 });
-                setTimeout(() => {
+                this._refOverlayTimer = setTimeout(() => {
                     const o = document.getElementById('reference-overlay');
                     if (o) {
                         o.style.opacity = '0';
@@ -3368,10 +3439,10 @@
                             <div class="flex flex-col" style="gap:18px">
                                 <span class="kicker" style="color:#E0A23F">${dayName} · ${tod} · ${timeStr}</span>
                                 <h1 class="font-display" style="font-size:clamp(40px, 7vw, 80px); font-weight:300; line-height:1.02; letter-spacing:-0.03em; margin:0">
-                                    ${greeting},<br />${first}.
+                                    ${greeting},<br />${esc(first)}.
                                 </h1>
                                 <p style="color:rgba(212,224,213,0.9); font-size:17px; line-height:1.55; max-width:540px; margin:0">
-                                    ${activeDays > 0 ? activeDays + ' day' + (activeDays===1?'':'s') + ' of practice so far. ' : ''}Today, return to ${todayName}.
+                                    ${activeDays > 0 ? activeDays + ' day' + (activeDays===1?'':'s') + ' of practice so far. ' : ''}Today, return to ${esc(todayName)}.
                                 </p>
                                 <div class="flex flex-wrap" style="gap:14px; margin-top:6px">
                                     <button class="btn btn-cream pressable" onclick="app.navigate('ar_correction')">Start today's practice  →</button>
@@ -3380,11 +3451,11 @@
                             </div>
                             <div class="relative z-10 hidden md:flex items-center justify-center">
                                 <div class="relative overflow-hidden" style="width:100%; max-width:460px; aspect-ratio:460/324; border-radius:24px; background:#1F5A44">
-                                    ${todayAsana.imagePath ? `<img class="pose-photo" src="${todayAsana.imagePath}" alt="${todayAsana.name}" style="filter:saturate(0.7) brightness(0.85) contrast(1.05)">` : ''}
+                                    ${todayAsana.imagePath ? `<img class="pose-photo" src="${esc(todayAsana.imagePath)}" alt="${esc(todayAsana.name)}" style="filter:saturate(0.7) brightness(0.85) contrast(1.05)">` : ''}
                                     <div class="absolute inset-x-0 bottom-0" style="height:55%; background:linear-gradient(180deg, rgba(30,46,31,0) 0%, rgba(30,46,31,0.65) 60%, rgba(30,46,31,0.92) 100%)"></div>
                                     <div class="absolute" style="left:24px; bottom:20px">
                                         <span class="kicker" style="color:#E0A23F">Today's focus</span>
-                                        <div class="font-display" style="font-size:22px; font-weight:400; color:#F5F2EB; margin-top:4px">${todayAsana.name}</div>
+                                        <div class="font-display" style="font-size:22px; font-weight:400; color:#F5F2EB; margin-top:4px">${esc(todayAsana.name)}</div>
                                     </div>
                                 </div>
                             </div>
