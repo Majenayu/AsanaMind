@@ -177,6 +177,7 @@ try:
     feedback_col = adb.feedback
     admin_audit_col = adb.audit
     live_frames_col = adb.live_frames
+    health_reports_col = adb.health_reports
     # Multi-tenant collections — organizations, invitations.
     organizations_col = adb.organizations
     invitations_col = adb.invitations
@@ -208,6 +209,7 @@ except Exception as e:
     g_preferences_col = g_push_subs_col = g_streak_freeze_col = None
     feedback_col = admin_audit_col = None
     live_frames_col = None
+    health_reports_col = None
     organizations_col = invitations_col = None
 
 
@@ -2435,6 +2437,222 @@ def sync_history():
     except Exception as e:
         print(f'sync-history error: {e}')
         return jsonify({'success': True, 'synced': 0, 'note': 'DB error'})
+
+
+# ─────────────────────────────────────────────────────────────
+# HEALTH MONITOR — bug telemetry from the page-side health-monitor.js
+# ─────────────────────────────────────────────────────────────
+@app.route('/api/health/report', methods=['POST'])
+def health_report():
+    """Receive a structured bug report from the page.
+
+    Anonymous-tolerant — clients can post even pre-sign-in (a model load
+    error before auth is exactly when we need this most). We rate-limit
+    by IP via flask-limiter (if installed) and silently drop oversize
+    payloads.
+    """
+    if health_reports_col is None:
+        # DB offline — log to stdout only so we still see something on
+        # Render's tail.
+        try:
+            print(f'[health-report-stdout] {request.get_data(as_text=True)[:600]}')
+        except Exception:
+            pass
+        return jsonify({'success': True, 'stored': False, 'note': 'DB offline'})
+
+    raw = request.get_data(as_text=True) or ''
+    if len(raw) > 16 * 1024:
+        return jsonify({'success': False, 'error': 'payload too large'}), 413
+
+    payload = request.get_json(silent=True) or {}
+
+    # Whitelist + cap fields. Reject anything unexpected to avoid log
+    # poisoning attempts.
+    allowed_str_keys = {
+        'type', 'message', 'filename', 'stack', 'url', 'view', 'pose',
+        'user', 'ua', 'buildVersion', 'timestamp', 'healed', 'healOutcome',
+    }
+    allowed_int_keys = {'line', 'col', 'status'}
+    allowed_bool_keys = {'online'}
+
+    doc = {'recvAt': datetime.utcnow()}
+    for k, v in payload.items():
+        if k in allowed_str_keys:
+            if isinstance(v, str):
+                doc[k] = v[:2000]
+            elif v is None:
+                doc[k] = None
+        elif k in allowed_int_keys and isinstance(v, (int, float)):
+            doc[k] = int(v)
+        elif k in allowed_bool_keys and isinstance(v, bool):
+            doc[k] = v
+
+    # Always stamp the requester so we can track per-user issues.
+    doc['admin_email_at_log'] = session.get('admin_email')
+    doc['user_email_at_log'] = session.get('user_email')
+    doc['organizationEmail'] = session.get('organizationEmail')
+    doc['ip_hash'] = _hash_ip(request.remote_addr or '')
+
+    try:
+        health_reports_col.insert_one(doc)
+    except Exception as e:
+        print(f'health-report insert failed: {e}')
+        return jsonify({'success': True, 'stored': False, 'note': 'DB error'})
+
+    return jsonify({'success': True, 'stored': True})
+
+
+def _hash_ip(ip):
+    """Hash IP for privacy — we don't need the raw IP, just a stable
+    grouping key to spot single-device fault loops."""
+    if not ip:
+        return ''
+    try:
+        import hashlib
+        salt = os.environ.get('SECRET_KEY', 'asanminds')
+        return hashlib.sha256((salt + ':' + ip).encode('utf-8')).hexdigest()[:16]
+    except Exception:
+        return ''
+
+
+@app.route('/api/admin/health', methods=['GET'])
+@admin_required
+def admin_health():
+    """Return aggregated health-report stats for the admin dashboard."""
+    if health_reports_col is None:
+        return jsonify({'success': False, 'error': 'DB offline'}), 503
+
+    # Default window: last 7 days
+    since_days = int(request.args.get('days', '7'))
+    since = datetime.utcnow() - timedelta(days=max(1, min(since_days, 30)))
+
+    try:
+        total = health_reports_col.count_documents({'recvAt': {'$gte': since}})
+        healed = health_reports_col.count_documents({
+            'recvAt': {'$gte': since},
+            'healed': {'$ne': None},
+        })
+
+        # Top error signatures (group by type + first line of stack)
+        pipeline_top = [
+            {'$match': {'recvAt': {'$gte': since}}},
+            {'$project': {
+                'type': 1, 'message': 1, 'view': 1, 'pose': 1,
+                'healed': 1, 'ua': 1, 'buildVersion': 1, 'recvAt': 1,
+                'sig': {'$concat': [
+                    {'$ifNull': ['$type', 'unknown']}, '::',
+                    {'$substr': [{'$ifNull': ['$message', '']}, 0, 80]},
+                ]},
+            }},
+            {'$group': {
+                '_id': '$sig',
+                'count': {'$sum': 1},
+                'lastSeen': {'$max': '$recvAt'},
+                'sample': {'$first': '$$ROOT'},
+                'healedCount': {
+                    '$sum': {'$cond': [{'$ne': ['$healed', None]}, 1, 0]},
+                },
+                'distinctViews': {'$addToSet': '$view'},
+                'distinctPoses': {'$addToSet': '$pose'},
+            }},
+            {'$sort': {'count': -1}},
+            {'$limit': 20},
+        ]
+        top = list(health_reports_col.aggregate(pipeline_top))
+
+        # Browser breakdown
+        pipeline_ua = [
+            {'$match': {'recvAt': {'$gte': since}}},
+            {'$project': {
+                'browser': {
+                    '$cond': [
+                        {'$regexMatch': {'input': {'$ifNull': ['$ua', '']}, 'regex': 'Edg/'}}, 'Edge',
+                        {'$cond': [
+                            {'$regexMatch': {'input': {'$ifNull': ['$ua', '']}, 'regex': 'Chrome/'}}, 'Chrome',
+                            {'$cond': [
+                                {'$regexMatch': {'input': {'$ifNull': ['$ua', '']}, 'regex': 'Safari/'}}, 'Safari',
+                                {'$cond': [
+                                    {'$regexMatch': {'input': {'$ifNull': ['$ua', '']}, 'regex': 'Firefox/'}}, 'Firefox',
+                                    'Other',
+                                ]},
+                            ]},
+                        ]},
+                    ],
+                },
+            }},
+            {'$group': {'_id': '$browser', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}},
+        ]
+        by_browser = list(health_reports_col.aggregate(pipeline_ua))
+
+        # Per-pose breakdown
+        pipeline_pose = [
+            {'$match': {'recvAt': {'$gte': since}, 'pose': {'$nin': [None, '']}}},
+            {'$group': {'_id': '$pose', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}},
+            {'$limit': 20},
+        ]
+        by_pose = list(health_reports_col.aggregate(pipeline_pose))
+
+        # Build version breakdown (catch regressions on a specific deploy)
+        pipeline_build = [
+            {'$match': {'recvAt': {'$gte': since}, 'buildVersion': {'$nin': [None, '', 'unknown']}}},
+            {'$group': {'_id': '$buildVersion', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}},
+            {'$limit': 10},
+        ]
+        by_build = list(health_reports_col.aggregate(pipeline_build))
+
+        # Recent unhealed errors (newest first, up to 50)
+        recent = list(health_reports_col.find(
+            {'recvAt': {'$gte': since}, 'healed': None},
+            {'_id': 0, 'message': 1, 'type': 1, 'view': 1, 'pose': 1,
+             'ua': 1, 'recvAt': 1, 'buildVersion': 1, 'user_email_at_log': 1, 'stack': 1}
+        ).sort('recvAt', -1).limit(50))
+
+        for r in recent:
+            if isinstance(r.get('recvAt'), datetime):
+                r['recvAt'] = r['recvAt'].isoformat()
+
+        # Coerce ObjectIds away from top
+        for t in top:
+            t.pop('sample', None) and None  # keep sample? — drop the embedded _id
+            t['_id'] = t.get('_id') or 'unknown'
+            if 'lastSeen' in t and isinstance(t['lastSeen'], datetime):
+                t['lastSeen'] = t['lastSeen'].isoformat()
+            t['distinctViews'] = [v for v in (t.get('distinctViews') or []) if v]
+            t['distinctPoses'] = [p for p in (t.get('distinctPoses') or []) if p]
+
+        return jsonify({
+            'success': True,
+            'sinceDays': since_days,
+            'total': total,
+            'healed': healed,
+            'unhealed': total - healed,
+            'top': top,
+            'byBrowser': by_browser,
+            'byPose': by_pose,
+            'byBuild': by_build,
+            'recent': recent,
+        })
+    except Exception as e:
+        print(f'admin/health failed: {e}')
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
+@app.route('/api/admin/health/clear', methods=['POST'])
+@admin_required
+def admin_health_clear():
+    """Clear all stored health reports older than N days. Default 30."""
+    if health_reports_col is None:
+        return jsonify({'success': False, 'error': 'DB offline'}), 503
+    days = int(request.json.get('olderThanDays', 30) if request.is_json else 30)
+    cutoff = datetime.utcnow() - timedelta(days=max(1, min(days, 90)))
+    try:
+        result = health_reports_col.delete_many({'recvAt': {'$lt': cutoff}})
+        return jsonify({'success': True, 'deleted': result.deleted_count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
 
 
 # ─────────────────────────────────────────────────────────────

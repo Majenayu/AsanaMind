@@ -30,6 +30,7 @@
     <script src="/static/pose-notes.js"></script>
     <script src="/static/courses.js"></script>
     <script src="/static/offline-queue.js"></script>
+    <script src="/static/health-monitor.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2458,7 +2459,17 @@
                             // Thunder is ~3x more accurate than Lightning on joint
                             // angles, which is what yoga pose rules rely on. Slower
                             // fps (~10-15 on CPU, ~25 on GPU) is an acceptable trade.
-                            modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+                            // Healer fallback: if Thunder failed last attempt
+                            // and HealthMonitor flagged it, retry with Lightning.
+                            modelType: (function () {
+                                try {
+                                    return sessionStorage.getItem('sunday_movenet_fallback') === 'lightning'
+                                        ? poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+                                        : poseDetection.movenet.modelType.SINGLEPOSE_THUNDER;
+                                } catch (_) {
+                                    return poseDetection.movenet.modelType.SINGLEPOSE_THUNDER;
+                                }
+                            })(),
                             enableSmoothing: true,
                             minPoseScore: 0.3,
                             // Local model URL — bypasses tfhub.dev (dead) and the
@@ -5170,14 +5181,21 @@
                 }
 
                 // ── Global error boundary (item 38) ──
-                window.addEventListener('error', (e) => {
-                    console.error('Uncaught error:', e.message, e.filename, e.lineno);
-                    this._showErrorBanner(e.message);
-                });
-                window.addEventListener('unhandledrejection', (e) => {
-                    console.error('Unhandled rejection:', e.reason);
-                    this._showErrorBanner(String(e.reason).slice(0, 100));
-                });
+                // HealthMonitor (loaded earlier from /static/health-monitor.js)
+                // already hooks window.onerror + unhandledrejection and routes
+                // every event through the auto-healer + telemetry pipeline.
+                // We only keep this lightweight fallback for when HealthMonitor
+                // failed to load — a rare path on broken bundles.
+                if (!window.HealthMonitor) {
+                    window.addEventListener('error', (e) => {
+                        console.error('Uncaught error:', e.message, e.filename, e.lineno);
+                        this._showErrorBanner(e.message);
+                    });
+                    window.addEventListener('unhandledrejection', (e) => {
+                        console.error('Unhandled rejection:', e.reason);
+                        this._showErrorBanner(String(e.reason).slice(0, 100));
+                    });
+                }
 
                 // ── Accessibility: font size preference (item 34) ──
                 try {

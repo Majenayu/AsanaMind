@@ -285,6 +285,7 @@ const ROUTES = [
     { path: 'feedback', label: 'Feedback' },
     { path: 'certificates', label: 'Certificates' },
     { path: 'analytics', label: 'Analytics' },
+    { path: 'health', label: 'Health' },
 ];
 
 let adminProfile = null;
@@ -333,6 +334,7 @@ function renderRoute() {
     if (route === 'feedback') return renderFeedback();
     if (route === 'certificates') return renderCertificates();
     if (route === 'analytics') return renderAnalytics();
+    if (route === 'health') return renderHealth();
     location.hash = '#dashboard';
 }
 
@@ -821,6 +823,130 @@ async function renderAnalytics() {
     } catch (e) {
         $('.chart-grid').innerHTML = '<div class="empty">Failed to load analytics.</div>';
     }
+}
+
+// ─────────────────────────────────────────────────
+// HEALTH — bug telemetry from the page-side health-monitor.js
+// ─────────────────────────────────────────────────
+async function renderHealth() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Health</span><h1>What's breaking</h1></div>
+            <div class="toolbar" style="margin-bottom:0">
+                <select id="hv-window" class="input" style="height:36px;min-width:120px">
+                    <option value="1">Last 24 hours</option>
+                    <option value="7" selected>Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                </select>
+                <button class="btn btn-sm" onclick="renderHealth()">↻ Refresh</button>
+            </div>
+        </div>
+        <div id="health-body"><div class="spinner"></div></div>
+    `;
+    document.getElementById('hv-window').addEventListener('change', renderHealth);
+    await loadHealth();
+}
+
+async function loadHealth() {
+    const days = parseInt(document.getElementById('hv-window')?.value || '7', 10);
+    try {
+        const data = await fetchJSON('/api/admin/health?days=' + days);
+        renderHealthBody(data);
+    } catch (e) {
+        $('#health-body').innerHTML = '<div class="empty">Failed to load health data.</div>';
+    }
+}
+
+function renderHealthBody(d) {
+    const esc = (s) => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const total = d.total || 0;
+    const healed = d.healed || 0;
+    const unhealed = d.unhealed || 0;
+    const healRate = total ? Math.round((healed / total) * 100) : 0;
+
+    $('#health-body').innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Events</div><div class="kpi-n">${total}</div><div class="kpi-sub">in last ${d.sinceDays || 7}d</div></div>
+        <div class="kpi"><div class="kpi-label">Auto-healed</div><div class="kpi-n" style="color:#3E8A52">${healed}</div><div class="kpi-sub">${healRate}% recovery rate</div></div>
+        <div class="kpi"><div class="kpi-label">Needs attention</div><div class="kpi-n" style="color:${unhealed > 0 ? '#C2552F' : '#3E8A52'}">${unhealed}</div><div class="kpi-sub">unrecovered errors</div></div>
+        <div class="kpi"><div class="kpi-label">Top browser</div><div class="kpi-n" style="font-size:24px;font-weight:400">${esc((d.byBrowser?.[0] || {})._id || '—')}</div><div class="kpi-sub">${(d.byBrowser?.[0] || {}).count || 0} events</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div><span class="kicker">Top errors</span><h2>By signature</h2></div></div>
+        ${(d.top || []).length ? `
+          <div style="overflow-x:auto"><table class="table">
+            <thead><tr><th>Signature</th><th>Count</th><th>Healed</th><th>Last seen</th><th>Views</th><th>Poses</th></tr></thead>
+            <tbody>
+              ${d.top.map(t => `
+                <tr>
+                  <td><span class="mono" style="font-size:11px">${esc(t._id || 'unknown').slice(0, 90)}</span></td>
+                  <td><strong>${t.count}</strong></td>
+                  <td>${t.healedCount || 0} / ${t.count}</td>
+                  <td>${fmtDate(t.lastSeen)}</td>
+                  <td style="font-size:11px;color:var(--text-3)">${esc((t.distinctViews || []).join(', '))}</td>
+                  <td style="font-size:11px;color:var(--text-3)">${esc((t.distinctPoses || []).join(', '))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table></div>
+        ` : '<div class="empty">No errors in this window. App is healthy.</div>'}
+      </div>
+
+      <div class="deep-grid">
+        <div class="section">
+          <div class="section-head"><div><span class="kicker">By browser</span><h2>Where errors come from</h2></div></div>
+          ${(d.byBrowser || []).length ? `
+            <table class="table">
+              <thead><tr><th>Browser</th><th>Events</th></tr></thead>
+              <tbody>${d.byBrowser.map(b => `<tr><td>${esc(b._id || 'unknown')}</td><td>${b.count}</td></tr>`).join('')}</tbody>
+            </table>
+          ` : '<div class="empty" style="padding:18px">No data.</div>'}
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div><span class="kicker">By pose</span><h2>Errors during practice</h2></div></div>
+          ${(d.byPose || []).length ? `
+            <table class="table">
+              <thead><tr><th>Pose</th><th>Events</th></tr></thead>
+              <tbody>${d.byPose.map(p => `<tr><td>${esc(p._id)}</td><td>${p.count}</td></tr>`).join('')}</tbody>
+            </table>
+          ` : '<div class="empty" style="padding:18px">No pose-specific errors.</div>'}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div><span class="kicker">Build versions</span><h2>Errors per deploy</h2></div></div>
+        ${(d.byBuild || []).length ? `
+          <table class="table">
+            <thead><tr><th>Service worker version</th><th>Events</th></tr></thead>
+            <tbody>${d.byBuild.map(b => `<tr><td><span class="mono" style="font-size:11px">${esc(b._id)}</span></td><td>${b.count}</td></tr>`).join('')}</tbody>
+          </table>
+        ` : '<div class="empty" style="padding:18px">No version data.</div>'}
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div><span class="kicker">Recent unhealed</span><h2>Things to look at first</h2></div></div>
+        ${(d.recent || []).length ? `
+          <div style="overflow-x:auto"><table class="table">
+            <thead><tr><th>When</th><th>User</th><th>View</th><th>Pose</th><th>Type</th><th>Message</th></tr></thead>
+            <tbody>
+              ${d.recent.map(r => `
+                <tr>
+                  <td>${fmtDate(r.recvAt)}</td>
+                  <td style="font-size:11px;color:var(--text-3)">${esc((r.user_email_at_log || '').split('@')[0] || 'anon')}</td>
+                  <td style="font-size:11px">${esc(r.view || '')}</td>
+                  <td style="font-size:11px">${esc(r.pose || '')}</td>
+                  <td style="font-size:11px;color:var(--accent)">${esc(r.type || '')}</td>
+                  <td><span class="mono" style="font-size:10px">${esc((r.message || '').slice(0, 140))}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table></div>
+        ` : '<div class="empty">No unhealed errors. Healthy.</div>'}
+      </div>
+    `;
 }
 
 // ─────────────────────────────────────────────────
