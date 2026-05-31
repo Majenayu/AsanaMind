@@ -122,7 +122,13 @@ a{color:var(--primary);text-decoration:none}
 
 .table{width:100%;border-collapse:collapse}
 .table th,.table td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--surface-2);font-size:13px;vertical-align:middle}
-.table th{color:var(--text-3);font-weight:500;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;background:var(--surface-2);position:sticky;top:64px;cursor:pointer}
+/* Sticky header — z-index keeps it above scrolling rows; box-shadow at the
+   bottom hides any sub-pixel bleed-through from the first row's content
+   peeking up behind a transparent header gap on some browsers. The thead
+   itself also gets a solid background so partial-row scroll doesn't show
+   between cells when the user scrolls. */
+.table thead{background:var(--surface-2)}
+.table th{color:var(--text-3);font-weight:500;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;background:var(--surface-2);position:sticky;top:64px;cursor:pointer;z-index:5;box-shadow:inset 0 -1px 0 var(--border)}
 .table th.sortable:hover{background:var(--surface-3)}
 .table tr.row{cursor:pointer}
 .table tr.row:hover{background:var(--surface-2)}
