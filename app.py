@@ -122,16 +122,23 @@ def _security_headers(resp):
 
 
 # ─────────────────────────────────────────────────────────────
-# CSRF protection — per-session token, header-based.
+# CSRF protection — per-session token, deny-by-default.
 #
-# Every state-changing /api/* request (POST/PUT/DELETE/PATCH) must
-# carry an X-CSRF-Token header that matches session['csrf_token'].
+# Every state-changing request (POST/PUT/DELETE/PATCH) on every path is
+# CSRF-checked unless explicitly exempted in CSRF_EXEMPT_PATHS. The token
+# must be supplied either via the X-CSRF-Token header, a JSON `_csrf`
+# field, or a form-encoded `_csrf` field. Comparison uses hmac.compare_digest.
+#
 # The token is generated lazily on first session access and exposed:
 #   - via GET /api/csrf for clients to fetch on boot
 #   - via window.__csrf_token injected by /home (see render of main.html)
+#   - via {{ csrf_token }} in the /admin/login form template
 #
 # Endpoints exempted (must be reachable pre-session OR are anonymous):
-#   /auth/google, /login, /register   — pre-session sign-in flows
+#   /auth/google                       — pre-session sign-in (verifies a
+#                                        Google-signed JWT, so CSRF on this
+#                                        endpoint is meaningless: an attacker
+#                                        cannot mint a valid Google token).
 #   /api/health/report                 — anonymous bug telemetry
 #   /api/live/upload, /api/live/stop   — high-frequency camera frame push
 #                                        from AR session; gated by its own
@@ -139,8 +146,16 @@ def _security_headers(resp):
 #   /api/assistant                     — rate-limited (30/min/IP) and
 #                                        idempotent voice flow; CSRF would
 #                                        break the existing speech UX
-# Other writes (admin login form POST) ride on SameSite=Lax cookies and
-# the standard Origin/Referer check by Flask.
+#
+# /admin/login is NOT in this list — it ships its own form-token check
+# (see admin_login_page) which the guard short-circuits below. F3 of the
+# audit pass replaced the SameSite-cookie-only defense with a real form
+# token.
+#
+# /logout is GET-only (Flask routes it that way), so the guard above
+# returns None on GET and never validates anything. Documented intent:
+# logging out via CSRF has no impact (an attacker logging the user out
+# is just an annoyance, not a security issue). F27 of the audit pass.
 # ─────────────────────────────────────────────────────────────
 CSRF_EXEMPT_PATHS = {
     '/auth/google',
@@ -148,8 +163,6 @@ CSRF_EXEMPT_PATHS = {
     '/api/live/upload',
     '/api/live/stop',
     '/api/assistant',
-    '/login',
-    '/register',
 }
 
 
@@ -162,19 +175,36 @@ def _ensure_csrf_token():
 
 @app.before_request
 def _csrf_guard():
-    """Block state-changing /api/* requests that lack a valid CSRF token."""
+    """Block state-changing requests that lack a valid CSRF token.
+
+    Inverted in audit pass F17: the guard now applies to EVERY non-GET
+    request, with explicit carve-outs in CSRF_EXEMPT_PATHS. Previously
+    only /api/* was guarded which left form POSTs (e.g., /admin/login)
+    unprotected.
+    """
     method = request.method
     if method in ('GET', 'HEAD', 'OPTIONS'):
         return None
     path = request.path or ''
-    if not path.startswith('/api/'):
-        return None
     if path in CSRF_EXEMPT_PATHS:
+        return None
+    # /admin/login validates its own form token in admin_login_page()
+    # because the form is rendered server-side and the user has no JS
+    # bootstrap to fetch /api/csrf at that point.
+    if path == '/admin/login':
         return None
     submitted = request.headers.get('X-CSRF-Token') or ''
     if not submitted and request.is_json:
         try:
             submitted = (request.get_json(silent=True) or {}).get('_csrf') or ''
+        except Exception:
+            submitted = ''
+    # F2 of audit pass: also accept the token in a form-encoded body so
+    # multipart uploads (e.g., the bulk Excel import) can include it as a
+    # hidden field instead of relying on the global fetch wrapper.
+    if not submitted and not request.is_json:
+        try:
+            submitted = (request.form.get('_csrf') or '')
         except Exception:
             submitted = ''
     expected = session.get('csrf_token') or ''
@@ -222,11 +252,29 @@ if LIMITER_AVAILABLE:
 
     def rate_limit_admin_login(f):
         return limiter.limit('5 per 15 minutes')(f)
+
+    # F11 of audit pass — throttles for any endpoint that can blow up our
+    # SendGrid quota or generate spam if abused. Kept generous because
+    # legitimate admin work (bulk invites, broadcasts) needs headroom.
+    def rate_limit_email(f):
+        return limiter.limit('10 per hour')(f)
+
+    def rate_limit_auth(f):
+        return limiter.limit('20 per hour')(f)
+
+    def rate_limit_push(f):
+        return limiter.limit('30 per hour')(f)
 else:
     limiter = None
     def rate_limit_assistant(f):
         return f
     def rate_limit_admin_login(f):
+        return f
+    def rate_limit_email(f):
+        return f
+    def rate_limit_auth(f):
+        return f
+    def rate_limit_push(f):
         return f
     print('⚠ flask-limiter not installed — rate-limiting disabled')
 
@@ -350,6 +398,29 @@ def get_streak_freeze_col():
 # Multi-tenant organization layer — registered below after the
 # admin decorators are defined. See org_routes.py.
 # ─────────────────────────────────────────────────────────────
+
+
+import re as _re
+
+# F4 of audit pass — picture URLs come from Google's verified ID token
+# OR from admin/org-admin edits. Treat them as untrusted in both cases:
+# Google rotates avatar URLs, and admins can paste anything. We accept
+# only well-formed https URLs so a stored javascript: / data: payload
+# can't slip through to the client-side `style="background-image:..."`
+# template literals.
+_VALID_PICTURE_URL = _re.compile(r'^https://[a-zA-Z0-9._\-]+(:[0-9]+)?(/[^\s"\'<>`\\]*)?$')
+
+
+def _sanitize_picture_url(url):
+    """Return the URL if it's a safe https URL, else empty string."""
+    if not url or not isinstance(url, str):
+        return ''
+    url = url.strip()
+    if len(url) > 500:
+        return ''
+    if not _VALID_PICTURE_URL.match(url):
+        return ''
+    return url
 
 
 def _sendgrid_send(to_email, subject, html_content):
@@ -1506,81 +1577,31 @@ def profile_page():
     return response
 
 
-# Set ALLOW_LEGACY_LOGIN=1 to keep the old name+email login working.
-# By default it's disabled — it's effectively no auth (no password) and
-# was only kept around for early test users. Google sign-in is the safe path.
-ALLOW_LEGACY_LOGIN = os.environ.get('ALLOW_LEGACY_LOGIN', '').strip() == '1'
+# F10 of audit pass — legacy /login and /register removed entirely.
+# These accepted name + email with no password, which is effectively no
+# auth. Google sign-in is the only supported path. Any client-side code
+# still calling these endpoints gets a clean 410 Gone.
+ALLOW_LEGACY_LOGIN = False  # retained as a constant for backward compatibility
 
 
 @app.route('/register', methods=['POST'])
 def register():
-    if not ALLOW_LEGACY_LOGIN:
-        return jsonify({'success': False, 'error': 'Email registration is disabled. Sign in with Google.'}), 403
-    if not db_connected:
-        return jsonify({'success': False, 'error': 'Database not available'}), 500
-    
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    
-    if not name or not email:
-        return jsonify({'success': False, 'error': 'Name and email are required'}), 400
-    
-    existing_user = users.find_one({'email': email})
-    if existing_user:
-        return jsonify({'success': False, 'error': 'User already registered with this email'}), 400
-    
-    today = datetime.now().strftime('%Y-%m-%d')
-    user_data = {
-        'name': name,
-        'email': email,
-        'created_at': datetime.utcnow(),
-        'activity_log': [today],  # Init with today
-        'completed_asanas': {}    # Dynamic object for counts
-    }
-    result = users.insert_one(user_data)
-    
-    if result.inserted_id:
-        session.permanent = True
-        session['logged_in'] = True
-        session['user_email'] = email
-        session['user_name'] = name
-        return jsonify({'success': True})
-    else:
-        return jsonify({'success': False, 'error': 'Registration failed'}), 500
+    """Removed in audit pass F10. Legacy email-and-name registration was
+    unsafe (no password). Use /auth/google instead.
+    """
+    return jsonify({'success': False, 'error': 'Email registration is disabled. Sign in with Google.'}), 410
+
 
 @app.route('/login', methods=['POST'])
 def login():
-    if not ALLOW_LEGACY_LOGIN:
-        return jsonify({'success': False, 'error': 'Email login is disabled. Sign in with Google.'}), 403
-    if not db_connected:
-        return jsonify({'success': False, 'error': 'Database not available'}), 500
-    
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    
-    if not name or not email:
-        return jsonify({'success': False, 'error': 'Name and email are required'}), 400
-    
-    user = users.find_one({'email': email})
-    if not user:
-        return jsonify({'success': False, 'error': 'No user found with this email'}), 400
-    
-    if user['name'] != name:
-        return jsonify({'success': False, 'error': 'Name does not match registered user'}), 400
-    
-    # Add today to activity_log if not exists
-    today = datetime.now().strftime('%Y-%m-%d')
-    users.update_one({'email': email}, {'$addToSet': {'activity_log': today}})
-    
-    session.permanent = True
-    session['logged_in'] = True
-    session['user_email'] = email
-    session['user_name'] = name
-    return jsonify({'success': True})
+    """Removed in audit pass F10. Legacy email-and-name login was unsafe
+    (no password, account enumeration). Use /auth/google instead.
+    """
+    # F9 — generic message, no enumeration.
+    return jsonify({'success': False, 'error': 'Email login is disabled. Sign in with Google.'}), 410
 
 @app.route('/auth/google', methods=['POST'])
+@rate_limit_auth
 def google_auth():
     """Sign in / sign up via Google ID token (item: Google Sign-In).
 
@@ -1613,7 +1634,10 @@ def google_auth():
         return jsonify({'success': False, 'error': 'Google account email is not verified.'}), 401
 
     name = (info.get('name') or info.get('given_name') or email.split('@')[0]).strip()
-    picture = info.get('picture', '')
+    # F4 of audit pass — sanitize the picture URL from Google before storing
+    # or echoing back to clients. Google's URL is normally trustworthy but
+    # we treat all third-party data as untrusted input.
+    picture = _sanitize_picture_url(info.get('picture', ''))
     google_sub = info.get('sub')
 
     today = datetime.now().strftime('%Y-%m-%d')
@@ -1921,6 +1945,11 @@ def serve_asset(filename):
 # the install banner refuses to appear.
 @app.route('/install-debug')
 def install_debug():
+    # F25 of audit pass — gated behind admin so install diagnostics aren't
+    # public attack surface. Anonymous callers get 404 (not 401, no leak
+    # of route existence).
+    if not is_admin_user():
+        return jsonify({'error': 'Not available'}), 404
     return """<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2629,8 +2658,11 @@ def admin_health():
     if health_reports_col is None:
         return jsonify({'success': False, 'error': 'DB offline'}), 503
 
-    # Default window: last 7 days
-    since_days = int(request.args.get('days', '7'))
+    # Default window: last 7 days. F30 — guarded so non-int input doesn't 500.
+    try:
+        since_days = int(request.args.get('days', '7'))
+    except (TypeError, ValueError):
+        since_days = 7
     since = datetime.utcnow() - timedelta(days=max(1, min(since_days, 30)))
 
     try:
@@ -2753,7 +2785,11 @@ def admin_health_clear():
     """Clear all stored health reports older than N days. Default 30."""
     if health_reports_col is None:
         return jsonify({'success': False, 'error': 'DB offline'}), 503
-    days = int(request.json.get('olderThanDays', 30) if request.is_json else 30)
+    # F30 — guarded so non-int input doesn't 500.
+    try:
+        days = int(request.json.get('olderThanDays', 30) if request.is_json else 30)
+    except (TypeError, ValueError, AttributeError):
+        days = 30
     cutoff = datetime.utcnow() - timedelta(days=max(1, min(days, 90)))
     try:
         result = health_reports_col.delete_many({'recvAt': {'$lt': cutoff}})
@@ -3092,7 +3128,8 @@ def _verify_html(cert, requested_id, state):
 # Falls back to "no email service" gracefully if SENDGRID_API_KEY isn't set.
 # ─────────────────────────────────────────────────────────────
 
-@app.route('/api/email/test', methods=['GET', 'POST'])
+@app.route('/api/email/test', methods=['POST'])
+@rate_limit_email
 def email_test():
     """One-click SendGrid plumbing test.
 
@@ -3160,6 +3197,7 @@ def email_test():
 
 
 @app.route('/api/certificate/email', methods=['POST'])
+@rate_limit_email
 def email_certificate():
     if not session.get('logged_in'):
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
@@ -3323,6 +3361,7 @@ def push_unsubscribe():
 
 
 @app.route('/api/push/test', methods=['POST'])
+@rate_limit_push
 def push_test():
     """Send a test notification to the current user. Returns success even when
     the push stack isn't installed — UI shows the right message."""
@@ -3744,6 +3783,9 @@ try:
         'sendgrid_send': _sendgrid_send,
         'webpush_send': _webpush_send,
         'admin_emails': ADMIN_EMAILS,
+        # F11 of audit pass — pass through the email rate limiter so the
+        # invite endpoints in org_routes can decorate themselves.
+        'rate_limit_email': rate_limit_email,
     })
     print('✓ Multi-tenant org routes registered')
 except Exception as _e:
@@ -3781,6 +3823,7 @@ button:hover{background:#1F5A44}
 .foot a:hover{color:#0F3D2E}
 </style></head>
 <body><form class="card" method="POST" action="/admin/login">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
 <div class="brand-row">
   <img src="/assets/brand/logo1.png" alt="AsanMinds" width="30" height="30" style="display:block;border-radius:8px;object-fit:contain">
   <span class="brand-word">sunday</span>
@@ -3804,19 +3847,11 @@ button:hover{background:#1F5A44}
 
 @app.route('/admin/login/diag')
 def admin_login_diag():
-    """Public diagnostic so the operator can see WHY admin login is rejecting.
-    Tells you which env var is missing or empty WITHOUT leaking the values."""
-    return jsonify({
-        'admin_emails_set': bool(ADMIN_EMAILS),
-        'admin_emails_count': len(ADMIN_EMAILS),
-        'admin_password_set': bool(ADMIN_PASSWORD),
-        'admin_password_length': len(ADMIN_PASSWORD) if ADMIN_PASSWORD else 0,
-        'note': (
-            'Both must be true. If admin_emails_count is 0, set ADMIN_EMAILS '
-            'on Render (comma-separated). If admin_password_set is false, set '
-            'ADMIN_PASSWORD on Render. Restart/redeploy after changes.'
-        ),
-    })
+    """Removed in audit pass F7 — this previously leaked ADMIN_PASSWORD
+    length and ADMIN_EMAILS count to anonymous callers, which narrowed
+    brute-force search space. Returns 404 unconditionally now.
+    """
+    return jsonify({'error': 'Not available'}), 404
 
 
 @app.route('/admin/login', methods=['GET', 'POST'])
@@ -3832,21 +3867,35 @@ def admin_login_page():
     error = ''
     submitted_email = ''
     if request.method == 'POST':
-        submitted_email = (request.form.get('email') or '').strip().lower()
-        pw = (request.form.get('password') or '').strip()
-        # Refuse login entirely if the server hasn't been configured.
-        if not ADMIN_EMAILS or not ADMIN_PASSWORD:
-            error = 'Admin login is not configured on this server. Set ADMIN_EMAILS and ADMIN_PASSWORD env vars.'
-        elif submitted_email and submitted_email in ADMIN_EMAILS and pw and _hmac.compare_digest(pw, ADMIN_PASSWORD):
-            session.permanent = True
-            session['admin_unlocked'] = True
-            session['admin_email'] = submitted_email
-            _audit('admin_login', submitted_email)
-            return redirect('/admin')
+        # F3 of audit pass — verify the hidden form-token first. The
+        # global @before_request CSRF guard skips /admin/login because
+        # the form is rendered server-side and has no JS bootstrap.
+        submitted_token = (request.form.get('_csrf') or '').strip()
+        expected_token = session.get('csrf_token') or ''
+        if not expected_token or not submitted_token or not _hmac.compare_digest(
+                str(submitted_token), str(expected_token)):
+            error = 'Form expired. Reload and try again.'
         else:
-            error = 'Wrong email or password.' if (submitted_email or pw) else 'Enter both email and password.'
+            submitted_email = (request.form.get('email') or '').strip().lower()
+            pw = (request.form.get('password') or '').strip()
+            # Refuse login entirely if the server hasn't been configured.
+            if not ADMIN_EMAILS or not ADMIN_PASSWORD:
+                error = 'Admin login is not configured on this server. Set ADMIN_EMAILS and ADMIN_PASSWORD env vars.'
+            elif submitted_email and submitted_email in ADMIN_EMAILS and pw and _hmac.compare_digest(pw, ADMIN_PASSWORD):
+                session.permanent = True
+                session['admin_unlocked'] = True
+                session['admin_email'] = submitted_email
+                _audit('admin_login', submitted_email)
+                return redirect('/admin')
+            else:
+                error = 'Wrong email or password.' if (submitted_email or pw) else 'Enter both email and password.'
 
-    response = app.make_response(render_template_string(ADMIN_LOGIN_HTML, error=error, email=submitted_email))
+    response = app.make_response(render_template_string(
+        ADMIN_LOGIN_HTML,
+        error=error,
+        email=submitted_email,
+        csrf_token=_ensure_csrf_token(),
+    ))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
 
@@ -3974,7 +4023,11 @@ def admin_kpi():
 @app.route('/api/admin/students')
 @admin_api_required
 def admin_students():
-    limit = int(request.args.get('limit', 0))
+    # F30 — guarded so non-int input doesn't 500.
+    try:
+        limit = int(request.args.get('limit', 0))
+    except (TypeError, ValueError):
+        limit = 0
     sort = request.args.get('sort', '')
     rows = [_student_summary(u) for u in _all_user_docs()]
     if sort == '-created_at':
@@ -3988,6 +4041,10 @@ def admin_students():
 @admin_api_required
 def admin_student_deep(email):
     email = email.lower().strip()
+    # F14 of audit pass — log every deep PII fetch so a compromised admin
+    # session leaves a trail. The deep view returns session_history,
+    # certificates, push subscription endpoints, and all academic data.
+    _audit('view_student_deep', email)
     user = None
     is_google = False
     if g_users is not None:
@@ -4244,6 +4301,7 @@ def admin_analytics():
 
 @app.route('/api/admin/notify/<path:email>', methods=['POST'])
 @admin_api_required
+@rate_limit_email
 def admin_notify_one(email):
     """Push a notification to a single user."""
     if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY')):
@@ -4273,6 +4331,7 @@ def admin_notify_one(email):
 
 @app.route('/api/admin/broadcast', methods=['POST'])
 @admin_api_required
+@rate_limit_email
 def admin_broadcast():
     """Send the same push to every subscribed user."""
     if not (PUSH_AVAILABLE and os.environ.get('VAPID_PRIVATE_KEY')):
@@ -4314,7 +4373,9 @@ def admin_edit_user(email):
     if 'name' in data:
         update['name'] = (data.get('name') or '').strip()[:120]
     if 'picture' in data:
-        update['picture'] = (data.get('picture') or '').strip()[:500]
+        # F4 of audit pass — only accept well-formed https URLs to prevent
+        # CSS-context XSS via the avatar background-image attribute.
+        update['picture'] = _sanitize_picture_url(data.get('picture') or '')
     if 'auth_provider' in data and data['auth_provider'] in ('google', 'email'):
         update['auth_provider'] = data['auth_provider']
     if not update:
@@ -4405,12 +4466,54 @@ def admin_delete_user(email):
 # password sent in the X-Live-Pass header. The password is checked with
 # constant-time comparison and is never sent to any client.
 
+def _live_pass_token():
+    """Build a signed cookie token: `<expires>:<hmac(secret, admin_email+expires)>`.
+
+    F18/F19/F29 of audit pass — replaces the previous design which stored
+    the LIVE_VIEW_PASSWORD itself in the cookie. A signed token prevents
+    plaintext-cookie leakage and binds the cookie to the admin email so a
+    stolen cookie can't be replayed by another admin or after admin
+    rotation. Expiry is enforced server-side.
+    """
+    expires = int(_time.time()) + 30 * 60  # 30 minutes
+    msg = f"{(session.get('admin_email') or '').lower()}:{expires}".encode('utf-8')
+    sig = _hmac.new(app.secret_key.encode('utf-8'), msg, 'sha256').hexdigest()
+    return f"{expires}:{sig}"
+
+
+def _live_pass_token_ok(tok):
+    """Verify the signed cookie token. Constant-time compare on the sig."""
+    if not tok or ':' not in tok:
+        return False
+    try:
+        expires_str, sig = tok.split(':', 1)
+        expires = int(expires_str)
+    except Exception:
+        return False
+    if expires < int(_time.time()):
+        return False
+    msg = f"{(session.get('admin_email') or '').lower()}:{expires}".encode('utf-8')
+    expected = _hmac.new(app.secret_key.encode('utf-8'), msg, 'sha256').hexdigest()
+    return _hmac.compare_digest(expected, sig)
+
+
 def _live_pass_ok():
-    """Constant-time compare of the live-view password from request header."""
+    """Returns True if the request carries a valid live-view auth.
+
+    Two accepted forms:
+      1. A signed cookie minted by /api/admin/live/check (preferred).
+      2. The raw LIVE_VIEW_PASSWORD in an X-Live-Pass header (one-shot
+         check used only by the password-prompt flow itself).
+    """
     if not LIVE_VIEW_PASSWORD:
         return False
-    supplied = request.headers.get('X-Live-Pass') or request.cookies.get('live_pass') or ''
-    return _hmac.compare_digest(supplied, LIVE_VIEW_PASSWORD)
+    cookie_tok = request.cookies.get('live_pass') or ''
+    if cookie_tok and _live_pass_token_ok(cookie_tok):
+        return True
+    supplied = request.headers.get('X-Live-Pass') or ''
+    if supplied and _hmac.compare_digest(supplied, LIVE_VIEW_PASSWORD):
+        return True
+    return False
 
 
 @app.route('/api/live/upload', methods=['POST'])
@@ -4541,10 +4644,17 @@ def admin_live_diag():
 
 @app.route('/api/admin/live/check', methods=['POST'])
 @admin_api_required
+@rate_limit_email
 def admin_live_check():
-    """Validates the live-view password. Sets a short-lived cookie on success
-    so the admin's browser can fetch frames without re-typing the password.
-    The password itself is never returned to the client.
+    """Validates the live-view password. Sets a short-lived signed cookie
+    on success so the admin's browser can fetch frames without re-typing
+    the password. The password itself is never stored client-side.
+
+    F18/F19/F29 of audit pass — cookie now carries an HMAC-signed token
+    bound to the admin email and an expiry, replacing the prior design
+    that stored the password in plaintext. SameSite=Strict so the cookie
+    cannot ride on cross-origin navigations. Rate-limited so a leaked
+    admin session can't brute the password.
     """
     data = request.get_json(silent=True) or {}
     pw = (data.get('password') or '').strip()
@@ -4554,12 +4664,12 @@ def admin_live_check():
     response = jsonify({'success': True})
     response.set_cookie(
         'live_pass',
-        pw,
+        _live_pass_token(),
         max_age=30 * 60,
         path='/api/admin/live/',
         httponly=True,
         secure=bool(os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production'),
-        samesite='Lax',
+        samesite='Strict',
     )
     return response
 
@@ -4680,4 +4790,6 @@ def my_feedback():
 if __name__ == '__main__':
     # Use dynamic port for Render
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=True, port=port, host='0.0.0.0')
+    # debug=False in production — werkzeug debugger exposes RCE via the
+    # interactive console if it ever ships enabled. F1 of audit pass.
+    app.run(debug=False, port=port, host='0.0.0.0')

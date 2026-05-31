@@ -801,6 +801,15 @@
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
         window.esc = esc;
+        // F4 of audit pass — stricter URL escape for CSS url() / src contexts.
+        function escUrl(u) {
+            const s = String(u == null ? '' : u).trim();
+            if (!s) return '';
+            if (s.length > 500) return '';
+            if (!/^https?:\/\/[a-zA-Z0-9._\-]+(:[0-9]+)?(\/[^\s"'<>`\\]*)?$/.test(s)) return '';
+            return s;
+        }
+        window.escUrl = escUrl;
 
         /**
          * Global App State and Routing
@@ -3496,7 +3505,7 @@
                                     return `
                                     <button onclick="app.showAsanaDetails('${p.name}')" class="pressable flex items-center" style="width:100%; background:#F5F2EB; border:0; border-radius:18px; padding:12px 16px; gap:14px; text-align:left; cursor:pointer">
                                         <div style="width:52px; height:52px; border-radius:12px; background:#E0D9C8; overflow:hidden; flex-shrink:0">
-                                            ${a?.imagePath ? `<img class="pose-photo" src="${a.imagePath}" alt="${a.name}">` : ''}
+                                            ${a?.imagePath ? `<img class="pose-photo" src="${esc(a.imagePath)}" alt="${esc(a.name)}">` : ''}
                                         </div>
                                         <div style="flex:1; min-width:0">
                                             <span class="kicker" style="color:#7A7364; font-size:10px">${a?.sanskrit || ''}</span>
@@ -3570,9 +3579,9 @@
                                 }
                             } catch(_){}
                             return `
-                            <div class="asana-tile" data-pose-key="${p.imageKey || ''}" data-level="${p.category}" data-view="${p.view}" data-name="${p.name.toLowerCase()}" data-sanskrit="${p.sanskrit.toLowerCase()}"
-                                onclick="app.showAsanaDetails('${p.name}')" style="position:relative; background:#EEE9DE; aspect-ratio:4/5; border-radius:22px; overflow:hidden; box-shadow:0 10px 30px rgba(26,24,20,0.06)">
-                                ${p.imagePath ? `<img class="pose-photo" src="${p.imagePath}" alt="${p.name}">` : '<div style="background:#0F3D2E;width:100%;height:100%"></div>'}
+                            <div class="asana-tile" data-pose-key="${esc(p.imageKey || '')}" data-level="${esc(p.category)}" data-view="${esc(p.view)}" data-name="${esc(p.name.toLowerCase())}" data-sanskrit="${esc(p.sanskrit.toLowerCase())}"
+                                onclick="app.showAsanaDetails('${p.name.replace(/'/g, "\\'")}')" style="position:relative; background:#EEE9DE; aspect-ratio:4/5; border-radius:22px; overflow:hidden; box-shadow:0 10px 30px rgba(26,24,20,0.06)">
+                                ${p.imagePath ? `<img class="pose-photo" src="${esc(p.imagePath)}" alt="${esc(p.name)}">` : '<div style="background:#0F3D2E;width:100%;height:100%"></div>'}
                                 <div class="veil-b"></div>
                                 <div class="absolute flex justify-between" style="top:14px; left:14px; right:14px">
                                     <span class="kicker" style="background:rgba(245,242,235,0.18); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); color:#F5F2EB; padding:4px 10px; border-radius:9999px; font-size:9px; border:1px solid rgba(245,242,235,0.35)">${shortLevel(p.category)}</span>
@@ -3824,8 +3833,8 @@
 
                     <div id="pose-selection" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style="gap:14px; ${isCourseMode ? 'display: none;' : ''}">
                         ${asanaData.map(p => `
-                            <button onclick="app.selectAsanaAndStart('${p.name}')" class="asana-tile" style="position:relative; background:#0F3D2E; color:#F5F2EB; aspect-ratio:4/5; border-radius:22px; overflow:hidden; border:0; cursor:pointer; padding:0">
-                                ${p.imagePath ? `<img class="pose-photo" src="${p.imagePath}" alt="${p.name}" style="filter:saturate(0.7) brightness(0.85) contrast(1.05)">` : ''}
+                            <button onclick="app.selectAsanaAndStart('${p.name.replace(/'/g, "\\'")}')" class="asana-tile" style="position:relative; background:#0F3D2E; color:#F5F2EB; aspect-ratio:4/5; border-radius:22px; overflow:hidden; border:0; cursor:pointer; padding:0">
+                                ${p.imagePath ? `<img class="pose-photo" src="${esc(p.imagePath)}" alt="${esc(p.name)}" style="filter:saturate(0.7) brightness(0.85) contrast(1.05)">` : ''}
                                 <div class="veil-dark"></div>
                                 <div class="absolute flex justify-between" style="top:14px; left:14px; right:14px">
                                     <span class="kicker" style="color:#E0A23F; font-size:9px">${shortLevel(p.category)}</span>
@@ -4980,7 +4989,7 @@
                         <h2 style="font-family:'Fraunces',serif;font-size:28px;font-weight:300;margin:6px 0 4px;color:#14120E">${meta.courseTitle}</h2>
                         <p style="margin:0;color:#7A7364;font-size:13px">${meta.score}% · ${meta.name}</p>
                     </div>
-                    <div style="padding:0 26px"><img src="${meta.canvasDataUrl}" alt="Certificate preview" style="width:100%;border-radius:14px;border:1px solid #D4CCB8"></div>
+                    <div style="padding:0 26px"><img src="${esc(meta.canvasDataUrl)}" alt="Certificate preview" style="width:100%;border-radius:14px;border:1px solid #D4CCB8"></div>
                     <div style="padding:18px 26px 24px;display:flex;flex-direction:column;gap:10px">
                         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
                             <button onclick="app._downloadCertificatePDF()" class="pressable" style="height:44px;border-radius:12px;background:#0F3D2E;color:#F5F2EB;border:0;font-weight:500;cursor:pointer">Download PDF</button>
@@ -4991,15 +5000,23 @@
                         <div style="border-top:1px solid #E0D9C8;padding-top:14px;margin-top:4px">
                             <span class="kicker" style="color:#7A7364;font-size:10px">Share</span>
                             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">
-                                <a href="${linkedinUrl}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#0A66C2;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">LinkedIn</a>
-                                <a href="${whatsappUrl}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">WhatsApp</a>
-                                <a href="${twitterUrl}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#1DA1F2;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">Twitter</a>
-                                <button onclick="navigator.clipboard.writeText('${verifyUrl}').then(()=>alert('Verification link copied'))" style="height:40px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Copy link</button>
+                                <a href="${esc(linkedinUrl)}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#0A66C2;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">LinkedIn</a>
+                                <a href="${esc(whatsappUrl)}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">WhatsApp</a>
+                                <a href="${esc(twitterUrl)}" target="_blank" rel="noopener" style="height:40px;border-radius:10px;background:#1DA1F2;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;font-weight:500">Twitter</a>
+                                <button data-copy-url="${esc(verifyUrl)}" style="height:40px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:12px;font-weight:500;cursor:pointer">Copy link</button>
                             </div>
-                            <p style="margin:10px 0 0;color:#7A7364;font-size:11px;word-break:break-all">${verifyUrl}</p>
+                            <p style="margin:10px 0 0;color:#7A7364;font-size:11px;word-break:break-all">${esc(verifyUrl)}</p>
                         </div>` : ''}
                     </div>
                 `;
+                // F5/F21 of audit pass — bind copy-link from data-* attribute
+                // instead of interpolating verifyUrl into an inline onclick
+                // string. Avoids host-header / cert-id JS-context injection.
+                body.querySelector('[data-copy-url]')?.addEventListener('click', (e) => {
+                    const u = e.currentTarget.dataset.copyUrl || '';
+                    if (!u) return;
+                    navigator.clipboard.writeText(u).then(() => alert('Verification link copied'));
+                });
                 modal.classList.add('active');
             },
 

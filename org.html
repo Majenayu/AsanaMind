@@ -238,9 +238,17 @@ function esc(s) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-// ─────────────────────────────────────────────────
-// Mobile nav drawer
-// ─────────────────────────────────────────────────
+// F4 of audit pass — stricter URL escape for values that flow into a CSS
+// url() context (e.g., style="background-image:url(${...})"). HTML-escape
+// alone leaves backslashes and parens that can break out of the url()
+// string. Reject anything that isn't a plain http(s) URL.
+function escUrl(u) {
+    const s = String(u == null ? '' : u).trim();
+    if (!s) return '';
+    if (s.length > 500) return '';
+    if (!/^https?:\/\/[a-zA-Z0-9._\-]+(:[0-9]+)?(\/[^\s"'<>`\\]*)?$/.test(s)) return '';
+    return s;
+}
 function toggleMobileNav(force){
     const nav = document.getElementById('top-nav');
     const back = document.getElementById('menu-backdrop');
@@ -433,9 +441,9 @@ async function renderStudents() {
         <div class="section">
             <div class="toolbar">
                 <input class="input" id="q" placeholder="Search name / email / USN…" oninput="filterStudents()">
-                <select class="select" id="f-batch" onchange="filterStudents()"><option value="">All batches</option>${(myOrg.batches||[]).map(b=>`<option>${b}</option>`).join('')}</select>
-                <select class="select" id="f-branch" onchange="filterStudents()"><option value="">All branches</option>${(myOrg.branches||[]).map(b=>`<option value="${b.code}">${b.code}</option>`).join('')}</select>
-                <select class="select" id="f-section" onchange="filterStudents()"><option value="">All sections</option>${(myOrg.sections||[]).map(s=>`<option>${s}</option>`).join('')}</select>
+                <select class="select" id="f-batch" onchange="filterStudents()"><option value="">All batches</option>${(myOrg.batches||[]).map(b=>`<option>${esc(b)}</option>`).join('')}</select>
+                <select class="select" id="f-branch" onchange="filterStudents()"><option value="">All branches</option>${(myOrg.branches||[]).map(b=>`<option value="${esc(b.code)}">${esc(b.code)}</option>`).join('')}</select>
+                <select class="select" id="f-section" onchange="filterStudents()"><option value="">All sections</option>${(myOrg.sections||[]).map(s=>`<option>${esc(s)}</option>`).join('')}</select>
             </div>
             <div id="bulk-bar" style="display:none;align-items:center;gap:10px;background:var(--surface-2);padding:10px 14px;border-radius:14px;margin-bottom:14px;flex-wrap:wrap">
                 <span class="kicker" id="bulk-count" style="color:var(--accent)">0 selected</span>
@@ -634,7 +642,7 @@ function renderStudentsTable(rows) {
                 <tr class="row">
                     <td><input type="checkbox" class="row-check" ${checked} onchange="_toggleRow('${safeEm}', this)"></td>
                     <td><div class="cell-name">
-                        <div class="av" ${s.picture ? `style="background-image:url(&quot;${esc(s.picture)}&quot;)"` : ''}>${s.picture ? '' : esc(initials(s.name))}</div>
+                        <div class="av" ${escUrl(s.picture) ? `style="background-image:url(&quot;${escUrl(s.picture)}&quot;)"` : ''}>${escUrl(s.picture) ? '' : esc(initials(s.name))}</div>
                         <div class="meta"><span class="n">${esc(s.name||'—')}</span><span class="e">${esc(s.email)}</span></div>
                     </div></td>
                     <td class="mono" style="font-size:11px">${esc(a.usn || '—')}</td>
@@ -736,11 +744,11 @@ function renderInvite() {
             <input class="input" id="inv-email" style="width:100%" placeholder="student@${esc(myOrg.domain || 'example.com')}">
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px">
                 <div><label class="kicker" style="display:block;margin-bottom:6px">Batch</label>
-                    <select class="select" id="inv-batch" style="width:100%"><option value="">—</option>${(myOrg.batches||[]).map(b=>`<option>${b}</option>`).join('')}</select></div>
+                    <select class="select" id="inv-batch" style="width:100%"><option value="">—</option>${(myOrg.batches||[]).map(b=>`<option>${esc(b)}</option>`).join('')}</select></div>
                 <div><label class="kicker" style="display:block;margin-bottom:6px">Branch</label>
-                    <select class="select" id="inv-branch" style="width:100%"><option value="">—</option>${(myOrg.branches||[]).map(b=>`<option value="${b.code}">${b.code}</option>`).join('')}</select></div>
+                    <select class="select" id="inv-branch" style="width:100%"><option value="">—</option>${(myOrg.branches||[]).map(b=>`<option value="${esc(b.code)}">${esc(b.code)}</option>`).join('')}</select></div>
                 <div><label class="kicker" style="display:block;margin-bottom:6px">Section</label>
-                    <select class="select" id="inv-section" style="width:100%"><option value="">—</option>${(myOrg.sections||[]).map(s=>`<option>${s}</option>`).join('')}</select></div>
+                    <select class="select" id="inv-section" style="width:100%"><option value="">—</option>${(myOrg.sections||[]).map(s=>`<option>${esc(s)}</option>`).join('')}</select></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
                 <div><label class="kicker" style="display:block;margin-bottom:6px">USN (optional)</label>
@@ -925,7 +933,7 @@ function renderFeedbackList() {
         <div style="padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface-2)">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
                 <div class="cell-name">
-                    <div class="av" ${f.picture ? `style="background-image:url(&quot;${esc(f.picture)}&quot;)"` : ''}>${f.picture ? '' : esc(initials(f.name))}</div>
+                    <div class="av" ${escUrl(f.picture) ? `style="background-image:url(&quot;${escUrl(f.picture)}&quot;)"` : ''}>${escUrl(f.picture) ? '' : esc(initials(f.name))}</div>
                     <div class="meta">
                         <span class="n">${esc(f.name || '—')}</span>
                         <span class="e">${esc(f.email)}</span>
@@ -1066,9 +1074,9 @@ function renderConfig() {
         <div class="section" style="max-width:760px">
             <p style="color:var(--text-3);font-size:13px;margin:0 0 16px">Edit your organisation's batches, branches, and sections. Changes take effect immediately for new invitations and bulk imports.</p>
             <label class="kicker" style="color:var(--accent);display:block;margin-bottom:6px">Batches (comma-separated, year format)</label>
-            <input class="input" id="cfg-batches" style="width:100%" value="${(myOrg.batches||[]).join(', ')}" placeholder="2022, 2023, 2024, 2025">
+            <input class="input" id="cfg-batches" style="width:100%" value="${esc((myOrg.batches||[]).join(', '))}" placeholder="2022, 2023, 2024, 2025">
             <label class="kicker" style="color:var(--accent);display:block;margin:14px 0 6px">Sections</label>
-            <input class="input" id="cfg-sections" style="width:100%" value="${(myOrg.sections||[]).join(', ')}" placeholder="A, B, C, D">
+            <input class="input" id="cfg-sections" style="width:100%" value="${esc((myOrg.sections||[]).join(', '))}" placeholder="A, B, C, D">
             <label class="kicker" style="color:var(--accent);display:block;margin:14px 0 6px">Branches (one per line, format: CODE Full Name)</label>
             <textarea id="cfg-branches" style="width:100%;min-height:150px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-family:'JetBrains Mono',monospace;font-size:13px;resize:vertical">${(myOrg.branches||[]).map(b=>b.code+' '+b.name).join('\n')}</textarea>
             <p style="color:var(--text-3);font-size:11px;margin:6px 0 0">Example: <span class="mono">CSE-AIML Computer Science (AI &amp; ML)</span></p>

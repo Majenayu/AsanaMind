@@ -146,3 +146,131 @@ session fixes.
   - Added `.github/workflows/security-audit.yml` running `pip-audit -r
     requirements.txt --strict` on every push to `main`/`VVCE-V1`, every
     pull request, and weekly via cron.
+
+
+## Comprehensive security hardening (audit follow-up #2)
+
+A 31-finding deep audit covered authentication, authorization, CSRF, XSS,
+NoSQL injection, SSRF, deserialization, file upload, path traversal, open
+redirect, CORS, cookies, rate limiting, info disclosure, secrets, web
+push, OAuth, SendGrid, service worker, client storage, deps, headers,
+business logic, and the live-camera flow inch by inch. Findings ship
+below; the items requiring infrastructure access (GitHub, Render, Atlas)
+are documented for the operator separately.
+
+- [x] 15. CRITICAL F1 — drop `debug=True` from `app.run()`
+  - `app.py` `if __name__ == '__main__'` no longer ships the Werkzeug
+    debugger when launched via `python app.py`. Production launches via
+    gunicorn (Procfile) so this is purely a defense-in-depth fix for the
+    one-line config flip that would otherwise expose RCE.
+
+- [x] 16. HIGH F2 — CSRF guard accepts form-encoded `_csrf` body
+  - The `_csrf_guard` `before_request` hook now reads `request.form.get('_csrf')`
+    when the request is `application/x-www-form-urlencoded`, so multipart
+    uploads (and the admin-login form) can supply the token in the body
+    without the global fetch wrapper.
+
+- [x] 17. HIGH F3 — CSRF token enforced on /admin/login form POST
+  - `ADMIN_LOGIN_HTML` now includes `<input type="hidden" name="_csrf">`
+    populated from `_ensure_csrf_token()`. The POST handler validates it
+    via `hmac.compare_digest` before any password check. A same-origin
+    XSS or CSRF-link can no longer silently sign in another admin.
+
+- [x] 18. HIGH F4 — picture URL sanitised and bound via stricter CSS escape
+  - Server: `_sanitize_picture_url()` rejects anything that isn't a
+    well-formed `https://` URL, applied in `/api/admin/edit/<email>` and
+    in the Google sign-in path before the value is stored.
+  - Client: `escUrl()` helper added to `admin.html`, `org.html`,
+    `main.html`, and `profile.html`; every avatar `style="background-
+    image:url(${...})"` site uses it instead of plain `esc()`.
+
+- [x] 19. HIGH F5/F21 — verifyUrl no longer in inline onclick / href
+  - Certificate share modal in `main.html` binds the copy-link handler
+    via `data-copy-url` + `addEventListener` instead of interpolating
+    into an inline `onclick=` JS string. LinkedIn / WhatsApp / Twitter
+    `<a href>` URLs and the certificate preview `<img src>` now go
+    through `esc()` for defense-in-depth.
+
+- [x] 20. HIGH F6 — innerHTML interpolations escaped on remaining sites
+  - `main.html` library tile (`data-pose-key`, `data-level`, `data-view`,
+    `data-name`, `data-sanskrit`, `<img src>` and `alt`) now goes through
+    `esc()`; same for the practice-mode pose grid.
+  - `org.html` filter selects (batch / branch / section), the bulk
+    invitation form, and the org-config inputs all escape every
+    interpolated org-admin-controlled value.
+
+- [x] 21. HIGH F7 — /admin/login/diag removed
+  - Previously leaked `ADMIN_PASSWORD` length and `ADMIN_EMAILS` count to
+    anonymous callers, narrowing brute-force search by orders of
+    magnitude. Returns 404 unconditionally now.
+
+- [x] 22. MEDIUM F9 — login error messages generic
+  - Legacy `/login` and `/register` were rewritten to return a single
+    "Email login is disabled. Sign in with Google." 410 Gone — no
+    enumeration possible.
+
+- [x] 23. MEDIUM F10 — legacy /login and /register routes removed
+  - Both endpoints are 410 Gone. The `ALLOW_LEGACY_LOGIN` env flag is
+    retained as a constant for backward compatibility but ignored. The
+    fully-removed routes are also dropped from `CSRF_EXEMPT_PATHS`.
+
+- [x] 24. MEDIUM F11 — rate limits on email/auth/push/invite endpoints
+  - `rate_limit_email` (10/hour), `rate_limit_auth` (20/hour),
+    `rate_limit_push` (30/hour) helpers added to `app.py` (no-ops when
+    flask-limiter is unavailable). Applied to `/auth/google`,
+    `/api/email/test`, `/api/certificate/email`, `/api/admin/notify/<email>`,
+    `/api/admin/broadcast`, `/api/push/test`, `/api/admin/live/check`,
+    `/api/admin/invite-org-admin`, `/api/org/invite-student`.
+
+- [x] 25. MEDIUM F12/F13 — /api/email/test POST-only
+  - Was `methods=['GET', 'POST']` — the GET path side-effected (sent
+    email) and bypassed the CSRF guard. Now POST-only.
+
+- [x] 26. MEDIUM F14 — admin deep-dump audit-logged
+  - `admin_student_deep` calls `_audit('view_student_deep', email)` so a
+    compromised admin session leaves a trail of every PII fetch.
+
+- [x] 27. MEDIUM F15 — Tailwind Play CDN flagged as tech debt
+  - Comment block above the `<script src="https://cdn.tailwindcss.com">`
+    line in `main.html` calling out the production-forbidden Play CDN
+    and the `unsafe-inline`/`unsafe-eval` requirement that prevents a
+    strict CSP. Replacement with a built CSS bundle is multi-hour work
+    and tracked separately.
+
+- [x] 28. MEDIUM F17 — CSRF guard inverted (deny-by-default)
+  - The guard now applies to every non-GET request, with explicit
+    carve-outs in `CSRF_EXEMPT_PATHS` for the pre-session sign-in flow
+    (`/auth/google`), anonymous telemetry (`/api/health/report`), the
+    high-frequency camera frame push (`/api/live/upload`, `/api/live/stop`),
+    and the rate-limited voice flow (`/api/assistant`). `/admin/login`
+    has its own form-token check.
+
+- [x] 29. MEDIUM F18/F19/F29 — live-camera cookie hardened
+  - `_live_pass_token()` mints an HMAC-signed cookie bound to the admin
+    email and a 30-minute expiry. The cookie no longer carries the
+    plaintext `LIVE_VIEW_PASSWORD` and cannot be replayed by another
+    admin or after admin rotation. Cookie is now `SameSite=Strict`.
+    `/api/admin/live/check` is rate-limited so a leaked admin session
+    can't brute the password.
+
+- [x] 30. MEDIUM F23 — bulk import row cap + read-only openpyxl
+  - `_parse_uploaded_excel` opens the workbook with `read_only=True` so
+    rows stream instead of materialising. Cap of 10,000 rows per file;
+    excess rejected with a clear error. Bounds memory regardless of the
+    16MB `MAX_CONTENT_LENGTH` limit.
+
+- [x] 31. LOW F25 — /install-debug gated behind admin
+  - Returns 404 for non-admin callers (no leak of route existence).
+
+- [x] 32. LOW F28 — service worker network-only for /api/*
+  - `sw.js` no longer caches `/api/*` GET responses. Trades offline read
+    access for the guarantee that one user's API data can never be
+    served to another user on the same browser profile after sign-out.
+    Cache version bumped `sunday-v20` → `sunday-v21` so all clients
+    pick up the new strategy on next load.
+
+- [x] 33. LOW F30 — int() guards on admin params
+  - `int(request.args.get(...))` and `int(request.json.get(...))` calls
+    in `admin_health`, `admin_health_clear`, and `admin_students` are
+    wrapped in `try/except` with sane fallbacks so non-int input
+    returns the default instead of a 500.

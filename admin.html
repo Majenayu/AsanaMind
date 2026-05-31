@@ -337,6 +337,15 @@ function esc(s) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+// F4 of audit pass — stricter URL escape for CSS url() / href / src
+// contexts. Reject anything that isn't a plain http(s) URL.
+function escUrl(u) {
+    const s = String(u == null ? '' : u).trim();
+    if (!s) return '';
+    if (s.length > 500) return '';
+    if (!/^https?:\/\/[a-zA-Z0-9._\-]+(:[0-9]+)?(\/[^\s"'<>`\\]*)?$/.test(s)) return '';
+    return s;
+}
 
 const ROUTES = [
     { path: 'dashboard', label: 'Dashboard' },
@@ -573,7 +582,7 @@ function renderStudentsTable(rows) {
                 <tr class="row" onclick="if(!event.target.closest('.row-act') && !event.target.closest('.live-cell'))location.hash='#students/${encodeURIComponent(s.email)}'">
                     <td>
                         <div class="cell-name">
-                            <div class="av" ${s.picture ? `style="background-image:url(&quot;${esc(s.picture)}&quot;)"` : ''}>${s.picture ? '' : esc(initials(s.name))}</div>
+                            <div class="av" ${escUrl(s.picture) ? `style="background-image:url(&quot;${escUrl(s.picture)}&quot;)"` : ''}>${escUrl(s.picture) ? '' : esc(initials(s.name))}</div>
                             <div class="meta"><span class="n">${esc(s.name || '—')}</span><span class="e">${esc(s.email)}</span></div>
                         </div>
                     </td>
@@ -623,7 +632,7 @@ async function renderStudentDeep(email) {
         <div style="margin-bottom:18px"><a href="#students" class="btn btn-sm">← Back to all students</a></div>
         <div class="section">
             <div class="profile-hero">
-                <div class="av" ${u.picture ? `style="background-image:url(&quot;${esc(u.picture)}&quot;)"` : ''}>${u.picture ? '' : esc(initials(u.name))}</div>
+                <div class="av" ${escUrl(u.picture) ? `style="background-image:url(&quot;${escUrl(u.picture)}&quot;)"` : ''}>${escUrl(u.picture) ? '' : esc(initials(u.name))}</div>
                 <div style="flex:1;min-width:220px">
                     <span class="kicker">${u.auth_provider === 'google' ? 'Google account' : 'Email account'} · joined ${fmtDate(u.created_at)}</span>
                     <h1>${esc(u.name || '—')}</h1>
@@ -808,7 +817,7 @@ function filterFeedback() {
         <div class="feedback-card">
             <div class="head">
                 <div class="cell-name">
-                    <div class="av" ${f.picture ? `style="background-image:url(&quot;${esc(f.picture)}&quot;)"` : ''}>${f.picture ? '' : esc(initials(f.name))}</div>
+                    <div class="av" ${escUrl(f.picture) ? `style="background-image:url(&quot;${escUrl(f.picture)}&quot;)"` : ''}>${escUrl(f.picture) ? '' : esc(initials(f.name))}</div>
                     <div class="meta">
                         <span class="n">${esc(f.name || '—')}</span>
                         <span class="e">${esc(f.email)}</span>

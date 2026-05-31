@@ -341,6 +341,14 @@
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
+    // F4 of audit pass — stricter URL escape for CSS url() / src contexts.
+    function escUrl(u) {
+        const s = String(u == null ? '' : u).trim();
+        if (!s) return '';
+        if (s.length > 500) return '';
+        if (!/^https?:\/\/[a-zA-Z0-9._\-]+(:[0-9]+)?(\/[^\s"'<>`\\]*)?$/.test(s)) return '';
+        return s;
+    }
     (async function(){
         const $ = (id) => document.getElementById(id);
         let data;

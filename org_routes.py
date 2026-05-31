@@ -138,6 +138,10 @@ def register_org_routes(app, deps):
     sendgrid_send = deps.get('sendgrid_send')
     webpush_send = deps.get('webpush_send')
     admin_emails = deps.get('admin_emails', set())
+    # F11 of audit pass — rate limit invite endpoints so a compromised
+    # admin/org-admin session can't be weaponized into a SendGrid spam
+    # cannon. Falls through to a no-op when flask-limiter isn't available.
+    rate_limit_email = deps.get('rate_limit_email', lambda f: f)
 
     # Ensure the test organization exists (one-time migration on first deploy).
     if organizations_col is not None:
@@ -796,6 +800,7 @@ def register_org_routes(app, deps):
 
     @app.route('/api/admin/invite-org-admin', methods=['POST'])
     @super_admin_required
+    @rate_limit_email
     def invite_org_admin():
         """Super-admin invites a new org-admin (sub-admin)."""
         if invitations_col is None or organizations_col is None:
@@ -827,6 +832,7 @@ def register_org_routes(app, deps):
 
     @app.route('/api/org/invite-student', methods=['POST'])
     @org_admin_required
+    @rate_limit_email
     def invite_student():
         """Org-admin invites a single student. Pre-fills academic info."""
         if invitations_col is None:
@@ -1033,7 +1039,9 @@ def register_org_routes(app, deps):
         except ImportError:
             return [], ['Server cannot parse Excel — openpyxl not installed.']
         try:
-            wb = load_workbook(file_storage, data_only=True)
+            # F23 of audit pass — open in read_only mode so the workbook
+            # streams instead of materialising every cell into memory.
+            wb = load_workbook(file_storage, data_only=True, read_only=True)
         except Exception as e:
             return [], [f'Could not read file: {e}']
         ws = wb.active
@@ -1052,9 +1060,16 @@ def register_org_routes(app, deps):
         valid_branches = {b['code'].upper() for b in (org.get('branches') or [])}
         valid_sections = {s.upper() for s in (org.get('sections') or [])}
 
+        # F23 of audit pass — cap at 10,000 rows so a malicious uploader
+        # can't blow up memory with a multi-million-row Excel within the
+        # 16MB MAX_CONTENT_LENGTH limit.
+        MAX_IMPORT_ROWS = 10000
         out = []
         errors = []
         for i, row in enumerate(rows_iter, start=2):
+            if i - 1 > MAX_IMPORT_ROWS:
+                errors.append(f'Excel has more than {MAX_IMPORT_ROWS} rows. Split into multiple files.')
+                break
             if not row or all(c in (None, '') for c in row):
                 continue
             def cell(name):

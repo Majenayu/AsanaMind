@@ -12,7 +12,7 @@
  *      returns. The page can also nudge us with a `flush-outbox`
  *      postMessage when the browser fires its `online` event.
  */
-const CACHE_NAME = 'sunday-v20';
+const CACHE_NAME = 'sunday-v21';
 
 // Tier 1 — must succeed at install or the offline experience is broken.
 // We allow the install to proceed even if any of these fail individually,
@@ -130,27 +130,17 @@ self.addEventListener('fetch', (event) => {
     // the page's apiWrite() helper handles offline queueing for us.
     if (req.method !== 'GET') return;
 
-    // API calls: network-first, fallback to cache (read-only data only,
-    // since writes already bailed above).
+    // API calls: network-only for state-bearing data so a cached response
+    // from one user can never be served to another user on the same browser
+    // profile. F28 of audit pass — previously these were cached opportunistically
+    // which created a (small but real) cross-user pollution risk after sign-out.
+    // We trade offline read access for the privacy guarantee.
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
-            fetch(req).then((resp) => {
-                if (resp.ok) {
-                    caches.open(CACHE_NAME).then((c) =>
-                        c.put(req, resp.clone()).catch(() => {})
-                    );
-                }
-                return resp;
-            }).catch(() => caches.match(req).then((cached) => {
-                if (cached) return cached;
-                // Synthesise a sentinel "you're offline" JSON response so
-                // the page knows to fall back to local data instead of
-                // showing a broken state.
-                return new Response(
-                    JSON.stringify({ offline: true, error: 'offline' }),
-                    { status: 503, headers: { 'Content-Type': 'application/json' } }
-                );
-            }))
+            fetch(req).catch(() => new Response(
+                JSON.stringify({ offline: true, error: 'offline' }),
+                { status: 503, headers: { 'Content-Type': 'application/json' } }
+            ))
         );
         return;
     }
