@@ -4632,7 +4632,17 @@
                     const r = await fetch('/api/streak/freeze', { method: 'POST', credentials: 'same-origin' });
                     const j = await r.json();
                     if (j.success) {
-                        alert('Streak freeze applied for ' + j.usedFor);
+                        // j.usedFor is ISO 'YYYY-MM-DD'; render in the
+                        // user's locale so it looks like '29 May 2026'
+                        // instead of the raw ISO string.
+                        let pretty = j.usedFor;
+                        try {
+                            const d = new Date(j.usedFor + 'T00:00:00');
+                            pretty = d.toLocaleDateString(undefined, {
+                                day: 'numeric', month: 'long', year: 'numeric',
+                            });
+                        } catch (_) { /* keep ISO fallback */ }
+                        alert('Streak freeze applied for ' + pretty + '.');
                         // Refresh streak info.
                         const r2 = await fetch('/api/streak', { credentials: 'same-origin' });
                         if (r2.ok) this.streakInfo = await r2.json();
@@ -5602,6 +5612,14 @@
                             <button onclick="app.installApp(); document.getElementById('cert-share-modal').classList.remove('active')" class="pressable" style="margin-top:8px;height:38px;width:100%;border-radius:10px;background:#0F3D2E;color:#F5F2EB;border:1px solid #0F3D2E;font-size:12px;font-weight:600;cursor:pointer">Install AsanMinds as an app</button>
                             <p style="margin-top:6px;color:#A8A294;font-size:10.5px;line-height:1.4">Adds AsanMinds to your launcher with a real app icon, fullscreen, no browser chrome. Works offline once installed.</p>
                         </div>
+                        <div>
+                            <span class="kicker" style="color:#7A7364;font-size:10px">Legal</span>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">
+                                <a href="/privacy" target="_blank" rel="noopener" class="pressable" style="height:36px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;text-decoration:none">Privacy</a>
+                                <a href="/terms" target="_blank" rel="noopener" class="pressable" style="height:36px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;text-decoration:none">Terms</a>
+                                <a href="/refund" target="_blank" rel="noopener" class="pressable" style="height:36px;border-radius:10px;background:#EEE9DE;color:#14120E;border:1px solid #D4CCB8;font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;text-decoration:none">Refunds</a>
+                            </div>
+                        </div>
                         <button onclick="app._confirmDeleteAccount()" class="pressable" style="height:44px;border-radius:12px;background:#FFFFFF;color:#C2552F;border:1px solid #C2552F;font-size:13px;font-weight:500;cursor:pointer">Delete my account &amp; all data</button>
                     </div>
                 `;
@@ -5783,16 +5801,24 @@
             },
 
             async _confirmDeleteAccount() {
-                if (!confirm('This will permanently delete your account, progress, certificates, and preferences. Continue?')) return;
-                if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
+                // Two-step destructive confirmation: a soft summary
+                // followed by a typed-DELETE confirmation. The typed
+                // step matches the org-admin's bulk-delete UX so users
+                // get the same "this is final" affordance everywhere.
+                if (!confirm('This will permanently delete your account, all practice records, and any certificates. Continue?')) return;
+                const typed = prompt('Type DELETE in capital letters to confirm permanent erasure of your AsanMinds account.');
+                if (!typed || typed.trim().toUpperCase() !== 'DELETE') {
+                    if (typed !== null) alert('Account deletion cancelled — phrase did not match.');
+                    return;
+                }
                 try {
                     const r = await fetch('/api/delete-account', { method: 'POST', credentials: 'same-origin' });
                     if (r.ok) {
-                        alert('Your account has been deleted. Thank you for trying Sunday.');
+                        alert('Your account has been deleted. Thank you for trying AsanMinds. We will purge backups within 30 days per our Privacy policy.');
                         window.location.href = '/';
                     } else {
                         const j = await r.json().catch(() => ({}));
-                        alert(j.error || 'Could not delete account. Please try again later.');
+                        alert(j.error || 'Could not delete account. Please try again later, or email pgayushrai@gmail.com.');
                     }
                 } catch (e) { alert('Network error. Try again.'); }
             },

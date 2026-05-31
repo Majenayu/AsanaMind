@@ -229,6 +229,63 @@ async function fetchJSON(url, opts) {
 function showModal(html) { $('#modal').innerHTML = html; $('#modal-bg').classList.add('active'); }
 function closeModal() { $('#modal-bg').classList.remove('active'); }
 
+/**
+ * Show a typed-confirmation modal where the user must type a specific
+ * word (default 'DELETE') before the danger button is enabled. Replaces
+ * the legacy native prompt() pattern with on-brand UI that meets the
+ * design language and is mobile-friendly.
+ *
+ *   await confirmTypedDelete({
+ *     title: 'Delete 12 students',
+ *     body:  'This permanently removes their progress and certificates.',
+ *     keyword: 'DELETE',
+ *     dangerLabel: 'Delete 12 students',
+ *   });   // resolves true if confirmed, false if cancelled
+ */
+function confirmTypedDelete(opts) {
+    opts = opts || {};
+    const title = opts.title || 'Confirm deletion';
+    const body  = opts.body  || 'This action cannot be undone.';
+    const keyword = (opts.keyword || 'DELETE').toUpperCase();
+    const dangerLabel = opts.dangerLabel || 'Delete';
+    return new Promise((resolve) => {
+        showModal(`
+            <div class="modal-h"><h3>${title}</h3></div>
+            <div class="modal-b">
+                <p style="color:var(--text-2);margin:0 0 6px;font-size:14px">${body}</p>
+                <p style="color:var(--text-3);margin:14px 0 6px;font-size:12px">
+                    Type <b style="color:var(--accent);letter-spacing:0.1em;font-family:'JetBrains Mono',monospace">${keyword}</b> below to confirm.
+                </p>
+                <input class="input" id="ctd-input" autocomplete="off" autocapitalize="characters"
+                       spellcheck="false" style="width:100%;letter-spacing:0.1em;font-family:'JetBrains Mono',monospace"
+                       placeholder="${keyword}">
+                <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+                    <button class="btn" id="ctd-cancel">Cancel</button>
+                    <button class="btn btn-danger" id="ctd-go" disabled>${dangerLabel}</button>
+                </div>
+            </div>
+        `);
+        const input = document.getElementById('ctd-input');
+        const goBtn = document.getElementById('ctd-go');
+        const cancelBtn = document.getElementById('ctd-cancel');
+        const close = (ok) => { closeModal(); resolve(!!ok); };
+        if (input) {
+            input.focus();
+            input.addEventListener('input', () => {
+                const match = input.value.trim().toUpperCase() === keyword;
+                goBtn.disabled = !match;
+                goBtn.style.opacity = match ? '1' : '0.5';
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !goBtn.disabled) { e.preventDefault(); close(true); }
+                if (e.key === 'Escape') close(false);
+            });
+        }
+        cancelBtn.addEventListener('click', () => close(false));
+        goBtn.addEventListener('click', () => close(true));
+    });
+}
+
 async function bootProfile() {
     try {
         const me = await fetchJSON('/api/org/me');
@@ -350,16 +407,23 @@ async function renderStudents() {
 async function bulkAction(action) {
     const emails = [..._selected];
     if (!emails.length) { alert('Select at least one student.'); return; }
-    const confirms = {
-        delete: `Permanently delete ${emails.length} students? This cannot be undone. Type DELETE to confirm.`,
-        reset_progress: `Reset progress for ${emails.length} students? Their certificates remain.`,
-        mark_paid: `Mark ${emails.length} students as paid?`,
-        mark_unpaid: `Mark ${emails.length} students as unpaid?`,
+    const labels = {
+        delete:         { title: `Delete ${emails.length} student${emails.length === 1 ? '' : 's'}?`,
+                          body:  `This permanently removes ${emails.length === 1 ? 'their' : 'all of their'} accounts, progress and certificates. This action cannot be undone.`,
+                          danger: `Delete ${emails.length} student${emails.length === 1 ? '' : 's'}` },
+        reset_progress: { msg: `Reset progress for ${emails.length} students? Their certificates remain.` },
+        mark_paid:      { msg: `Mark ${emails.length} students as paid?` },
+        mark_unpaid:    { msg: `Mark ${emails.length} students as unpaid?` },
     };
     if (action === 'delete') {
-        const t = prompt(confirms.delete);
-        if (t !== 'DELETE') return;
-    } else if (confirms[action] && !confirm(confirms[action])) {
+        const ok = await confirmTypedDelete({
+            title:   labels.delete.title,
+            body:    labels.delete.body,
+            keyword: 'DELETE',
+            dangerLabel: labels.delete.danger,
+        });
+        if (!ok) return;
+    } else if (labels[action] && !confirm(labels[action].msg)) {
         return;
     }
     try {
@@ -583,8 +647,13 @@ async function saveEdit(email) {
     } catch(e) { alert(e.message); }
 }
 async function confirmDelete(email) {
-    const t = prompt(`Delete ${email}? Type DELETE to confirm.\n(All progress and certificates for this student will be permanently removed.)`);
-    if (t !== 'DELETE') return;
+    const ok = await confirmTypedDelete({
+        title:   `Delete ${email}?`,
+        body:    'All progress and certificates for this student will be permanently removed.',
+        keyword: 'DELETE',
+        dangerLabel: 'Delete student',
+    });
+    if (!ok) return;
     try {
         const r = await fetch('/api/org/student/' + encodeURIComponent(email), { method: 'DELETE', credentials: 'same-origin' });
         const j = await r.json();

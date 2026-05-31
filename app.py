@@ -1090,7 +1090,13 @@ INDEX_HTML = """
     </div>
     <div class="foot-bottom">
       <span>© <span id="yr"></span> AsanMinds · sunday.</span>
-      <span>Made in India · cream paper, forest green</span>
+      <span style="display:flex; gap:14px; flex-wrap:wrap;">
+        <a href="/privacy" style="color: var(--text-3); text-decoration: none;">Privacy</a>
+        <a href="/terms" style="color: var(--text-3); text-decoration: none;">Terms</a>
+        <a href="/refund" style="color: var(--text-3); text-decoration: none;">Refunds</a>
+        <span>·</span>
+        <span>Made in India</span>
+      </span>
     </div>
   </div>
 </footer>
@@ -3272,78 +3278,305 @@ def delete_account():
 
 
 # ─────────────────────────────────────────────────────────────
-# PRIVACY POLICY (item 38) — public, plain-English
+# LEGAL PAGES — Privacy, Terms, Refund
+# DPDP Act 2023 compliant; required for institutional sales and the
+# patent filing. All three share a single styled shell defined in
+# _legal_page_shell() so visual updates land in one place.
 # ─────────────────────────────────────────────────────────────
 
-PRIVACY_HTML = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Privacy · AsanMinds</title>
+def _legal_page_shell(title: str, kicker: str, body_html: str) -> str:
+    """Render a legal page wrapped in the AsanMinds cream-paper shell.
+
+    Used by /privacy, /terms, /refund. Keeps all three pages visually
+    consistent so an institutional buyer sees one professional brand
+    instead of three slightly-different mini-sites.
+    """
+    last_updated = datetime.utcnow().strftime('%d %B %Y')
+    return f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>{title} · AsanMinds</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0F3D2E">
+<link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
+<link rel="alternate icon" type="image/png" href="/assets/brand/logo-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>body{font-family:Inter,sans-serif;background:#F5F2EB;color:#14120E;margin:0;padding:48px 24px;line-height:1.65}
-.wrap{max-width:720px;margin:0 auto}
-h1{font-family:Fraunces,serif;font-size:48px;font-weight:300;letter-spacing:-0.02em;margin:0 0 6px}
-h2{font-family:Fraunces,serif;font-size:24px;font-weight:400;margin-top:36px;color:#0F3D2E}
-.kicker{color:#C2552F;font-weight:500;font-size:11px;letter-spacing:0.22em;text-transform:uppercase}
-p{color:#4A453B;margin:10px 0}
-ul{color:#4A453B;padding-left:20px}
-li{margin:6px 0}
-a{color:#0F3D2E}
-.back{display:inline-block;margin-bottom:18px;color:#7A7364;text-decoration:none;font-size:12px;letter-spacing:0.2em;text-transform:uppercase}</style>
-</head><body><div class="wrap">
-<a class="back" href="/home">← Back to AsanMinds</a>
-<span class="kicker">Privacy</span>
-<h1>How we treat your data.</h1>
-<p>AsanMinds is a yoga app built for students. We respect your time, your body and your data. Here is the entire policy in plain English.</p>
+<style>
+  body {{ font-family: Inter, system-ui, sans-serif; background:#F5F2EB; color:#14120E; margin:0; padding:48px 24px 80px; line-height:1.65; }}
+  .wrap {{ max-width: 760px; margin: 0 auto; }}
+  .topbar {{ display:flex; align-items:center; gap:10px; margin-bottom:28px; }}
+  .topbar img {{ width:32px; height:32px; border-radius:8px; }}
+  .topbar .word {{ font-family:Fraunces,serif; font-size:18px; font-weight:500; letter-spacing:-0.01em; }}
+  .topbar .word em {{ font-style:normal; color:#7A7364; font-size:13px; font-weight:400; margin-left:4px; }}
+  .legal-nav {{ display:flex; gap:20px; padding:14px 0; margin-bottom:24px; border-bottom:1px solid #E0D9C8; font-size:13px; }}
+  .legal-nav a {{ color:#7A7364; text-decoration:none; }}
+  .legal-nav a.active {{ color:#0F3D2E; font-weight:600; }}
+  .legal-nav a:hover {{ color:#14120E; }}
+  h1 {{ font-family:Fraunces,serif; font-size:48px; font-weight:300; letter-spacing:-0.02em; margin:0 0 6px; line-height:1.1; }}
+  h2 {{ font-family:Fraunces,serif; font-size:24px; font-weight:400; margin-top:36px; color:#0F3D2E; }}
+  h3 {{ font-family:Inter,sans-serif; font-size:14px; font-weight:600; margin-top:20px; color:#1F5A44; letter-spacing:0; }}
+  .kicker {{ color:#C2552F; font-weight:600; font-size:11px; letter-spacing:0.22em; text-transform:uppercase; }}
+  p {{ color:#4A453B; margin:10px 0; }}
+  ul, ol {{ color:#4A453B; padding-left:20px; }}
+  li {{ margin:6px 0; }}
+  a {{ color:#0F3D2E; }}
+  .pill {{ display:inline-block; background:#EEE9DE; color:#14120E; padding:4px 10px; border-radius:9999px; font-size:11px; font-weight:500; letter-spacing:0.06em; }}
+  .callout {{ background:#FFFFFF; border:1px solid #D4CCB8; border-radius:14px; padding:16px 18px; margin:20px 0; }}
+  .callout.warn {{ background:#FDF1E1; border-color:#E0A23F; }}
+  table {{ width:100%; border-collapse:collapse; margin:14px 0; }}
+  table th, table td {{ text-align:left; padding:8px 10px; border-bottom:1px solid #E0D9C8; font-size:13px; vertical-align:top; }}
+  table th {{ color:#7A7364; font-weight:600; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; background:#EEE9DE; }}
+  .meta {{ color:#7A7364; font-size:12px; margin-top:48px; padding-top:18px; border-top:1px solid #E0D9C8; }}
+  .back {{ display:inline-block; margin-top:12px; color:#7A7364; text-decoration:none; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; }}
+</style>
+</head><body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="/" style="display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit">
+      <img src="/assets/brand/logo-192.png" alt="">
+      <span class="word">sunday<em>· asanminds</em></span>
+    </a>
+  </div>
+  <nav class="legal-nav" aria-label="Legal">
+    <a href="/privacy" class="{'active' if title == 'Privacy' else ''}">Privacy</a>
+    <a href="/terms" class="{'active' if title == 'Terms of service' else ''}">Terms</a>
+    <a href="/refund" class="{'active' if title == 'Refund policy' else ''}">Refund policy</a>
+  </nav>
+  <span class="kicker">{kicker}</span>
+  <h1>{title}.</h1>
+  {body_html}
+  <p class="meta">Last updated: {last_updated}. Operated by AsanMinds, Mysuru, Karnataka, India. For any of the rights below, write to <a href="mailto:pgayushrai@gmail.com">pgayushrai@gmail.com</a>.</p>
+  <a class="back" href="/home">← Back to AsanMinds</a>
+</div>
+</body></html>"""
 
-<h2>What stays on your device</h2>
-<p>The pose detection runs entirely in your browser using TensorFlow.js. Your camera frames never leave your device. We do not record video, we do not save images, and we do not analyse anything outside the live frame in front of you.</p>
 
-<h2>What we store on our server</h2>
+PRIVACY_BODY = """
+<p>AsanMinds is a yoga app built for individual practitioners and educational institutions. We respect your time, your body and your data. This page is the entire policy in plain English. Where this page conflicts with shorter versions of the same policy elsewhere, the wording on this page wins.</p>
+
+<div class="callout">
+  <p style="margin:0"><b>The single most important fact:</b> the AI pose detection runs entirely in your browser. Your camera frames never leave your device. We do not record video. We do not save images. We do not analyse anything outside the live frame in front of you.</p>
+</div>
+
+<h2>1. Who is the data fiduciary</h2>
+<p>The data fiduciary under the Digital Personal Data Protection Act, 2023 (DPDP Act) is the AsanMinds operator, P. G. Ayush Rai, contactable at <a href="mailto:pgayushrai@gmail.com">pgayushrai@gmail.com</a>. The Grievance Officer is the same person until further notice.</p>
+
+<h2>2. What we store on our server</h2>
+<table>
+  <tr><th>Field</th><th>Why we keep it</th><th>Retention</th></tr>
+  <tr><td>Name and email</td><td>To identify your account, send certificates, send admin invitations</td><td>Until account deletion</td></tr>
+  <tr><td>Google profile picture (optional)</td><td>Avatar in app and admin panel</td><td>Until account deletion</td></tr>
+  <tr><td>Activity dates</td><td>Streak calculation</td><td>Until account deletion</td></tr>
+  <tr><td>Pose names + scores + duration</td><td>Course progress, certificates</td><td>Until account deletion</td></tr>
+  <tr><td>Course completion + quiz answers</td><td>To issue and verify certificates</td><td>Indefinite (certificates outlive accounts)</td></tr>
+  <tr><td>Preferences (theme, reminder time)</td><td>So the app feels yours</td><td>Until account deletion</td></tr>
+  <tr><td>Push notification token (only if you opt in)</td><td>To deliver daily reminders</td><td>Until you opt out or delete</td></tr>
+  <tr><td>Voice interaction transcripts</td><td>To answer better next time</td><td>Cached locally; only the last 60 sessions are synced to our server</td></tr>
+  <tr><td>SHA-256 hash of your IP</td><td>Bug-report deduplication; never reversed</td><td>30 days</td></tr>
+  <tr><td>Session error reports</td><td>So we can fix bugs you hit</td><td>30 days</td></tr>
+</table>
+
+<h2>3. What we do not do</h2>
 <ul>
-<li>Your name and email when you register.</li>
-<li>The list of dates you practised on.</li>
-<li>The poses you have completed and your scores.</li>
-<li>Course progress and certificates you earn.</li>
-<li>Preferences you set (theme, reminder time).</li>
-<li>If you opt in to daily reminders, your push subscription token.</li>
+  <li>We do not sell your data. Ever. To anyone.</li>
+  <li>We do not share it with third parties for advertising.</li>
+  <li>We do not use trackers like Google Analytics, Facebook Pixel, Mixpanel, Hotjar, or any equivalent.</li>
+  <li>We do not store your camera frames, video, or images on our server.</li>
+  <li>We do not sell or share data across organisations: a college's student data is strictly partitioned and the org-admin of one college cannot ever query data of another.</li>
 </ul>
 
-<h2>What we do not do</h2>
+<h2>4. Third parties we rely on (sub-processors)</h2>
+<table>
+  <tr><th>Sub-processor</th><th>What they see</th><th>Where</th></tr>
+  <tr><td>MongoDB Atlas</td><td>Your account record, encrypted at rest</td><td>India (Mumbai region)</td></tr>
+  <tr><td>Render.com</td><td>Hosts the application and routes your traffic</td><td>Singapore</td></tr>
+  <tr><td>Google Sign-In</td><td>Confirms you own the email you signed in with</td><td>Worldwide</td></tr>
+  <tr><td>OpenRouter / Gemini</td><td>Answers AI-assistant questions; receives the question and a short app-state context. Never receives camera frames.</td><td>Worldwide</td></tr>
+  <tr><td>SendGrid</td><td>Delivers your invitation, welcome and certificate emails</td><td>USA</td></tr>
+  <tr><td>jsdelivr.net (CDN)</td><td>Serves a subset of model files; does not see your account data</td><td>Worldwide</td></tr>
+</table>
+<p>If you object to any sub-processor, contact us. We will work with you to find an alternative or honour a deletion request.</p>
+
+<h2>5. Your rights under the DPDP Act, 2023</h2>
+<p>You have all of the following rights, free of charge, under sections 11 to 14 of the Act:</p>
 <ul>
-<li>We do not sell your data.</li>
-<li>We do not share it with third parties for advertising.</li>
-<li>We do not use trackers like Google Analytics, Facebook Pixel, or similar.</li>
+  <li><b>Right to information</b> about what we hold (this page is most of it).</li>
+  <li><b>Right to access and correction.</b> Open Settings → Profile, or email us.</li>
+  <li><b>Right to erasure.</b> Settings → "Delete my account &amp; all data" wipes everything we hold within 7 days. Encrypted backups are purged within 30 days. Issued certificates remain in our verification record indefinitely (we cannot rewrite history) but are de-identified to a one-way hash of your name + email.</li>
+  <li><b>Right of grievance redressal.</b> Write to <a href="mailto:pgayushrai@gmail.com">pgayushrai@gmail.com</a>. We respond within 7 calendar days.</li>
+  <li><b>Right to nominate</b> someone to exercise your rights in case of incapacity. Email us.</li>
+  <li><b>Right to withdraw consent.</b> Stop using the app, or delete your account.</li>
 </ul>
 
-<h2>Third parties we rely on</h2>
+<h2>6. Children</h2>
+<p>AsanMinds is intended for ages 13 and above. We do not knowingly collect data from children under 13. If you are a parent or guardian and believe a child under 13 has signed up, email us and we will delete the account within 7 days.</p>
+
+<h2>7. Institutional deployments</h2>
+<p>When AsanMinds is licensed to an educational institution (such as a college or school):</p>
 <ul>
-<li><b>MongoDB Atlas</b> stores your account data, encrypted at rest.</li>
-<li><b>Render</b> hosts the application.</li>
-<li><b>OpenRouter / Gemini</b> answers questions when you talk to the AI assistant. We send the question and a short app context — never your camera frames.</li>
-<li><b>SendGrid</b> sends your certificate to your email if you ask us to.</li>
+  <li>The institution becomes a joint data fiduciary for its students' practice records.</li>
+  <li>The institution's admin can see student progress, attendance and certificates, but never camera frames or biometric data.</li>
+  <li>The institution cannot see other institutions' data.</li>
+  <li>If a student leaves the institution, their account remains theirs; the institutional link is severed and the student keeps their certificates.</li>
 </ul>
 
-<h2>Your rights</h2>
+<h2>8. Security</h2>
 <ul>
-<li><b>Export.</b> Email us and we will send you a JSON of everything we hold about you.</li>
-<li><b>Delete.</b> Use the "delete my account" button in Settings, or email us. We delete everything within 7 days, including backups within 30 days.</li>
-<li><b>Object / restrict.</b> Just stop using the app. Inactive accounts are auto-pruned after 24 months of inactivity.</li>
+  <li>All traffic is over HTTPS with a valid TLS certificate.</li>
+  <li>Passwords for non-Google accounts (admins) are hashed with PBKDF2 and a per-account salt.</li>
+  <li>Certificates are signed with an RSA-2048 key whose public half is published at the verification URL embedded in each certificate.</li>
+  <li>We follow least-privilege: the application's database user can only read and write to the AsanMinds collections, not anything else in the cluster.</li>
 </ul>
 
-<h2>Children</h2>
-<p>AsanMinds is intended for ages 13 and above. We do not knowingly collect data from children under 13.</p>
+<h2>9. Changes to this policy</h2>
+<p>If we make a material change (a new sub-processor, a new data category, a wider retention window) we will give you at least 14 days notice via email and via a banner on the app. Continued use after the notice period counts as acceptance.</p>
 
-<h2>Contact</h2>
-<p>For privacy questions, write to <a href="mailto:privacy@asanminds.app">privacy@asanminds.app</a>. We reply within 7 days.</p>
+<div class="callout">
+  <p style="margin:0"><b>Plain-English summary:</b> we keep what we need to give you a good practice and a verifiable certificate, and nothing else. Your camera stays on your device. You can leave at any time and we will forget you within a week.</p>
+</div>
+"""
 
-<p style="color:#7A7364;font-size:12px;margin-top:32px">Last updated: """ + datetime.utcnow().strftime('%d %B %Y') + """</p>
-</div></body></html>"""
+
+PRIVACY_HTML = _legal_page_shell('Privacy', 'Privacy policy', PRIVACY_BODY)
 
 
 @app.route('/privacy')
 def privacy_page():
     return PRIVACY_HTML
+
+
+# ─────────────────────────────────────────────────────────────
+
+
+TERMS_BODY = """
+<p>By creating an account or accessing AsanMinds (the &ldquo;Service&rdquo;) you agree to these terms. If you do not agree, do not use the Service.</p>
+
+<h2>1. The Service</h2>
+<p>AsanMinds is a browser-based yoga practice and certification platform. The Service includes a real-time pose-correction AR coach, a curated library of asanas, a six-semester certificate course, and (for institutional licensees) an organisation admin panel for onboarding and analytics. The Service is not a medical device, not a substitute for in-person instruction, and not a diagnostic tool.</p>
+
+<h2>2. Accounts</h2>
+<ul>
+  <li>You may sign in with Google or, for administrators, an email-and-password admin login.</li>
+  <li>You are responsible for everything that happens under your account. Pick a strong password and do not share it.</li>
+  <li>You must be 13 years or older. If you are between 13 and the age of majority in your jurisdiction, you confirm that a parent or guardian has consented to your use of the Service.</li>
+  <li>We may suspend or terminate accounts for misuse, harassment, attempts to access other organisations' data, or violation of these terms.</li>
+</ul>
+
+<h2>3. Acceptable use</h2>
+<p>You agree not to:</p>
+<ul>
+  <li>Reverse-engineer, decompile or attempt to extract the model weights, the rule engine internals, or the certificate signing key.</li>
+  <li>Scrape, automate or rate-abuse the Service. The AR coach and the AI assistant are designed for one human at a time.</li>
+  <li>Submit camera frames or content depicting minors, nudity, harassment, or anything that violates the law of India or your country.</li>
+  <li>Resell or sublicense access. If you want to deploy AsanMinds for an organisation, contact us for an institutional licence.</li>
+  <li>Use the Service to give medical, physiotherapeutic or rehabilitation advice to third parties.</li>
+</ul>
+
+<h2>4. Health disclaimer</h2>
+<div class="callout warn">
+  <p style="margin:0"><b>Yoga involves physical activity. The pose-correction signal is a coach-grade hint, not a doctor's clearance.</b> If you have any medical condition, recent injury, are pregnant, or feel pain during practice, stop and consult a qualified instructor or physician. AsanMinds, its operator, and its affiliated institutions are not liable for any injury arising from your practice.</p>
+</div>
+
+<h2>5. Certificates</h2>
+<p>Certificates issued by AsanMinds are records of having completed the Service's curriculum (the AR test plus the quiz for each pose, totalling 20 poses across six semesters). They are not academic credit, not a Yoga Alliance / RYT credential, and do not authorise the holder to teach yoga professionally. The certificate's RSA-signed verification URL allows any third party to confirm authenticity.</p>
+
+<h2>6. Institutional licences</h2>
+<ul>
+  <li>An institutional licence covers a specific organisation domain (for example <code>vvce.ac.in</code>) and a specific seat count.</li>
+  <li>Licence fees are charged per student per semester, payable in advance per the institution's invoice.</li>
+  <li>The institution is the joint data fiduciary for its students' practice records (see Privacy).</li>
+  <li>The institution's super-admin (the AsanMinds operator) retains the right to inspect aggregate metrics across all organisations to operate, secure and improve the Service. No student-level data is shared between organisations.</li>
+</ul>
+
+<h2>7. Intellectual property</h2>
+<ul>
+  <li>The AsanMinds name, logo, course curriculum, rule engine and pose-detection pipeline are owned by the operator. A patent application has been filed in India.</li>
+  <li>You retain ownership of anything you submit (feedback, voice transcripts). By submitting, you grant us a non-exclusive royalty-free licence to use it to operate and improve the Service.</li>
+  <li>The third-party libraries and models we use (TensorFlow.js, MediaPipe BlazePose, MoveNet) remain under their own open-source licences.</li>
+</ul>
+
+<h2>8. Service availability and changes</h2>
+<p>We aim for high availability but the Service is provided &ldquo;as is&rdquo;. We may schedule downtime for maintenance, modify features, or discontinue parts of the Service with reasonable notice. If we discontinue the entire Service, we will give you at least 60 days to export your certificates.</p>
+
+<h2>9. Limitation of liability</h2>
+<p>To the maximum extent permitted by law:</p>
+<ul>
+  <li>The Service is provided &ldquo;as is&rdquo; with no warranty of fitness for any particular purpose.</li>
+  <li>Our total liability for any claim arising from the Service is limited to the licence fees you paid us in the 12 months preceding the claim, or INR 1,000, whichever is greater.</li>
+  <li>We are not liable for indirect or consequential damages, including injury during practice, lost certificates due to your account deletion, or downtime.</li>
+</ul>
+
+<h2>10. Governing law</h2>
+<p>These terms are governed by the laws of India. Any dispute is subject to the exclusive jurisdiction of the courts in Mysuru, Karnataka.</p>
+
+<h2>11. Contact</h2>
+<p>Questions about these terms: <a href="mailto:pgayushrai@gmail.com">pgayushrai@gmail.com</a>.</p>
+"""
+
+
+TERMS_HTML = _legal_page_shell('Terms of service', 'Terms', TERMS_BODY)
+
+
+@app.route('/terms')
+def terms_page():
+    return TERMS_HTML
+
+
+# ─────────────────────────────────────────────────────────────
+
+
+REFUND_BODY = """
+<div class="callout warn">
+  <p style="margin:0"><b>AsanMinds operates on a no-refund policy.</b> All licence and seat fees, paid by individual users or by institutions, are final once the access has been provisioned. Please read this page in full before paying.</p>
+</div>
+
+<h2>1. Why no refunds</h2>
+<p>AsanMinds is a digital service. Once your account is provisioned and the AR coach is unlocked, the value has been delivered. The cost of running the service (server, model bandwidth, certificate signing, support) is incurred at provisioning, not at usage. A refund-after-use policy would force us to charge everyone more to cover refund-takers, which would penalise the majority of practitioners who do practise.</p>
+
+<h2>2. What you get when you pay</h2>
+<ul>
+  <li>Access to the full AsanMinds curriculum for the licensed period (typically one academic semester).</li>
+  <li>The AR pose coach for all 20 curated asanas.</li>
+  <li>Voice-driven AI assistant.</li>
+  <li>Course quizzes and the right to earn the master certificate.</li>
+  <li>Branded certificates issued in your name.</li>
+  <li>Email support from <a href="mailto:pgayushrai@gmail.com">pgayushrai@gmail.com</a>.</li>
+</ul>
+
+<h2>3. Narrow exceptions</h2>
+<p>We will refund only if all three of the following are true:</p>
+<ul>
+  <li>You report the issue within 7 days of purchase, AND</li>
+  <li>The issue is a documented platform fault that prevents you from accessing the Service (not a personal device issue, not a Wi-Fi issue, not Chrome refusing to install), AND</li>
+  <li>We are unable to fix it within 14 days.</li>
+</ul>
+<p>In that case we will refund the unused portion of the licence period, prorated by day, via the original payment method. Processing takes up to 14 working days.</p>
+
+<h2>4. Institutional licences</h2>
+<p>Institutional licence fees are non-refundable once seats have been provisioned. If an institution wishes to terminate the licence mid-semester, it forfeits the unused portion of the fee. We may transfer unused seats to another department of the same institution at our discretion.</p>
+
+<h2>5. Account deletion is not a refund</h2>
+<p>Deleting your account erases your data per the Privacy policy, but does not entitle you to a refund of any fees paid.</p>
+
+<h2>6. Failed payments and chargebacks</h2>
+<p>If you initiate a chargeback after using the Service, we reserve the right to suspend your account and contest the chargeback with the payment processor.</p>
+
+<h2>7. Pricing and currency</h2>
+<p>All fees are denominated in Indian Rupees (INR) unless stated otherwise. Foreign exchange and bank conversion charges are paid by the customer.</p>
+
+<h2>8. Changes to this policy</h2>
+<p>We may revise this policy at any time. Revisions apply to purchases made after the revision is published. If you have an active licence, the policy as it stood when you purchased applies until your licence ends.</p>
+"""
+
+
+REFUND_HTML = _legal_page_shell('Refund policy', 'Refunds &amp; payments', REFUND_BODY)
+
+
+@app.route('/refund')
+@app.route('/refunds')
+def refund_page():
+    return REFUND_HTML
 
 
 # ─────────────────────────────────────────────────────────────
