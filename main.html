@@ -88,6 +88,7 @@
     <script src="/static/courses.js"></script>
     <script src="/static/offline-queue.js"></script>
     <script src="/static/health-monitor.js"></script>
+    <script src="/static/pose-readiness.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2455,6 +2456,94 @@
                 return result.corrections || [];
             },
 
+            // ─────────────────────────────────────────────────────────
+            // VISIBILITY GATE UI — banner + frame-quality badge + voice cue
+            // Driven from the per-frame readiness object produced by
+            // window.PoseReadiness.check(). Keeps the DOM writes cheap so
+            // the AR loop stays at 30fps on mid-range phones.
+            // ─────────────────────────────────────────────────────────
+            _updateVisibilityUI(readiness) {
+                if (!readiness) return;
+                const banner = document.getElementById('visibility-banner');
+                const badge = document.getElementById('frame-quality-badge');
+                const pct = document.getElementById('frame-quality-pct');
+                const msg = document.getElementById('visibility-banner-msg');
+                const kicker = document.getElementById('visibility-banner-kicker');
+
+                // Frame-quality pill is always visible during AR. Color-code
+                // by stable visibility so users learn what the number means.
+                if (badge && pct) {
+                    badge.classList.remove('hidden');
+                    const v = readiness.stableVisibility;
+                    pct.textContent = Math.round(v) + '%';
+                    pct.style.color = v >= 95 ? '#6FA089' : v >= 75 ? '#E0A23F' : '#C2552F';
+                }
+
+                // Banner: show when not READY, hide when READY for one frame.
+                if (!banner) return;
+                if (readiness.state === 'READY') {
+                    banner.style.opacity = '0';
+                    setTimeout(() => { if (this._lastReadiness?.state === 'READY') banner.classList.add('hidden'); }, 250);
+                    return;
+                }
+                banner.classList.remove('hidden');
+                banner.style.opacity = '1';
+                if (kicker) {
+                    kicker.textContent = readiness.state === 'OFF_FRAME'
+                        ? 'Step into the frame'
+                        : 'Full body not yet visible';
+                }
+                if (msg) {
+                    if (readiness.state === 'OFF_FRAME') {
+                        msg.textContent = 'Prop your phone 2 m away on the floor and step back so your full body is in frame.';
+                    } else {
+                        const parts = (readiness.missing || []).slice(0, 3)
+                            .map(k => window.PoseReadiness.labelFor(k));
+                        const list = parts.length
+                            ? parts.join(', ') + (readiness.missing.length > 3 ? '…' : '')
+                            : 'one or more joints';
+                        msg.textContent = 'Score is capped until I can see your ' + list + '.';
+                    }
+                }
+
+                // One-shot voice cue on mobile only, when the gate first
+                // engages this session. Throttled so it never repeats.
+                if (readiness.isMobile && !this._visibilityVoiceShown) {
+                    this._visibilityVoiceShown = true;
+                    try {
+                        if (typeof this.speakCorrection === 'function') {
+                            this.speakCorrection('Step back so I can see your whole body.', true);
+                        }
+                    } catch (_) {}
+                }
+
+                // Android Chrome supports MediaTrackCapabilities.zoom. If the
+                // user has been below 75% visibility for 2s+, quietly zoom
+                // out so more of them fits in the frame. iOS Safari ignores.
+                this._maybeAutoZoom(readiness);
+            },
+
+            _maybeAutoZoom(readiness) {
+                if (!readiness.isMobile) return;
+                const now = Date.now();
+                if (readiness.stableVisibility >= 75) {
+                    this._lowVisSince = null;
+                    return;
+                }
+                if (!this._lowVisSince) { this._lowVisSince = now; return; }
+                if (now - this._lowVisSince < 2000) return;
+                if (this._autoZoomedOut) return;
+                try {
+                    const stream = document.getElementById('video-feed')?.srcObject;
+                    const track = stream?.getVideoTracks?.()[0];
+                    const caps = track?.getCapabilities?.();
+                    if (!track || !caps || typeof caps.zoom !== 'object') return;
+                    const minZoom = caps.zoom.min || 1;
+                    track.applyConstraints({ advanced: [{ zoom: minZoom }] }).catch(() => {});
+                    this._autoZoomedOut = true;
+                } catch (_) {}
+            },
+
             _maybeRenderSideStrip(sa) {
                 const now = Date.now();
                 if (now - (this._lastSideStripRender || 0) < 800) return;
@@ -2481,6 +2570,14 @@
              * Initializes the camera and TensorFlow MoveNet model.
              */
             async startARAssessment() {
+                // Reset visibility gate buffer for a fresh session. Practice
+                // mode (no course test) skips the framing countdown but still
+                // benefits from the per-frame cap.
+                try { if (window.PoseReadiness) window.PoseReadiness.reset(); } catch (_) {}
+                this._lastReadiness = null;
+                this._visibilityVoiceShown = false;
+                this._autoZoomedOut = false;
+                this._lowVisSince = null;
                 // Camera positioning hint — shown as a brief overlay the
                 // first time a user starts AR per session. Uses the pose's
                 // view field (front/side) to tell them how to orient the
@@ -2715,6 +2812,32 @@
 
                             // Keep score between 0-100
                             frameScore = Math.max(0, Math.min(100, frameScore));
+
+                            // === VISIBILITY GATE ===
+                            // Mobile-first guard: a half-cropped body must not score
+                            // 100. Per-frame readiness check returns a stable visibility
+                            // percentage and a multiplier; we cap the form score by it.
+                            // See static/pose-readiness.js for the curve and per-pose
+                            // required-keypoint lists.
+                            try {
+                                if (window.PoseReadiness && this.currentPose) {
+                                    const readiness = window.PoseReadiness.check(
+                                        keypoints,
+                                        this.currentPose.split('(')[0].trim(),
+                                        video
+                                    );
+                                    this._lastReadiness = readiness;
+                                    // Apply the cap. PoseReadiness.applyCap returns
+                                    // min(formScore, stableVisibility * capMultiplier).
+                                    frameScore = window.PoseReadiness.applyCap(frameScore, readiness);
+                                    // Reflect the cap in the underlying form-score
+                                    // cache too so the rule engine's reported score
+                                    // matches what the timer / pass logic sees.
+                                    this._lastPoseScore = frameScore;
+                                    // Update the on-screen banner + frame-quality badge.
+                                    this._updateVisibilityUI(readiness);
+                                }
+                            } catch (e) { /* never break the AR loop on a UI failure */ }
 
                             // Add to score history and calculate average
                             scoreHistory.push(frameScore);
@@ -3161,6 +3284,21 @@
                 // Stop the hidden live-feed first so admin can't see frames
                 // after the session has officially ended.
                 this._stopLiveFeed();
+
+                // Reset visibility gate state so a new session starts clean.
+                try { if (window.PoseReadiness) window.PoseReadiness.reset(); } catch (_) {}
+                this._lastReadiness = null;
+                this._visibilityVoiceShown = false;
+                this._autoZoomedOut = false;
+                this._lowVisSince = null;
+                this._gatePartialSince = null;
+                this._framingPhase = false;
+                this._framingReadyAt = null;
+                if (this._framingTickInterval) { clearInterval(this._framingTickInterval); this._framingTickInterval = null; }
+                // Hide the banner + badge + countdown if they're up.
+                document.getElementById('visibility-banner')?.classList.add('hidden');
+                document.getElementById('frame-quality-badge')?.classList.add('hidden');
+                document.getElementById('framing-countdown')?.classList.add('hidden');
 
                 // Speak a pose-specific farewell line — each asana has its own.
                 try {
@@ -3853,6 +3991,36 @@
                             <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'}">
                                 <video id="video-feed" autoplay playsinline style="border-radius:28px"></video>
                                 <canvas id="ar-canvas"></canvas>
+                                <!-- Visibility gate banner (overlay). Hidden by default;
+                                     PoseReadiness shows it when the user's required
+                                     keypoints aren't all in frame. Sits on top of
+                                     the video so the score-cap explanation is visible
+                                     without obscuring the body. -->
+                                <div id="visibility-banner" class="hidden" style="position:absolute; left:14px; right:14px; top:14px; z-index:10; background:rgba(15,19,12,0.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#F5F2EB; border-radius:18px; padding:12px 16px; box-shadow:0 12px 40px rgba(0,0,0,0.45); border:1px solid rgba(224,162,63,0.45); font-size:13px; line-height:1.45; pointer-events:none; transition:opacity 0.25s">
+                                    <div style="display:flex; align-items:flex-start; gap:10px">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#E0A23F" style="width:18px; height:18px; flex-shrink:0; margin-top:2px"><path d="M12 2 1 21h22L12 2zm0 6 7.5 13h-15L12 8zm-1 4v3h2v-3h-2zm0 5v2h2v-2h-2z"/></svg>
+                                        <div style="flex:1; min-width:0">
+                                            <span class="kicker" style="color:#E0A23F; font-size:10px" id="visibility-banner-kicker">Step into the frame</span>
+                                            <p id="visibility-banner-msg" style="margin:3px 0 0; color:#F5F2EB">Full body must be visible to score this pose.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Frame-quality badge (always visible during AR). Tiny pill
+                                     in the bottom-left of the video showing the live visibility
+                                     percentage so users learn what's gating their score. -->
+                                <div id="frame-quality-badge" class="hidden" style="position:absolute; left:14px; bottom:14px; z-index:9; background:rgba(15,19,12,0.85); color:#F5F2EB; border-radius:9999px; padding:5px 12px; font-size:11px; font-weight:500; letter-spacing:0.06em; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,0.35)">
+                                    <span style="color:#6FA089">Frame</span>
+                                    <span id="frame-quality-pct" style="color:#F5F2EB; margin-left:6px; font-weight:600">—</span>
+                                </div>
+                                <!-- Course-test framing countdown overlay (5s before scoring
+                                     starts). Hidden in practice mode; only used during
+                                     startCourseTest so the user has time to prop the phone
+                                     and step back without the test timer running. -->
+                                <div id="framing-countdown" class="hidden" style="position:absolute; inset:0; z-index:11; background:rgba(15,19,12,0.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:#F5F2EB; border-radius:28px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px">
+                                    <span class="kicker" style="color:#E0A23F">Hold position</span>
+                                    <p class="font-display" style="font-size:48px; font-weight:300; margin:0" id="framing-countdown-num">5</p>
+                                    <p style="margin:0; font-size:13px; color:#C7DBCE; max-width:280px; text-align:center" id="framing-countdown-msg">Get your full body in frame. Test starts in a moment.</p>
+                                </div>
                                 <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center" style="background:rgba(20,18,14,0.88); backdrop-filter:blur(4px); color:#C7DBCE; border-radius:28px; gap:14px">
                                     <div class="loading-animation"></div>
                                     <p id="status-text" class="kicker">Loading…</p>
@@ -4276,6 +4444,13 @@
                 this.courseHoldTime = 0;
                 this.courseStartTime = Date.now();
                 this.ttsEnabled = false;
+                // Reset visibility gate so the prior pose's stability buffer
+                // and one-shot voice cue don't carry over.
+                if (window.PoseReadiness) window.PoseReadiness.reset();
+                this._visibilityVoiceShown = false;
+                this._autoZoomedOut = false;
+                this._lowVisSince = null;
+                this._gatePartialSince = null;
 
                 if (document.documentElement.requestFullscreen) {
                     document.documentElement.requestFullscreen().catch(err => console.warn(err.message));
@@ -4286,18 +4461,97 @@
                 setTimeout(() => {
                     this.startARAssessment();
 
-                    this.courseTimerInterval = setInterval(() => {
-                        if (!this.testActive) return;
-                        this.courseTimer++;
-                        const timeLeft = 60 - this.courseTimer;
-                        const timerEl = document.getElementById('course-timer-display');
-                        if (timerEl) timerEl.textContent = `Time Left: ${timeLeft}s`;
-                        if (this.courseTimer >= 60) this.endCourseTest(false, 'Time limit of 60s exceeded.');
-                    }, 1000);
+                    // ─── Framing countdown (5s) ───
+                    // Don't start the actual 60s test timer until the user has
+                    // had 5 seconds with READY visibility. The countdown holds
+                    // at the displayed number until visibility hits READY,
+                    // then ticks down. If the user looks away, the countdown
+                    // pauses (it never increases) — gentle pressure to frame.
+                    this._framingPhase = true;
+                    this._framingStartedAt = Date.now();
+                    this._renderFramingCountdown(5);
 
-                    const feedbackText = document.getElementById('current-feedback-text');
-                    if (feedbackText) feedbackText.textContent = `Match ${poseName} at 90% to start the 60s test timer.`;
+                    const framingTick = setInterval(() => {
+                        if (!this._framingPhase) { clearInterval(framingTick); return; }
+                        const r = this._lastReadiness;
+                        if (!r || r.state !== 'READY') {
+                            // Hold the countdown at its current value while
+                            // the user gets framed. Show a clearer hint.
+                            // Reset the continuous-READY timer so a brief
+                            // good frame doesn't bank progress toward the 5s.
+                            this._framingReadyAt = null;
+                            const msgEl = document.getElementById('framing-countdown-msg');
+                            if (msgEl) msgEl.textContent = (r && r.state === 'OFF_FRAME')
+                                ? 'Step into frame to start the countdown.'
+                                : 'Get your full body fully visible to start.';
+                            this._renderFramingCountdown(5);
+                            return;
+                        }
+                        // Continuous-READY: arm the timer on the first READY
+                        // frame and only count down while READY persists.
+                        if (!this._framingReadyAt) this._framingReadyAt = Date.now();
+                        const elapsed = (Date.now() - this._framingReadyAt) / 1000;
+                        const remaining = Math.max(0, 5 - elapsed);
+                        this._renderFramingCountdown(remaining);
+                        if (remaining <= 0) {
+                            clearInterval(framingTick);
+                            this._framingPhase = false;
+                            this._framingReadyAt = null;
+                            this._dismissFramingCountdown();
+                            this._beginCourseTimer(poseName);
+                        }
+                    }, 200);
+                    this._framingTickInterval = framingTick;
                 }, 500);
+            },
+
+            _renderFramingCountdown(secondsRemaining) {
+                const overlay = document.getElementById('framing-countdown');
+                const num = document.getElementById('framing-countdown-num');
+                const msg = document.getElementById('framing-countdown-msg');
+                if (!overlay) return;
+                overlay.classList.remove('hidden');
+                if (num) num.textContent = String(Math.max(0, Math.ceil(secondsRemaining)));
+                if (msg && secondsRemaining > 0) msg.textContent = 'Hold full-body framing for ' + Math.ceil(secondsRemaining) + 's to begin.';
+            },
+
+            _dismissFramingCountdown() {
+                const overlay = document.getElementById('framing-countdown');
+                if (!overlay) return;
+                overlay.style.transition = 'opacity 0.3s';
+                overlay.style.opacity = '0';
+                setTimeout(() => { overlay.classList.add('hidden'); overlay.style.opacity = '1'; }, 320);
+            },
+
+            _beginCourseTimer(poseName) {
+                this.courseTimerInterval = setInterval(() => {
+                    if (!this.testActive) {
+                        // Track how long the gate has been engaged DURING the
+                        // pre-test window. If the user is off-frame for >3s
+                        // continuously, abort cleanly with a non-deducted
+                        // attempt — they never really started.
+                        const r = this._lastReadiness;
+                        if (r && r.state !== 'READY') {
+                            if (!this._gatePartialSince) this._gatePartialSince = Date.now();
+                            else if (Date.now() - this._gatePartialSince > 3000) {
+                                this._gatePartialSince = null;
+                                this.endCourseTest(false, 'Step back — your full body needs to be visible to pass. This attempt did not count.');
+                                return;
+                            }
+                        } else {
+                            this._gatePartialSince = null;
+                        }
+                        return;
+                    }
+                    this.courseTimer++;
+                    const timeLeft = 60 - this.courseTimer;
+                    const timerEl = document.getElementById('course-timer-display');
+                    if (timerEl) timerEl.textContent = `Time Left: ${timeLeft}s`;
+                    if (this.courseTimer >= 60) this.endCourseTest(false, 'Time limit of 60s exceeded.');
+                }, 1000);
+
+                const feedbackText = document.getElementById('current-feedback-text');
+                if (feedbackText) feedbackText.textContent = `Match ${poseName} at 90% to start the 60s test timer.`;
             },
 
             checkCourseProgress(currentScore) {
@@ -4342,12 +4596,20 @@
                 const poseProg = cp ? cp.poses.find(p => p.name === this.currentPose) : null;
                 const finalScore = Math.round(this._lastPoseScore || 0);
 
+                // If the abort fired during the pre-test framing window
+                // (the user never reached the 60s hold timer), DO NOT deduct
+                // an attempt. They never really started; the gate just
+                // prevented a doomed attempt from beginning.
+                const wasPreTestAbort = !success && (this._framingPhase || (this.courseTimer || 0) === 0);
+
                 if (poseProg) {
-                    if (!poseProg.arPassed) poseProg.arAttempts = (poseProg.arAttempts || 0) + 1;
+                    if (!poseProg.arPassed && !wasPreTestAbort) {
+                        poseProg.arAttempts = (poseProg.arAttempts || 0) + 1;
+                    }
                     if (success) {
                         poseProg.arPassed = true;
                         poseProg.arBest = Math.max(poseProg.arBest || 0, Math.max(finalScore, 90));
-                    } else {
+                    } else if (!wasPreTestAbort) {
                         poseProg.arBest = Math.max(poseProg.arBest || 0, finalScore);
                         // After 3 attempts, the best of the three counts as the AR mark
                         // and the AR test is considered "passed" regardless of the hold —
@@ -4363,6 +4625,12 @@
                 this.courseMode = false;
                 this.testActive = false;
                 this.courseHoldTimer = null;
+                this._framingPhase = false;
+                if (this._framingTickInterval) {
+                    clearInterval(this._framingTickInterval);
+                    this._framingTickInterval = null;
+                }
+                this._dismissFramingCountdown && this._dismissFramingCountdown();
 
                 if (this.animationFrameId) {
                     cancelAnimationFrame(this.animationFrameId);

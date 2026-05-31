@@ -12,7 +12,7 @@
  *      returns. The page can also nudge us with a `flush-outbox`
  *      postMessage when the browser fires its `online` event.
  */
-const CACHE_NAME = 'sunday-v21';
+const CACHE_NAME = 'sunday-v22';
 
 // Tier 1 — must succeed at install or the offline experience is broken.
 // We allow the install to proceed even if any of these fail individually,
@@ -34,6 +34,7 @@ const ESSENTIAL_ASSETS = [
     '/static/courses.js',
     '/static/offline-queue.js',
     '/static/health-monitor.js',
+    '/static/pose-readiness.js',
     '/static/vendor/tf.min.js',
     '/static/vendor/pose-detection.min.js',
     '/static/models/movenet/model.json',
