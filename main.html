@@ -2831,6 +2831,12 @@
 
                             // === SCORING SYSTEM ===
                             // Score comes from PoseEngine's weighted rule pass ratio.
+                            // checkPose() above already wrote the fresh form score
+                            // to this._lastPoseScore — keep that as the canonical
+                            // "form quality" number for voice/course logic. The
+                            // displayed + averaged score below CAN have a
+                            // visibility cap applied without corrupting the form
+                            // score cache.
                             let frameScore = this._lastPoseScore != null ? this._lastPoseScore : 100;
 
                             // Keep score between 0-100
@@ -2850,13 +2856,17 @@
                                         video
                                     );
                                     this._lastReadiness = readiness;
-                                    // Apply the cap. PoseReadiness.applyCap returns
-                                    // min(formScore, stableVisibility * capMultiplier).
+                                    // Apply the cap on the DISPLAYED frame score
+                                    // only. We deliberately do NOT write the cap
+                                    // back to _lastPoseScore — that's the form
+                                    // score cache used by voice replies + course
+                                    // progress; corrupting it caused score to
+                                    // appear stuck at 0% even when form was good
+                                    // but visibility briefly dropped. The cap
+                                    // still affects what the user sees AND what
+                                    // checkCourseProgress reads (via poseScore
+                                    // smoothed buffer below).
                                     frameScore = window.PoseReadiness.applyCap(frameScore, readiness);
-                                    // Reflect the cap in the underlying form-score
-                                    // cache too so the rule engine's reported score
-                                    // matches what the timer / pass logic sees.
-                                    this._lastPoseScore = frameScore;
                                     // Update the on-screen banner + frame-quality badge.
                                     this._updateVisibilityUI(readiness);
                                 }

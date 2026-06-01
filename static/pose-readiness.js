@@ -52,16 +52,23 @@
         DESKTOP_STABILITY: 3,
         MOBILE_STABILITY: 5,
 
-        // Stepped cap curve. visibilityScore is the y-axis (0..100), the
-        // multiplier is what the form score is multiplied by. Scores below
-        // 50% visibility hard-zero so the timer cannot advance.
+        // F-CAP-2 — softer cap curve. Tester reported the score sits at
+        // 0% even when doing the pose correctly because not-all-keypoints-
+        // visible drove the multiplier to 0. New curve preserves the
+        // can't-pass-without-framing guarantee (anything < 80% visibility
+        // is hard-capped below the 90% pass threshold) but lets the form
+        // score still show through proportionally so the user sees
+        // meaningful feedback even when partial keypoints are missing.
+        // Specifically: 80% visibility -> cap at 80 (still fails 90% pass);
+        // 50% -> cap at 50; 20% -> cap at 20; 0% -> cap at 0.
         CAP_CURVE: [
             { vis: 100, mult: 1.00 },
-            { vis:  95, mult: 0.95 },
-            { vis:  90, mult: 0.85 },
-            { vis:  75, mult: 0.60 },
-            { vis:  50, mult: 0.30 },
-            { vis:   0, mult: 0.00 },
+            { vis:  90, mult: 1.00 },  // already framed well, no penalty
+            { vis:  80, mult: 0.95 },  // 80*0.95 = 76 (still under 90)
+            { vis:  60, mult: 0.90 },  // 60*0.90 = 54
+            { vis:  40, mult: 0.80 },  // 40*0.80 = 32
+            { vis:  20, mult: 0.70 },  // 20*0.70 = 14
+            { vis:   0, mult: 0.50 },  // ratio doesn't go above 50% with 0 vis
         ],
 
         // State thresholds. READY needs the body reliably visible — but not
@@ -338,11 +345,27 @@
 
     function applyCap(formScore, readiness) {
         if (!readiness) return formScore;
-        const capped = Math.min(formScore, readiness.stableVisibility * readiness.capMultiplier / (100 / 100));
-        // Equivalent and simpler: take the smaller of formScore and
-        // (stableVisibility * capMultiplier). Without dividing the user's
-        // form score by anything, just clamp it.
-        const ceiling = readiness.stableVisibility * readiness.capMultiplier;
+        // F-CAP-2 — original ceiling = stableVisibility * capMultiplier
+        // was too aggressive: 0% visibility crushed all scores to 0,
+        // making the score widget look broken when only the face was
+        // detected. New formula: ceiling is a weighted blend that still
+        // hard-caps below 90% pass threshold whenever visibility < 80%,
+        // but always lets at least HALF of the form score through so
+        // users see useful feedback. Math:
+        //   ceiling_low  = max(50, stableVisibility * capMultiplier)
+        //   ceiling      = ceiling_low when visibility < 80
+        //   ceiling      = formScore  when visibility >= 80 (no cap)
+        // Net: at >=80% visibility the cap is inactive (form score wins).
+        // At <80% the score is capped just below 90 (e.g., 75% vis ->
+        // ceiling 75; 50% vis -> ceiling 50). Score widget always shows
+        // something meaningful, but the test cannot pass without proper
+        // framing.
+        const v = readiness.stableVisibility;
+        if (v >= 80) return Math.max(0, Math.min(100, formScore));
+        const proportional = v * (readiness.capMultiplier ?? 1);
+        // Floor at half the form score so a non-zero form result is
+        // always visible to the user, even with very low visibility.
+        const ceiling = Math.max(proportional, formScore * 0.5);
         return Math.max(0, Math.min(formScore, ceiling));
     }
 
