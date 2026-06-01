@@ -4108,15 +4108,12 @@
                                     <span style="color:#6FA089">Frame</span>
                                     <span id="frame-quality-pct" style="color:#F5F2EB; margin-left:6px; font-weight:600">—</span>
                                 </div>
-                                <!-- Course-test framing countdown overlay (5s before scoring
-                                     starts). Hidden in practice mode; only used during
-                                     startCourseTest so the user has time to prop the phone
-                                     and step back without the test timer running. -->
-                                <div id="framing-countdown" class="hidden" style="position:absolute; inset:0; z-index:11; background:rgba(15,19,12,0.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:#F5F2EB; border-radius:28px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px">
-                                    <span class="kicker" style="color:#E0A23F">Hold position</span>
-                                    <p class="font-display" style="font-size:48px; font-weight:300; margin:0" id="framing-countdown-num">5</p>
-                                    <p style="margin:0; font-size:13px; color:#C7DBCE; max-width:280px; text-align:center" id="framing-countdown-msg">Get your full body in frame. Test starts in a moment.</p>
-                                </div>
+                                <!-- F-UI-3 — framing countdown overlay
+                                     REMOVED at user request. The visibility
+                                     cap on the score (form * visibility)
+                                     already prevents a half-framed user from
+                                     passing, so a separate overlay was just
+                                     redundant friction. -->
                                 <div id="camera-status" class="absolute inset-0 flex flex-col items-center justify-center" style="background:rgba(20,18,14,0.88); backdrop-filter:blur(4px); color:#C7DBCE; border-radius:28px; gap:14px">
                                     <div class="loading-animation"></div>
                                     <p id="status-text" class="kicker">Loading…</p>
@@ -4573,21 +4570,15 @@
             },
 
             _renderFramingCountdown(secondsRemaining) {
-                const overlay = document.getElementById('framing-countdown');
-                const num = document.getElementById('framing-countdown-num');
-                const msg = document.getElementById('framing-countdown-msg');
-                if (!overlay) return;
-                overlay.classList.remove('hidden');
-                if (num) num.textContent = String(Math.max(0, Math.ceil(secondsRemaining)));
-                if (msg && secondsRemaining > 0) msg.textContent = 'Hold full-body framing for ' + Math.ceil(secondsRemaining) + 's to begin.';
+                // F-UI-3 — countdown removed; this is a no-op kept only so
+                // any stale callers don't throw. Safe to delete in a future
+                // cleanup pass.
+                return;
             },
 
             _dismissFramingCountdown() {
-                const overlay = document.getElementById('framing-countdown');
-                if (!overlay) return;
-                overlay.style.transition = 'opacity 0.3s';
-                overlay.style.opacity = '0';
-                setTimeout(() => { overlay.classList.add('hidden'); overlay.style.opacity = '1'; }, 320);
+                // F-UI-3 — countdown removed; no-op.
+                return;
             },
 
             _beginCourseTimer(poseName) {
