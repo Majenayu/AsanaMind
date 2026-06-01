@@ -250,33 +250,27 @@
         .voice-talking   { animation: pulse-accent 1.5s infinite; border-color: var(--accent) !important; }
 
         /* AR camera feed — capped height so score + controls stay visible below */
+        /* AR camera feed — main-branch parity. Fixed height + cover-fit
+           video + plain 100%×100% canvas. The canvas internal pixels
+           (videoWidth × videoHeight) get the SAME non-uniform CSS scale
+           as the cover-cropped video, so keypoints land on the body. */
         #video-container {
             position: relative;
             width: 100%;
-            /* F-UI-2 v3 — container aspect ratio is set dynamically from
-               the camera once metadata loads (see startARAssessment).
-               We default to a portrait-leaning 3:4 fallback so layout
-               doesn't jump. The video + canvas inside both use 100% w/h
-               so keypoint coordinates land on the right pixels. */
-            aspect-ratio: 3 / 4;
-            max-width: 540px;
-            max-height: 80vh;
-            margin-left: auto;
-            margin-right: auto;
+            height: calc(55vh - 60px);
+            max-height: 360px;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
             border: 1px solid var(--primary-2);
             box-shadow: 0 16px 40px 0 rgba(20, 18, 14, 0.18);
         }
-        /* ─── Mobile portrait AR layout ───────────────────────────── */
         @media (max-width: 768px) and (orientation: portrait) {
             #ar-session > div:first-child { gap: 10px !important; }
             #video-container {
-                width: 100% !important;
-                max-width: none !important;
-                max-height: 78vh !important;
-                border-radius: 18px;
+                height: 60vh !important;
+                max-height: none !important;
+                border-radius: 22px;
                 margin-bottom: 10px;
             }
             #ar-session #feedback-area {
@@ -316,11 +310,8 @@
             }
             /* Reference container (if visible) — narrower height to match */
             #reference-container #reference-media-container {
-                /* Match the camera's true-portrait aspect so both panels
-                   line up at the same height when side-by-side. */
-                aspect-ratio: 9 / 16 !important;
-                height: auto !important;
-                max-height: 78vh !important;
+                height: 38vh !important;
+                max-height: none !important;
             }
             /* Pull the AR session up flush with the topbar so the camera
                feels like the focus — kill the page-level top padding. */
@@ -328,9 +319,9 @@
         }
         @media (max-width: 768px) and (orientation: landscape) {
             #video-container {
-                width: auto !important;
-                max-height: 92vh !important;
-                margin: 0 auto;
+                height: 80vh !important;
+                max-height: none !important;
+                min-height: 280px;
             }
         }
         #video-feed {
@@ -338,13 +329,7 @@
             top: 0; left: 0;
             width: 100%;
             height: 100%;
-            /* F-UI-2 v3 — `contain` letterboxes the feed inside the
-               container so the video keeps its native aspect ratio.
-               Combined with the container's dynamic aspect-ratio
-               (set in startARAssessment to match the camera), there's
-               no letterboxing visible AND keypoint coordinates align
-               1-to-1 with what the user sees. */
-            object-fit: contain;
+            object-fit: cover;
             background: #000;
             transform: scaleX(-1);
         }
@@ -1942,15 +1927,8 @@
                 // Find the asana data
                 const asana = asanaData.find(a => a.name === poseName);
 
-                // F-UI-1 — show the pose-name pill on the AR view.
-                const pill = document.getElementById('ar-pose-pill');
-                const pillName = document.getElementById('ar-pose-pill-name');
-                if (pill && pillName) {
-                    pillName.textContent = asana
-                        ? (asana.name + ' — ' + asana.sanskrit)
-                        : poseName;
-                    pill.classList.remove('hidden');
-                }
+                // F-UI-1 — pose pill removed; reference panel shows the
+                // pose name. The pill was overlapping the score display.
 
                 // Show and populate reference container
                 const referenceContainer = document.getElementById('reference-container');
@@ -2715,28 +2693,13 @@
                 }
 
                 // 2. Get Camera Stream (ask for decent resolution so keypoints are precise).
-                // F-UI-2 v3 — prefer a portrait stream (taller than wide)
-                // so the user's full body fits vertically without crops.
-                // Most laptop webcams ignore the constraint and return
-                // their native landscape ratio anyway, in which case the
-                // container aspect-ratio gets set to match it (also fine —
-                // keypoints align either way). Phones honour the hint and
-                // give a true portrait stream.
-                const _isMobile = (typeof window !== 'undefined') && (
-                    ('ontouchstart' in window) ||
-                    (window.innerWidth && window.innerWidth <= 768) ||
-                    (navigator.userAgent && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
-                );
-                const videoConstraints = _isMobile ? {
-                    width:  { ideal: 720 },
-                    height: { ideal: 1280 },
-                    facingMode: 'user',
-                } : {
-                    width:  { ideal: 1280 },
-                    height: { ideal: 720 },
-                    facingMode: 'user',
-                };
-                navigator.mediaDevices.getUserMedia({ video: videoConstraints })
+                navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width:  { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user',
+                    },
+                })
                     .then((stream) => {
                         this.videoStream = stream;
                         video.srcObject = stream;
@@ -2747,20 +2710,11 @@
                             // dimensions (what MoveNet sees), not the CSS display size.
                             canvas.width = video.videoWidth;
                             canvas.height = video.videoHeight;
-
-                            // F-UI-2 v3 — set the container aspect ratio to
-                            // EXACTLY match the camera's. Without this, an
-                            // overflow canvas (sized 1280x720) gets non-
-                            // uniformly scaled into a 3:4 container, and
-                            // keypoint coordinates land on the wrong pixels
-                            // (visible as the skeleton drifting away from
-                            // the body). Matching the aspect makes the CSS
-                            // scale uniform → keypoints align with body.
-                            const _vc = document.getElementById('video-container');
-                            if (_vc && video.videoWidth && video.videoHeight) {
-                                const camAspect = video.videoWidth / video.videoHeight;
-                                _vc.style.aspectRatio = String(camAspect);
-                            }
+                            // Container uses fixed CSS height + object-fit:cover on
+                            // the video; the canvas at 100%/100% gets the SAME
+                            // non-uniform CSS scale as the cover-cropped video, so
+                            // keypoints land on the body. Don't override aspectRatio
+                            // here — the previous version did and broke alignment.
 
                             // Show video container
                             const videoContainer = document.getElementById('video-container');
@@ -3377,9 +3331,8 @@
                 this._framingPhase = false;
                 this._framingReadyAt = null;
                 if (this._framingTickInterval) { clearInterval(this._framingTickInterval); this._framingTickInterval = null; }
-                // Hide the badge if it's up. Banner element removed in F-UI-4.
+                // Hide the badge if it's up.
                 document.getElementById('frame-quality-badge')?.classList.add('hidden');
-                document.getElementById('ar-pose-pill')?.classList.add('hidden');
 
                 // Speak a pose-specific farewell line — each asana has its own.
                 try {
@@ -4072,15 +4025,6 @@
                             <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'}">
                                 <video id="video-feed" autoplay playsinline style="border-radius:28px"></video>
                                 <canvas id="ar-canvas"></canvas>
-                                <!-- F-UI-1 — pose-name pill at top-left. Tester
-                                     asked: "It would be good if what asana we
-                                     are doing is displayed on the screen". The
-                                     pill is updated in selectAsanaAndStart so
-                                     it always shows the current pose. -->
-                                <div id="ar-pose-pill" class="hidden" style="position:absolute; left:14px; top:14px; z-index:12; background:rgba(15,19,12,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#F5F2EB; border-radius:9999px; padding:6px 14px; font-size:12px; font-weight:500; letter-spacing:0.04em; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,0.35); display:flex; align-items:center; gap:8px; max-width:calc(100% - 28px)">
-                                    <span style="width:8px; height:8px; border-radius:9999px; background:#E0A23F; flex-shrink:0"></span>
-                                    <span id="ar-pose-pill-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">—</span>
-                                </div>
                                 <!-- F-UI-4 — visibility-banner overlay
                                      REMOVED at user request. The banner was
                                      blocking the top of the camera view
@@ -4110,7 +4054,7 @@
 
                             <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:14px">
                                 <span class="kicker" style="color:#C2552F">Reference</span>
-                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; aspect-ratio:9/16; max-width:480px; max-height:80vh; margin:8px auto 0; position:relative">
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; height:calc(55vh - 60px); max-height:360px; margin-top:8px; position:relative">
                                     <img id="reference-image" class="hidden pose-photo" alt="reference" style="width:100%; height:100%; object-fit:contain">
                                     <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
                                         <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
