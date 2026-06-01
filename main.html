@@ -253,12 +253,19 @@
         #video-container {
             position: relative;
             width: 100%;
-            /* F-UI-2 — portrait aspect ratio so the full body fits without
-               horizontal whitespace. All 20 poses need the head + feet in
-               frame; a 16:9 box wastes pixels on the left/right and crops
-               the body vertically. 3:4 mirrors the reference image. */
-            aspect-ratio: 3 / 4;
-            max-height: 70vh;
+            /* F-UI-2 v2 — TRUE portrait ratio. 3:4 still left obvious black
+               bars because most webcams are 16:9; we now use 9:16 (phone-
+               style portrait) so the box is taller than wide. The video
+               feed uses `object-fit: cover` to fill it entirely — the
+               left/right of the webcam frame gets cropped, which is fine
+               because users prop the camera centred and the body stays in
+               the middle. End result: tall narrow camera box that mirrors
+               the reference image, and lines up with it side-by-side. */
+            aspect-ratio: 9 / 16;
+            max-width: 480px;
+            max-height: 80vh;
+            margin-left: auto;
+            margin-right: auto;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
@@ -273,12 +280,12 @@
         @media (max-width: 768px) and (orientation: portrait) {
             #ar-session > div:first-child { gap: 10px !important; }
             #video-container {
-                /* Phone portrait — fill more of the viewport vertically.
-                   3:4 stays consistent with desktop, capped by 70vh so
-                   feedback area still fits below. */
-                aspect-ratio: 3 / 4 !important;
+                /* Phone portrait — true 9:16 fills the screen the way
+                   users actually hold the phone. */
+                aspect-ratio: 9 / 16 !important;
                 width: 100% !important;
-                max-height: 70vh !important;
+                max-width: none !important;
+                max-height: 78vh !important;
                 border-radius: 18px;
                 margin-bottom: 10px;
             }
@@ -319,11 +326,11 @@
             }
             /* Reference container (if visible) — narrower height to match */
             #reference-container #reference-media-container {
-                /* Match the camera's portrait aspect ratio + max-height so
-                   both panels line up when side-by-side. */
-                aspect-ratio: 3 / 4 !important;
+                /* Match the camera's true-portrait aspect so both panels
+                   line up at the same height when side-by-side. */
+                aspect-ratio: 9 / 16 !important;
                 height: auto !important;
-                max-height: 70vh !important;
+                max-height: 78vh !important;
             }
             /* Pull the AR session up flush with the topbar so the camera
                feels like the focus — kill the page-level top padding. */
@@ -331,12 +338,10 @@
         }
         @media (max-width: 768px) and (orientation: landscape) {
             #video-container {
-                /* Landscape phone — keep portrait body framing. The user
-                   typically rotates to landscape only because their phone
-                   sensors prefer it; the body still needs to fit head-to-toe. */
-                aspect-ratio: 3 / 4 !important;
+                /* Landscape phone — keep portrait body framing centred. */
+                aspect-ratio: 9 / 16 !important;
                 width: auto !important;
-                max-height: 90vh !important;
+                max-height: 92vh !important;
                 margin: 0 auto;
             }
         }
@@ -345,11 +350,12 @@
             top: 0; left: 0;
             width: 100%;
             height: 100%;
-            /* F-UI-2 — `cover` was cropping the body's sides on portrait
-               cameras. `contain` letterboxes the feed instead so head
-               AND feet stay visible. The black bars are an OK trade for
-               the keypoint-detector seeing every joint. */
-            object-fit: contain;
+            /* F-UI-2 v2 — `cover` again, paired with the new 9:16 portrait
+               box. The webcam's wider 16:9 frame gets centre-cropped on the
+               left/right (where there's typically nothing), filling the
+               portrait box entirely with no black bars. The body stays
+               centred so detection still works on every joint. */
+            object-fit: cover;
             background: #000;
             transform: scaleX(-1);
         }
@@ -4123,7 +4129,7 @@
 
                             <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:14px">
                                 <span class="kicker" style="color:#C2552F">Reference</span>
-                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; aspect-ratio:3/4; max-height:70vh; margin-top:8px; position:relative">
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; aspect-ratio:9/16; max-width:480px; max-height:80vh; margin:8px auto 0; position:relative">
                                     <img id="reference-image" class="hidden pose-photo" alt="reference" style="width:100%; height:100%; object-fit:contain">
                                     <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
                                         <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
