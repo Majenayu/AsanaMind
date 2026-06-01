@@ -1819,11 +1819,47 @@
             /** Internal: actually queue the utterance. */
             _speakNow(text, priority) {
                 const u = new SpeechSynthesisUtterance(text);
-                // Priority 1 speaks a touch faster and higher — urgency cue.
-                u.rate = priority === 1 ? 1.05 : 0.95;
-                u.pitch = priority === 1 ? 1.08 : 1.02;
+                // F-VOICE-1 — slow down the cadence. Tester report: "voice
+                // is too fast, accent hard to understand". Default rate is
+                // 1.0; 0.85 sounds like a yoga instructor instead of a news
+                // anchor. Priority-1 (urgent corrections) speaks just a hair
+                // faster than the default cue rate.
+                u.rate = priority === 1 ? 0.92 : 0.85;
+                u.pitch = priority === 1 ? 1.05 : 1.0;
                 u.volume = 1.0;
-                u.lang = 'en-US';
+
+                // F-VOICE-2 — prefer an Indian English voice when available
+                // for clearer pronunciation of Sanskrit pose names. Falls
+                // back to en-GB then en-US then the system default. Voice
+                // list is async on first load, so we cache it.
+                try {
+                    const voices = this._cachedVoices || window.speechSynthesis.getVoices() || [];
+                    if (voices.length) {
+                        this._cachedVoices = voices;
+                        const pick =
+                            voices.find(v => v.lang === 'en-IN') ||
+                            voices.find(v => /en-IN/i.test(v.lang)) ||
+                            voices.find(v => v.lang === 'en-GB') ||
+                            voices.find(v => /^en[-_]GB/i.test(v.lang)) ||
+                            voices.find(v => v.lang === 'en-US') ||
+                            voices.find(v => /^en/i.test(v.lang));
+                        if (pick) {
+                            u.voice = pick;
+                            u.lang = pick.lang;
+                        } else {
+                            u.lang = 'en-IN';
+                        }
+                    } else {
+                        u.lang = 'en-IN';
+                        // Re-cache once the browser populates the voice list.
+                        if (!this._voicesListenerAttached) {
+                            this._voicesListenerAttached = true;
+                            window.speechSynthesis.addEventListener('voiceschanged', () => {
+                                this._cachedVoices = window.speechSynthesis.getVoices() || [];
+                            });
+                        }
+                    }
+                } catch (_) { u.lang = 'en-IN'; }
                 u.onstart = () => { this.isSpeaking = true; };
                 u.onend = () => {
                     this.isSpeaking = false;
@@ -1892,6 +1928,16 @@
 
                 // Find the asana data
                 const asana = asanaData.find(a => a.name === poseName);
+
+                // F-UI-1 — show the pose-name pill on the AR view.
+                const pill = document.getElementById('ar-pose-pill');
+                const pillName = document.getElementById('ar-pose-pill-name');
+                if (pill && pillName) {
+                    pillName.textContent = asana
+                        ? (asana.name + ' — ' + asana.sanskrit)
+                        : poseName;
+                    pill.classList.remove('hidden');
+                }
 
                 // Show and populate reference container
                 const referenceContainer = document.getElementById('reference-container');
@@ -2570,6 +2616,15 @@
              * Initializes the camera and TensorFlow MoveNet model.
              */
             async startARAssessment() {
+                // F-VOICE-3 — re-enable voice for this fresh session.
+                // stopARAssessment forcibly disables it to silence any
+                // queued speech on the prior session; bring it back here
+                // honouring the user's saved preference.
+                try {
+                    const savedTTS = (window.localStorage?.getItem('sunday_tts_enabled') ?? '1') === '1';
+                    this.ttsEnabled = savedTTS;
+                } catch (_) { this.ttsEnabled = true; }
+
                 // Reset visibility gate buffer for a fresh session. Practice
                 // mode (no course test) skips the framing countdown but still
                 // benefits from the per-frame cap.
@@ -3285,6 +3340,19 @@
                 // after the session has officially ended.
                 this._stopLiveFeed();
 
+                // F-VOICE-3 — kill any speech currently in flight or queued.
+                // Tester reported voice continued for 10-15s after stopping.
+                // Root cause: speakCorrection puts utterances into the
+                // browser's queue and there was no cancel on session end.
+                try { window.speechSynthesis.cancel(); } catch(_){}
+                this._queuedCorrection = null;
+                this.isSpeaking = false;
+                // Disable any further auto-cues until the user starts a
+                // new session — speakCorrection respects this.ttsEnabled
+                // for non-forced calls but the visibility gate's voice
+                // hint and per-frame correction speech also need to stop.
+                this.ttsEnabled = false;
+
                 // Reset visibility gate state so a new session starts clean.
                 try { if (window.PoseReadiness) window.PoseReadiness.reset(); } catch (_) {}
                 this._lastReadiness = null;
@@ -3299,6 +3367,7 @@
                 document.getElementById('visibility-banner')?.classList.add('hidden');
                 document.getElementById('frame-quality-badge')?.classList.add('hidden');
                 document.getElementById('framing-countdown')?.classList.add('hidden');
+                document.getElementById('ar-pose-pill')?.classList.add('hidden');
 
                 // Speak a pose-specific farewell line — each asana has its own.
                 try {
@@ -3991,6 +4060,15 @@
                             <div id="video-container" style="display: ${isCourseMode ? 'block' : 'none'}">
                                 <video id="video-feed" autoplay playsinline style="border-radius:28px"></video>
                                 <canvas id="ar-canvas"></canvas>
+                                <!-- F-UI-1 — pose-name pill at top-left. Tester
+                                     asked: "It would be good if what asana we
+                                     are doing is displayed on the screen". The
+                                     pill is updated in selectAsanaAndStart so
+                                     it always shows the current pose. -->
+                                <div id="ar-pose-pill" class="hidden" style="position:absolute; left:14px; top:14px; z-index:12; background:rgba(15,19,12,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#F5F2EB; border-radius:9999px; padding:6px 14px; font-size:12px; font-weight:500; letter-spacing:0.04em; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,0.35); display:flex; align-items:center; gap:8px; max-width:calc(100% - 28px)">
+                                    <span style="width:8px; height:8px; border-radius:9999px; background:#E0A23F; flex-shrink:0"></span>
+                                    <span id="ar-pose-pill-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">—</span>
+                                </div>
                                 <!-- Visibility gate banner (overlay). Hidden by default;
                                      PoseReadiness shows it when the user's required
                                      keypoints aren't all in frame. Sits on top of
@@ -6461,6 +6539,29 @@
 
             // Initialize App
             app.init();
+
+            // F-LIFECYCLE — sleep / tab-hidden / unload should kill any
+            // in-flight speech and reset the AR detector handle. Tester
+            // reported the site became unresponsive after laptop sleep
+            // and "Practice with AR coach" no longer navigated. Root
+            // causes are (a) the speech queue gets stuck across
+            // resume, (b) the WebGL context backing the detector is
+            // lost on sleep but the code still tries to reuse it.
+            const _resetForSuspend = () => {
+                try { window.speechSynthesis.cancel(); } catch(_){}
+                if (app && typeof app.stopARAssessment === 'function' && app.currentPose) {
+                    try { app.stopARAssessment(); } catch(_){}
+                }
+                // Drop the cached detector so the next session forces
+                // a fresh load — this is what fixes navigate-after-sleep.
+                if (app) app.detector = null;
+            };
+            window.addEventListener('pagehide', _resetForSuspend);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') _resetForSuspend();
+            });
+            // Some browsers fire 'freeze' before sleep on mobile.
+            document.addEventListener('freeze', _resetForSuspend);
 
             // ── Connectivity pill ──
             // Lightweight UI signal — green/Online, amber/Offline,

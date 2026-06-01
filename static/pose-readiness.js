@@ -36,7 +36,11 @@
     const CONFIG = {
         // Per-frame keypoint must clear this confidence to count as "detected".
         // MoveNet typical: legitimate joints 0.5-0.95, hallucinated 0.1-0.3.
-        DETECT_THRESHOLD: 0.4,
+        // 0.35 strikes the balance — excludes hallucinated points but
+        // accepts marginal-but-real detections that 0.4 was rejecting too
+        // often, which was preventing the course timer from starting on
+        // real users (tester report: "timer doesn't start").
+        DETECT_THRESHOLD: 0.35,
 
         // Frame-margin box, normalised 0..1. Mobile gets a looser bottom edge
         // because phones in portrait crop the toes more than desktop webcams.
@@ -60,10 +64,14 @@
             { vis:   0, mult: 0.00 },
         ],
 
-        // State thresholds. READY needs near-perfect visibility AND stability;
-        // OFF_FRAME means the model basically can't see a body.
-        READY_VISIBILITY: 95,
-        OFF_FRAME_VISIBILITY: 50,
+        // State thresholds. READY needs the body reliably visible — but not
+        // so strict that one model-jitter frame on a real camera drops it.
+        // 80% means "8 out of 9 required keypoints visible" which is what
+        // a properly-framed user actually achieves; 95% was hitting jitter
+        // ceilings on Chrome/Android and preventing the test timer from
+        // starting at all (tester regression).
+        READY_VISIBILITY: 80,
+        OFF_FRAME_VISIBILITY: 40,
         OFF_FRAME_MAX_CONF: 0.2,
     };
 

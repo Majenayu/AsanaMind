@@ -1192,16 +1192,20 @@
             ],
             referenceKeypoints: KP_URDHVA,
             rules: [
-                { type: 'higher', joints: ['left_wrist', 'nose'], bufferFrac: 0.4, message: 'Reach the left hand high above your head', priority: 1 },
-                { type: 'higher', joints: ['right_wrist', 'nose'], bufferFrac: 0.4, message: 'Reach the right hand high above your head', priority: 1 },
-                { type: 'higher', joints: ['left_elbow', 'left_shoulder'], bufferFrac: 0.1, message: 'Lift the left elbow above the shoulder', priority: 2 },
-                { type: 'higher', joints: ['right_elbow', 'right_shoulder'], bufferFrac: 0.1, message: 'Lift the right elbow above the shoulder', priority: 2 },
-                { type: 'angle', joints: ['left_shoulder', 'left_elbow', 'left_wrist'], range: [150, 200], message: 'Straighten the left arm, energy through fingertips', priority: 2 },
-                { type: 'angle', joints: ['right_shoulder', 'right_elbow', 'right_wrist'], range: [150, 200], message: 'Straighten the right arm, energy through fingertips', priority: 2 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Keep the left leg strong and straight', priority: 2 },
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [160, 200], message: 'Keep the right leg strong and straight', priority: 2 },
+                { type: 'higher', joints: ['left_wrist', 'nose'], bufferFrac: 0.4, message: 'Reach left hand above your head', priority: 1 },
+                { type: 'higher', joints: ['right_wrist', 'nose'], bufferFrac: 0.4, message: 'Reach right hand above your head', priority: 1 },
+                { type: 'higher', joints: ['left_elbow', 'left_shoulder'], bufferFrac: 0.1, message: 'Lift left elbow above the shoulder', priority: 2 },
+                { type: 'higher', joints: ['right_elbow', 'right_shoulder'], bufferFrac: 0.1, message: 'Lift right elbow above the shoulder', priority: 2 },
+                { type: 'angle', joints: ['left_shoulder', 'left_elbow', 'left_wrist'], range: [150, 200], message: 'Straighten left arm, push through fingertips', priority: 2 },
+                { type: 'angle', joints: ['right_shoulder', 'right_elbow', 'right_wrist'], range: [150, 200], message: 'Straighten right arm, push through fingertips', priority: 2 },
+                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Keep left leg straight and strong', priority: 2 },
+                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [160, 200], message: 'Keep right leg straight and strong', priority: 2 },
                 { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.1, message: 'Level your hips', priority: 2 },
-                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0.2, maxFrac: 1.2, message: 'Arms can be shoulder-width or touching overhead', priority: 3 },
+                // F-RULE-1 — wrists must come together overhead. Without
+                // this, "arms up, hands apart" was scoring 100%. Tight
+                // tolerance (0.18 of body width) since the user can see
+                // the reference and copy it.
+                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.18, message: 'Bring your palms together above your head', priority: 1 },
                 { type: 'symmetric', joints: ['left_shoulder', 'left_elbow', 'left_wrist', 'right_shoulder', 'right_elbow', 'right_wrist'], tolDeg: 18, message: 'Reach evenly with both arms', priority: 3 },
             ],
         },
@@ -1223,15 +1227,23 @@
             ],
             referenceKeypoints: KP_ANJALI,
             rules: [
-                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.22, message: 'Press palms firmly together at the heart', priority: 1 },
-                { type: 'alignY', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.08, message: 'Keep both wrists at the same height', priority: 1 },
-                { type: 'distance', joints: ['left_elbow', 'right_elbow'], minFrac: 0.6, maxFrac: 1.4, message: 'Widen the elbows to open the chest', priority: 2 },
-                { type: 'alignY', joints: ['left_elbow', 'right_elbow'], tolFrac: 0.1, message: 'Level the elbows', priority: 2 },
-                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Relax and level the shoulders', priority: 2 },
-                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Lift the chest; do not hunch', priority: 1 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Stand tall, strong legs', priority: 3 },
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [160, 200], message: 'Stand tall, strong legs', priority: 3 },
-                { type: 'alignX', joints: ['nose', 'left_hip'], tolFrac: 0.18, message: 'Crown of head over the body', priority: 2 },
+                // F-RULE-2 — wrists must touch (palms together). Tightened
+                // from prior 0..0.22 so palms-apart no longer scores 100%.
+                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.10, message: 'Press your palms firmly together at the heart', priority: 1 },
+                { type: 'alignY', joints: ['left_wrist', 'right_wrist'], tolFrac: 0.06, message: 'Bring both wrists to the same height', priority: 1 },
+                // F-RULE-3 — elbows must be wider than shoulders, not
+                // collapsed at the sides. Tester said elbow detection was
+                // wrong — elbows wider than 0.7x shoulder width = chest open.
+                { type: 'distance', joints: ['left_elbow', 'right_elbow'], minFrac: 0.7, maxFrac: 1.6, message: 'Push your elbows out wide to open the chest', priority: 1 },
+                { type: 'alignY', joints: ['left_elbow', 'right_elbow'], tolFrac: 0.08, message: 'Keep both elbows at the same height', priority: 2 },
+                // Elbow angle should bend ~90 deg when palms meet at heart.
+                { type: 'angle', joints: ['left_shoulder', 'left_elbow', 'left_wrist'], range: [60, 110], message: 'Bend left elbow so palm comes to your chest', priority: 2 },
+                { type: 'angle', joints: ['right_shoulder', 'right_elbow', 'right_wrist'], range: [60, 110], message: 'Bend right elbow so palm comes to your chest', priority: 2 },
+                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Drop your shoulders down, keep them level', priority: 2 },
+                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Sit tall, do not slouch', priority: 1 },
+                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Stand tall with strong legs', priority: 3 },
+                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [160, 200], message: 'Stand tall with strong legs', priority: 3 },
+                { type: 'alignX', joints: ['nose', 'left_hip'], tolFrac: 0.18, message: 'Keep your head over your body', priority: 3 },
             ],
         },
         {
@@ -1252,13 +1264,25 @@
             ],
             referenceKeypoints: KP_VRIKSHASANA,
             rules: [
-                { type: 'angle', joints: ['standing_hip', 'standing_knee', 'standing_ankle'], range: [158, 202], message: 'Standing leg strong and straight', priority: 1 },
-                { type: 'higher', joints: ['raised_ankle', 'standing_knee'], bufferFrac: 0.05, message: 'Lift the raised foot higher onto the inner leg', priority: 1 },
+                { type: 'angle', joints: ['standing_hip', 'standing_knee', 'standing_ankle'], range: [158, 202], message: 'Keep standing leg straight and strong', priority: 1 },
+                // Loosen foot-placement rule — front camera often hides the
+                // raised ankle behind the standing thigh. Score on knee bend
+                // instead, which is camera-friendly.
+                { type: 'higher', joints: ['raised_ankle', 'standing_knee'], bufferFrac: -0.05, message: 'Lift your raised foot onto the inner leg', priority: 2 },
                 { type: 'higher', joints: ['right_knee', 'right_hip'], bufferFrac: -0.05, message: 'Open the bent knee out to the side', priority: 2 },
-                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Shoulders level, do not lean', priority: 2 },
+                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Keep shoulders level, do not lean', priority: 2 },
                 { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.12, message: 'Level your hips', priority: 2 },
-                { type: 'alignX', joints: ['nose', 'standing_ankle'], tolFrac: 0.25, message: 'Stack crown over the standing foot', priority: 2 },
-                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Lift the chest, lengthen the spine', priority: 2 },
+                { type: 'alignX', joints: ['nose', 'standing_ankle'], tolFrac: 0.25, message: 'Stack head over the standing foot', priority: 2 },
+                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.5, message: 'Lift your chest, sit tall', priority: 2 },
+                // F-RULE-4 — hands must come together overhead. Tester
+                // reported "hands not joined → still 100%". Same wrist
+                // proximity rule as Urdhva Hastasana, but tagged P1 only
+                // when arms are actually raised; if hands are at heart
+                // (lower than nose), this rule is skipped via the
+                // hands-up gate that the engine applies via priority.
+                { type: 'higher', joints: ['left_wrist', 'nose'], bufferFrac: 0.0, message: 'Lift hands above your head, palms together', priority: 1 },
+                { type: 'higher', joints: ['right_wrist', 'nose'], bufferFrac: 0.0, message: 'Lift hands above your head, palms together', priority: 1 },
+                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.20, message: 'Bring your palms together above your head', priority: 1 },
             ],
         },
         {
@@ -1280,12 +1304,17 @@
             ],
             referenceKeypoints: KP_UTTANASANA,
             rules: [
-                { type: 'lower', joints: ['nose', 'left_hip'], bufferFrac: 0.05, message: 'Fold deeper from the hips; let the head hang', priority: 1 },
-                { type: 'lower', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.05, message: 'Hinge from the hips, release the spine down', priority: 1 },
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [150, 200], message: 'Lengthen the legs; a small bend is fine', priority: 2 },
-                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [150, 200], message: 'Lengthen the legs; a small bend is fine', priority: 2 },
-                { type: 'lower', joints: ['left_wrist', 'left_knee'], bufferFrac: -0.05, message: 'Hands toward the shins or mat', priority: 2 },
-                { type: 'alignX', joints: ['left_shoulder', 'left_ankle'], tolFrac: 0.3, message: 'Stack shoulders over the feet, not behind', priority: 2 },
+                // F-RULE-5 — replace "hands-on-floor" binary with hip-fold
+                // angle. Inflexible users no longer auto-fail. The hip
+                // angle should be < 90° when properly folded; we accept
+                // 30..100° (deeper fold = better score, but a 70° fold
+                // still passes for non-flexible bodies).
+                { type: 'angle', joints: ['left_shoulder', 'left_hip', 'left_knee'], range: [30, 100], message: 'Fold from your hips, not the back', priority: 1 },
+                { type: 'lower', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.05, message: 'Hinge from your hips, let the spine release down', priority: 1 },
+                { type: 'lower', joints: ['nose', 'left_hip'], bufferFrac: 0.0, message: 'Let your head hang below the hips', priority: 2 },
+                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [140, 200], message: 'Soft bend in the knees is fine', priority: 2 },
+                { type: 'angle', joints: ['right_hip', 'right_knee', 'right_ankle'], range: [140, 200], message: 'Soft bend in the knees is fine', priority: 2 },
+                { type: 'alignX', joints: ['left_shoulder', 'left_ankle'], tolFrac: 0.35, message: 'Keep weight in the feet, not behind', priority: 3 },
             ],
         },
         {
@@ -1307,13 +1336,18 @@
             ],
             referenceKeypoints: KP_SUKHASANA,
             rules: [
-                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.3, message: 'Lift the spine tall — shoulders above hips', priority: 1 },
-                { type: 'alignX', joints: ['left_shoulder', 'left_hip'], tolFrac: 0.1, message: 'Stack the shoulders over the hips', priority: 1 },
-                { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.15, message: 'Sit evenly on both sit bones', priority: 2 },
-                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.12, message: 'Level the shoulders', priority: 2 },
-                { type: 'lower', joints: ['left_knee', 'left_hip'], bufferFrac: -0.02, message: 'Let the knees settle toward the floor', priority: 3 },
-                { type: 'lower', joints: ['right_knee', 'right_hip'], bufferFrac: -0.02, message: 'Let the knees settle toward the floor', priority: 3 },
-                { type: 'alignX', joints: ['nose', 'left_hip'], tolFrac: 0.15, message: 'Crown of head over the body', priority: 2 },
+                // Score on tall spine + hip-knee angle, not on ankle
+                // visibility (front cam often hides crossed ankles).
+                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.3, message: 'Sit tall, lift your chest', priority: 1 },
+                { type: 'alignX', joints: ['left_shoulder', 'left_hip'], tolFrac: 0.1, message: 'Keep your shoulders over your hips', priority: 1 },
+                { type: 'alignY', joints: ['left_hip', 'right_hip'], tolFrac: 0.15, message: 'Sit evenly on both hips', priority: 2 },
+                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.12, message: 'Keep your shoulders level', priority: 2 },
+                // F-RULE-6 — score the hip-knee fold angle (legs crossed
+                // ≈ 50–80° at the hip). This is reliable from the front
+                // camera; ankles aren't.
+                { type: 'angle', joints: ['left_shoulder', 'left_hip', 'left_knee'], range: [70, 120], message: 'Cross your legs comfortably', priority: 2 },
+                { type: 'angle', joints: ['right_shoulder', 'right_hip', 'right_knee'], range: [70, 120], message: 'Cross your legs comfortably', priority: 2 },
+                { type: 'alignX', joints: ['nose', 'left_hip'], tolFrac: 0.18, message: 'Keep your head over your body', priority: 3 },
             ],
         },
         {
@@ -1334,13 +1368,16 @@
             ],
             referenceKeypoints: KP_DANDASANA,
             rules: [
-                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Straighten the legs, engage the thighs', priority: 1 },
-                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.3, message: 'Lengthen the spine up, shoulders above hips', priority: 1 },
-                { type: 'alignX', joints: ['left_shoulder', 'left_hip'], tolFrac: 0.1, message: 'Stack the shoulders over the hips', priority: 1 },
-                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Keep shoulders level', priority: 2 },
-                { type: 'alignY', joints: ['left_hip', 'left_knee'], tolFrac: 0.1, message: 'Lengthen legs along the floor', priority: 2 },
-                { type: 'alignY', joints: ['left_knee', 'left_ankle'], tolFrac: 0.1, message: 'Keep the feet flexed, legs strong', priority: 2 },
-                { type: 'alignX', joints: ['nose', 'left_shoulder'], tolFrac: 0.2, message: 'Gaze forward, neck in line with spine', priority: 3 },
+                { type: 'angle', joints: ['left_hip', 'left_knee', 'left_ankle'], range: [160, 200], message: 'Straighten your legs, squeeze your thigh muscles', priority: 1 },
+                { type: 'higher', joints: ['left_shoulder', 'left_hip'], bufferFrac: 0.3, message: 'Sit tall, shoulders above your hips', priority: 1 },
+                { type: 'alignX', joints: ['left_shoulder', 'left_hip'], tolFrac: 0.1, message: 'Stack your shoulders over your hips', priority: 1 },
+                { type: 'alignY', joints: ['left_shoulder', 'right_shoulder'], tolFrac: 0.1, message: 'Keep your shoulders level', priority: 2 },
+                { type: 'alignY', joints: ['left_hip', 'left_knee'], tolFrac: 0.1, message: 'Press your legs flat to the floor', priority: 2 },
+                { type: 'alignY', joints: ['left_knee', 'left_ankle'], tolFrac: 0.1, message: 'Pull your toes back, point them up', priority: 2 },
+                // F-RULE-7 — tester reported "if I turn my head to look at
+                // the device, score drops". Removed the alignX nose rule.
+                // The cue engine + side-view layout already encourage
+                // looking at the device for feedback; we shouldn't punish.
             ],
         },
         {
