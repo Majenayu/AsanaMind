@@ -12,7 +12,7 @@
  *      returns. The page can also nudge us with a `flush-outbox`
  *      postMessage when the browser fires its `online` event.
  */
-const CACHE_NAME = 'sunday-v23';
+const CACHE_NAME = 'sunday-v24';
 
 // Tier 1 — must succeed at install or the offline experience is broken.
 // We allow the install to proceed even if any of these fail individually,

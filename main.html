@@ -253,8 +253,12 @@
         #video-container {
             position: relative;
             width: 100%;
-            height: calc(55vh - 60px);
-            max-height: 360px;
+            /* F-UI-2 — portrait aspect ratio so the full body fits without
+               horizontal whitespace. All 20 poses need the head + feet in
+               frame; a 16:9 box wastes pixels on the left/right and crops
+               the body vertically. 3:4 mirrors the reference image. */
+            aspect-ratio: 3 / 4;
+            max-height: 70vh;
             background-color: #0A100B;
             border-radius: 28px;
             overflow: hidden;
@@ -269,9 +273,12 @@
         @media (max-width: 768px) and (orientation: portrait) {
             #ar-session > div:first-child { gap: 10px !important; }
             #video-container {
-                height: 58vh !important;
-                min-height: 360px;
-                max-height: none !important;
+                /* Phone portrait — fill more of the viewport vertically.
+                   3:4 stays consistent with desktop, capped by 70vh so
+                   feedback area still fits below. */
+                aspect-ratio: 3 / 4 !important;
+                width: 100% !important;
+                max-height: 70vh !important;
                 border-radius: 18px;
                 margin-bottom: 10px;
             }
@@ -312,8 +319,11 @@
             }
             /* Reference container (if visible) — narrower height to match */
             #reference-container #reference-media-container {
-                height: 38vh !important;
-                max-height: none !important;
+                /* Match the camera's portrait aspect ratio + max-height so
+                   both panels line up when side-by-side. */
+                aspect-ratio: 3 / 4 !important;
+                height: auto !important;
+                max-height: 70vh !important;
             }
             /* Pull the AR session up flush with the topbar so the camera
                feels like the focus — kill the page-level top padding. */
@@ -321,9 +331,13 @@
         }
         @media (max-width: 768px) and (orientation: landscape) {
             #video-container {
-                height: 80vh !important;
-                max-height: none !important;
-                min-height: 280px;
+                /* Landscape phone — keep portrait body framing. The user
+                   typically rotates to landscape only because their phone
+                   sensors prefer it; the body still needs to fit head-to-toe. */
+                aspect-ratio: 3 / 4 !important;
+                width: auto !important;
+                max-height: 90vh !important;
+                margin: 0 auto;
             }
         }
         #video-feed {
@@ -331,7 +345,11 @@
             top: 0; left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            /* F-UI-2 — `cover` was cropping the body's sides on portrait
+               cameras. `contain` letterboxes the feed instead so head
+               AND feet stay visible. The black bars are an OK trade for
+               the keypoint-detector seeing every joint. */
+            object-fit: contain;
             background: #000;
             transform: scaleX(-1);
         }
@@ -4108,7 +4126,7 @@
 
                             <div id="reference-container" style="display:${isCourseMode ? 'none' : 'none'}; background:#EEE9DE; border-radius:24px; padding:14px">
                                 <span class="kicker" style="color:#C2552F">Reference</span>
-                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; height:calc(55vh - 60px); max-height:360px; margin-top:8px; position:relative">
+                                <div id="reference-media-container" class="overflow-hidden" style="background:#0F3D2E; border-radius:16px; aspect-ratio:3/4; max-height:70vh; margin-top:8px; position:relative">
                                     <img id="reference-image" class="hidden pose-photo" alt="reference" style="width:100%; height:100%; object-fit:contain">
                                     <div id="reference-placeholder" class="flex flex-col items-center justify-center" style="padding:28px; color:#C7DBCE">
                                         <span id="reference-emoji" class="font-display" style="font-size:64px; color:#C7DBCE">·</span>
@@ -4539,47 +4557,18 @@
                 setTimeout(() => {
                     this.startARAssessment();
 
-                    // ─── Framing countdown (5s) ───
-                    // Don't start the actual 60s test timer until the user has
-                    // had 5 seconds with READY visibility. The countdown holds
-                    // at the displayed number until visibility hits READY,
-                    // then ticks down. If the user looks away, the countdown
-                    // pauses (it never increases) — gentle pressure to frame.
-                    this._framingPhase = true;
-                    this._framingStartedAt = Date.now();
-                    this._renderFramingCountdown(5);
-
-                    const framingTick = setInterval(() => {
-                        if (!this._framingPhase) { clearInterval(framingTick); return; }
-                        const r = this._lastReadiness;
-                        if (!r || r.state !== 'READY') {
-                            // Hold the countdown at its current value while
-                            // the user gets framed. Show a clearer hint.
-                            // Reset the continuous-READY timer so a brief
-                            // good frame doesn't bank progress toward the 5s.
-                            this._framingReadyAt = null;
-                            const msgEl = document.getElementById('framing-countdown-msg');
-                            if (msgEl) msgEl.textContent = (r && r.state === 'OFF_FRAME')
-                                ? 'Step into frame to start the countdown.'
-                                : 'Get your full body fully visible to start.';
-                            this._renderFramingCountdown(5);
-                            return;
-                        }
-                        // Continuous-READY: arm the timer on the first READY
-                        // frame and only count down while READY persists.
-                        if (!this._framingReadyAt) this._framingReadyAt = Date.now();
-                        const elapsed = (Date.now() - this._framingReadyAt) / 1000;
-                        const remaining = Math.max(0, 5 - elapsed);
-                        this._renderFramingCountdown(remaining);
-                        if (remaining <= 0) {
-                            clearInterval(framingTick);
-                            this._framingPhase = false;
-                            this._framingReadyAt = null;
-                            this._dismissFramingCountdown();
-                            this._beginCourseTimer(poseName);
-                        }
-                    }, 200);
-                    this._framingTickInterval = framingTick;
+                    // F-UI-3 — framing countdown REMOVED at user request.
+                    // The visibility cap on the form score already prevents
+                    // a half-framed user from passing (score is multiplied
+                    // by visibility). Blocking the test timer entirely was
+                    // adding friction without the user understanding why.
+                    // The 60s test timer + 10s hold-at-90 logic kicks in
+                    // the moment the score crosses 90, which can only
+                    // happen with proper framing thanks to the cap.
+                    this._framingPhase = false;
+                    this._framingReadyAt = null;
+                    this._dismissFramingCountdown();
+                    this._beginCourseTimer(poseName);
                 }, 500);
             },
 
