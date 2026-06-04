@@ -1454,6 +1454,706 @@ def register_org_routes(app, deps):
             'completion_by_section': avg_pct(sems_done_by_section, total_by_section),
         })
 
+    # -------------------------------------------------------------------------
+    # Org proof reports
+    # -------------------------------------------------------------------------
+
+    def _report_filters(args):
+        return {
+            'batch': (args.get('batch') or '').strip(),
+            'branch': (args.get('branch') or '').strip(),
+            'section': (args.get('section') or '').strip(),
+        }
+
+    def _report_scope_label(filters):
+        parts = []
+        if filters.get('batch'):
+            parts.append(f"Batch {filters['batch']}")
+        if filters.get('branch'):
+            parts.append(f"Branch {filters['branch']}")
+        if filters.get('section'):
+            parts.append(f"Section {filters['section']}")
+        return ' / '.join(parts) if parts else 'Whole organization'
+
+    def _iso_value(v):
+        if not v:
+            return ''
+        if hasattr(v, 'isoformat'):
+            return v.isoformat()
+        if isinstance(v, (int, float)):
+            try:
+                # Course timestamps are stored in browser milliseconds.
+                return datetime.utcfromtimestamp(v / 1000 if v > 100000000000 else v).isoformat()
+            except Exception:
+                return str(v)
+        return str(v)
+
+    def _date_part(v):
+        s = _iso_value(v)
+        return s[:10] if s else ''
+
+    def _int_value(v):
+        try:
+            return int(v or 0)
+        except Exception:
+            return 0
+
+    def _pct(n, d):
+        return round((n / d) * 100) if d else 0
+
+    def _best_streak(activity):
+        dates = []
+        for d in sorted(set(_date_part(x) for x in (activity or []) if _date_part(x))):
+            try:
+                dates.append(datetime.fromisoformat(d).date())
+            except Exception:
+                continue
+        best = cur = 0
+        prev = None
+        for d in dates:
+            cur = cur + 1 if prev and (d - prev).days == 1 else 1
+            best = max(best, cur)
+            prev = d
+        return best
+
+    def _is_active_since(activity, days):
+        cutoff = (datetime.utcnow().date() - timedelta(days=days)).isoformat()
+        return any((_date_part(d) or '') >= cutoff for d in (activity or []))
+
+    def _pose_mark(pose):
+        if not pose:
+            return 0
+        if pose.get('finalScore'):
+            return _int_value(pose.get('finalScore'))
+        if not pose.get('arPassed') and not pose.get('quizPassed'):
+            return 0
+        return round((_int_value(pose.get('arBest')) + _int_value(pose.get('quizBest'))) / 2)
+
+    def _course_mark(course):
+        if not course:
+            return 0
+        if course.get('finalScore'):
+            return _int_value(course.get('finalScore'))
+        completed = [p for p in (course.get('poses') or []) if p.get('completed')]
+        if not completed:
+            return 0
+        return round(sum(_pose_mark(p) for p in completed) / len(completed))
+
+    def _course_report_stats(courses):
+        courses = courses or {}
+        total_courses = max(6, len(courses) or 6)
+        courses_completed = 0
+        pose_total = 0
+        pose_completed = 0
+        marks = []
+        latest_completed = ''
+        for course in courses.values():
+            poses = course.get('poses') or []
+            pose_total += len(poses)
+            pose_completed += sum(1 for p in poses if p.get('completed'))
+            if course.get('completed'):
+                courses_completed += 1
+                marks.append(_course_mark(course))
+                completed_at = _date_part(course.get('completedAt'))
+                if completed_at > latest_completed:
+                    latest_completed = completed_at
+        return {
+            'coursesCompleted': courses_completed,
+            'courseCompletionPercent': _pct(courses_completed, total_courses),
+            'posesCompleted': pose_completed,
+            'poseTotal': pose_total,
+            'poseCompletionPercent': _pct(pose_completed, pose_total),
+            'averageCourseScore': round(sum(marks) / len(marks)) if marks else 0,
+            'latestCourseCompletedAt': latest_completed,
+        }
+
+    def _safe_cell(v):
+        s = '' if v is None else str(v)
+        if s and s[0] in ('=', '+', '-', '@'):
+            return '\t' + s
+        return s
+
+    def _report_students(org_email, args):
+        query = _filter_for_org(org_email, args)
+        by_email = {}
+        for col, provider in ((g_users, 'google'), (users, 'email')):
+            if col is None:
+                continue
+            for u in col.find(query):
+                if u.get('role') == 'org_admin':
+                    continue
+                email = (u.get('email') or '').strip().lower()
+                if not email:
+                    continue
+                u.pop('_id', None)
+                u['email'] = email
+                u.setdefault('auth_provider', provider)
+                by_email[email] = u
+        return sorted(
+            by_email.values(),
+            key=lambda u: (
+                (u.get('academic') or {}).get('batch') or '',
+                (u.get('academic') or {}).get('branch') or '',
+                (u.get('academic') or {}).get('section') or '',
+                u.get('email') or '',
+            ),
+        )
+
+    def _progress_by_email(emails):
+        out = {}
+        email_list = list(emails)
+        if not email_list:
+            return out
+        for col in (cp_col, g_cp_col):
+            if col is None:
+                continue
+            for doc in col.find({'email': {'$in': email_list}}, {'email': 1, 'progress': 1, '_id': 0}):
+                email = (doc.get('email') or '').strip().lower()
+                out[email] = ((doc.get('progress') or {}).get('courses') or {})
+        return out
+
+    def _certificates_by_email(emails):
+        by_email = {}
+        all_certs = []
+        email_list = list(emails)
+        if not email_list:
+            return by_email, all_certs
+        for col in (cert_col, g_cert_col):
+            if col is None:
+                continue
+            for cert in col.find({'email': {'$in': email_list}}):
+                cert.pop('_id', None)
+                email = (cert.get('email') or '').strip().lower()
+                cert['email'] = email
+                by_email.setdefault(email, []).append(cert)
+                all_certs.append(cert)
+        for certs in by_email.values():
+            certs.sort(key=lambda c: _iso_value(c.get('issuedAt')), reverse=True)
+        all_certs.sort(key=lambda c: _iso_value(c.get('issuedAt')), reverse=True)
+        return by_email, all_certs
+
+    def _invitation_counts(org_email, filters):
+        counts = {'pending': 0, 'accepted': 0, 'expired': 0, 'other': 0}
+        if invitations_col is None:
+            return counts
+        query = {'organizationEmail': org_email, 'role': 'student'}
+        for key in ('batch', 'branch', 'section'):
+            if filters.get(key):
+                query[f'prefilled.{key}'] = filters[key]
+        for inv in invitations_col.find(query, {'status': 1, '_id': 0}):
+            status = inv.get('status') or 'other'
+            counts[status if status in counts else 'other'] += 1
+        return counts
+
+    def _feedback_stats(emails):
+        stats = {'submissions': 0, 'ratings': 0, 'averageRating': 0, 'recommendYes': 0}
+        if feedback_col is None or not emails:
+            return stats
+        total_rating = 0
+        for f in feedback_col.find({'email': {'$in': list(emails)}}):
+            stats['submissions'] += 1
+            rating = _int_value(f.get('rating'))
+            if rating:
+                stats['ratings'] += 1
+                total_rating += rating
+            if f.get('nps') == 'yes':
+                stats['recommendYes'] += 1
+        if stats['ratings']:
+            stats['averageRating'] = round(total_rating / stats['ratings'], 1)
+        return stats
+
+    def _build_org_report(org_email, args):
+        filters = _report_filters(args)
+        org = organizations_col.find_one({'email': org_email}) if organizations_col is not None else {}
+        org = org or {}
+        students = _report_students(org_email, args)
+        emails = [u['email'] for u in students]
+        progress = _progress_by_email(emails)
+        certs_by_email, all_certs = _certificates_by_email(emails)
+        invite_counts = _invitation_counts(org_email, filters)
+        feedback = _feedback_stats(emails)
+
+        cert_name_lookup = {}
+        for u in students:
+            cert_name_lookup[u['email']] = u.get('name') or ''
+
+        generated_at = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+        base_url = request.url_root.rstrip('/')
+        student_rows = []
+        cohort_map = {}
+        active_7 = active_30 = 0
+        paid = unpaid = test = 0
+        total_pose_passes = 0
+        total_course_completions = 0
+        total_completion_pct = 0
+
+        for u in students:
+            email = u['email']
+            academic = u.get('academic') or {}
+            activity = sorted(set(_date_part(d) for d in (u.get('activity_log') or []) if _date_part(d)))
+            last_active = max(activity) if activity else ''
+            active7 = _is_active_since(activity, 7)
+            active30 = _is_active_since(activity, 30)
+            if active7:
+                active_7 += 1
+            if active30:
+                active_30 += 1
+
+            status = u.get('paidStatus') or ''
+            if status == 'paid':
+                paid += 1
+            elif status == 'test':
+                test += 1
+            else:
+                unpaid += 1
+
+            course_stats = _course_report_stats(progress.get(email))
+            completed_asanas = u.get('completed_asanas') or {}
+            pose_passes = sum(_int_value(v) for v in completed_asanas.values())
+            total_pose_passes += pose_passes
+            total_course_completions += course_stats['coursesCompleted']
+            total_completion_pct += course_stats['courseCompletionPercent']
+
+            certs = certs_by_email.get(email, [])
+            cert_scores = [_int_value(c.get('score')) for c in certs if c.get('score') is not None]
+            latest_cert = certs[0] if certs else {}
+            latest_cert_id = latest_cert.get('certId') or ''
+            latest_verify = f'{base_url}/verify/{latest_cert_id}' if latest_cert_id else ''
+
+            row = {
+                'email': email,
+                'name': u.get('name') or '',
+                'usn': academic.get('usn') or '',
+                'rollNumber': academic.get('rollNumber') or '',
+                'batch': academic.get('batch') or '',
+                'branch': academic.get('branch') or '',
+                'section': academic.get('section') or '',
+                'currentSemester': academic.get('currentSemester') or '',
+                'paidStatus': status or 'unpaid',
+                'createdAt': _date_part(u.get('created_at')),
+                'lastActive': last_active,
+                'activeDays': len(activity),
+                'bestStreak': _best_streak(activity),
+                'posePasses': pose_passes,
+                'posesLearned': len(completed_asanas),
+                'coursesCompleted': course_stats['coursesCompleted'],
+                'courseCompletionPercent': course_stats['courseCompletionPercent'],
+                'posesCompleted': course_stats['posesCompleted'],
+                'poseCompletionPercent': course_stats['poseCompletionPercent'],
+                'averageCourseScore': course_stats['averageCourseScore'],
+                'certificatesEarned': len(certs),
+                'bestCertificateScore': max(cert_scores) if cert_scores else '',
+                'latestCertificateId': latest_cert_id,
+                'latestCertificateVerifyUrl': latest_verify,
+            }
+            student_rows.append(row)
+
+            key = (
+                row['batch'] or 'Unassigned',
+                row['branch'] or 'Unassigned',
+                row['section'] or 'Unassigned',
+            )
+            cohort = cohort_map.setdefault(key, {
+                'batch': key[0],
+                'branch': key[1],
+                'section': key[2],
+                'students': 0,
+                'active30': 0,
+                'courseCompletions': 0,
+                'completionTotal': 0,
+                'certificates': 0,
+            })
+            cohort['students'] += 1
+            cohort['active30'] += 1 if active30 else 0
+            cohort['courseCompletions'] += row['coursesCompleted']
+            cohort['completionTotal'] += row['courseCompletionPercent']
+            cohort['certificates'] += row['certificatesEarned']
+
+        cohort_rows = []
+        for cohort in cohort_map.values():
+            students_count = cohort['students']
+            cohort_rows.append({
+                'batch': cohort['batch'],
+                'branch': cohort['branch'],
+                'section': cohort['section'],
+                'students': students_count,
+                'active30': cohort['active30'],
+                'active30Percent': _pct(cohort['active30'], students_count),
+                'courseCompletions': cohort['courseCompletions'],
+                'averageCompletionPercent': round(cohort['completionTotal'] / students_count) if students_count else 0,
+                'certificates': cohort['certificates'],
+            })
+        cohort_rows.sort(key=lambda r: (r['batch'], r['branch'], r['section']))
+
+        cert_rows = []
+        cert_scores = []
+        master_count = 0
+        for cert in all_certs:
+            cert_id = cert.get('certId') or ''
+            score = _int_value(cert.get('score'))
+            if cert.get('score') is not None:
+                cert_scores.append(score)
+            if cert.get('isMaster'):
+                master_count += 1
+            cert_rows.append({
+                'email': cert.get('email') or '',
+                'name': cert.get('userName') or cert_name_lookup.get(cert.get('email') or '', ''),
+                'courseId': cert.get('courseId') or '',
+                'courseTitle': cert.get('courseTitle') or '',
+                'score': score if cert.get('score') is not None else '',
+                'isMaster': 'yes' if cert.get('isMaster') else 'no',
+                'certId': cert_id,
+                'issuedAt': _iso_value(cert.get('issuedAt')),
+                'verifyUrl': f'{base_url}/verify/{cert_id}' if cert_id else '',
+            })
+
+        total_students = len(student_rows)
+        summary = {
+            'reportId': '',
+            'students': total_students,
+            'studentCap': _int_value(org.get('studentCap')),
+            'active7': active_7,
+            'active30': active_30,
+            'inactive30': max(0, total_students - active_30),
+            'paidStudents': paid,
+            'unpaidStudents': unpaid,
+            'testStudents': test,
+            'pendingInvitations': invite_counts['pending'],
+            'acceptedInvitations': invite_counts['accepted'],
+            'certificatesIssued': len(cert_rows),
+            'certifiedStudents': sum(1 for row in student_rows if row['certificatesEarned']),
+            'masterCertificates': master_count,
+            'averageCertificateScore': round(sum(cert_scores) / len(cert_scores)) if cert_scores else 0,
+            'courseCompletions': total_course_completions,
+            'averageCourseCompletionPercent': round(total_completion_pct / total_students) if total_students else 0,
+            'posePasses': total_pose_passes,
+            'feedbackSubmissions': feedback['submissions'],
+            'averageFeedbackRating': feedback['averageRating'],
+            'recommendYes': feedback['recommendYes'],
+        }
+
+        import hashlib
+        snapshot = {
+            'org': org_email,
+            'filters': filters,
+            'generatedAt': generated_at,
+            'summary': summary,
+        }
+        summary['reportId'] = hashlib.sha256(json.dumps(snapshot, sort_keys=True, default=str).encode('utf-8')).hexdigest()[:12].upper()
+
+        return {
+            'organization': {
+                'name': org.get('name') or org_email,
+                'email': org_email,
+                'domain': org.get('domain') or '',
+                'studentCap': org.get('studentCap') or 0,
+                'paid': bool(org.get('paid')),
+                'paidUntil': _date_part(org.get('paidUntil')),
+            },
+            'filters': filters,
+            'scopeLabel': _report_scope_label(filters),
+            'generatedAt': generated_at,
+            'generatedBy': session.get('user_email') or '',
+            'summary': summary,
+            'cohorts': cohort_rows,
+            'students': student_rows,
+            'certificates': cert_rows,
+        }
+
+    @app.route('/api/org/report/summary', methods=['GET'])
+    @org_admin_required
+    def org_report_summary():
+        data = _build_org_report(request._org_email, request.args)
+        return jsonify({
+            'organization': data['organization'],
+            'filters': data['filters'],
+            'scopeLabel': data['scopeLabel'],
+            'generatedAt': data['generatedAt'],
+            'generatedBy': data['generatedBy'],
+            'summary': data['summary'],
+            'cohorts': data['cohorts'],
+        })
+
+    @app.route('/api/org/report.xlsx', methods=['GET'])
+    @org_admin_required
+    def org_report_xlsx():
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, PatternFill
+        except ImportError:
+            return jsonify({'success': False, 'error': 'openpyxl not installed on server.'}), 503
+
+        data = _build_org_report(request._org_email, request.args)
+        wb = Workbook()
+        header_fill = PatternFill('solid', fgColor='0F3D2E')
+        header_font = Font(color='FFFFFF', bold=True)
+
+        def style_header(ws):
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center')
+            ws.freeze_panes = 'A2'
+
+        def write_table(ws, headers, rows):
+            ws.append(headers)
+            for row in rows:
+                ws.append([_safe_cell(row.get(h, '')) for h in headers])
+            style_header(ws)
+            for col in ws.columns:
+                width = min(52, max(12, max(len(str(cell.value or '')) for cell in col) + 2))
+                ws.column_dimensions[col[0].column_letter].width = width
+
+        ws = wb.active
+        ws.title = 'Summary'
+        ws.append(['Field', 'Value'])
+        summary_rows = [
+            ('Organization', data['organization']['name']),
+            ('Organization email', data['organization']['email']),
+            ('Domain', data['organization']['domain']),
+            ('Scope', data['scopeLabel']),
+            ('Generated at UTC', data['generatedAt']),
+            ('Generated by', data['generatedBy']),
+            ('Report ID', data['summary']['reportId']),
+            ('Students', data['summary']['students']),
+            ('Student cap', data['summary']['studentCap'] or 'No cap'),
+            ('Active last 7 days', data['summary']['active7']),
+            ('Active last 30 days', data['summary']['active30']),
+            ('Inactive last 30 days', data['summary']['inactive30']),
+            ('Pending invitations', data['summary']['pendingInvitations']),
+            ('Accepted invitations', data['summary']['acceptedInvitations']),
+            ('Certificates issued', data['summary']['certificatesIssued']),
+            ('Certified students', data['summary']['certifiedStudents']),
+            ('Master certificates', data['summary']['masterCertificates']),
+            ('Average certificate score', data['summary']['averageCertificateScore']),
+            ('Course completions', data['summary']['courseCompletions']),
+            ('Average course completion percent', data['summary']['averageCourseCompletionPercent']),
+            ('Pose passes', data['summary']['posePasses']),
+            ('Feedback submissions', data['summary']['feedbackSubmissions']),
+            ('Average feedback rating', data['summary']['averageFeedbackRating']),
+            ('Recommend yes', data['summary']['recommendYes']),
+        ]
+        for key, value in summary_rows:
+            ws.append([key, _safe_cell(value)])
+        style_header(ws)
+        ws.column_dimensions['A'].width = 34
+        ws.column_dimensions['B'].width = 52
+
+        write_table(wb.create_sheet('Cohorts'), [
+            'batch', 'branch', 'section', 'students', 'active30', 'active30Percent',
+            'courseCompletions', 'averageCompletionPercent', 'certificates',
+        ], data['cohorts'])
+        write_table(wb.create_sheet('Students'), [
+            'email', 'name', 'usn', 'rollNumber', 'batch', 'branch', 'section',
+            'currentSemester', 'paidStatus', 'createdAt', 'lastActive', 'activeDays',
+            'bestStreak', 'posePasses', 'posesLearned', 'coursesCompleted',
+            'courseCompletionPercent', 'posesCompleted', 'poseCompletionPercent',
+            'averageCourseScore', 'certificatesEarned', 'bestCertificateScore',
+            'latestCertificateId', 'latestCertificateVerifyUrl',
+        ], data['students'])
+        write_table(wb.create_sheet('Certificates'), [
+            'email', 'name', 'courseId', 'courseTitle', 'score', 'isMaster',
+            'certId', 'issuedAt', 'verifyUrl',
+        ], data['certificates'])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        safe_org = re.sub(r'[^a-z0-9]+', '-', data['organization']['name'].lower()).strip('-') or 'organization'
+        stamp = datetime.utcnow().strftime('%Y%m%d')
+        from flask import send_file
+        return send_file(
+            buf,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'asanminds-proof-report-{safe_org}-{stamp}.xlsx',
+        )
+
+    @app.route('/api/org/report.csv', methods=['GET'])
+    @org_admin_required
+    def org_report_csv():
+        data = _build_org_report(request._org_email, request.args)
+        out = io.StringIO()
+        w = csv.writer(out)
+
+        def write_kv(title, rows):
+            w.writerow([title])
+            w.writerow(['Field', 'Value'])
+            for key, value in rows:
+                w.writerow([_safe_cell(key), _safe_cell(value)])
+            w.writerow([])
+
+        write_kv('AsanMinds proof report', [
+            ('Organization', data['organization']['name']),
+            ('Organization email', data['organization']['email']),
+            ('Domain', data['organization']['domain']),
+            ('Scope', data['scopeLabel']),
+            ('Generated at UTC', data['generatedAt']),
+            ('Generated by', data['generatedBy']),
+            ('Report ID', data['summary']['reportId']),
+        ])
+        write_kv('Summary', [
+            ('Students', data['summary']['students']),
+            ('Student cap', data['summary']['studentCap'] or 'No cap'),
+            ('Active last 7 days', data['summary']['active7']),
+            ('Active last 30 days', data['summary']['active30']),
+            ('Inactive last 30 days', data['summary']['inactive30']),
+            ('Pending invitations', data['summary']['pendingInvitations']),
+            ('Accepted invitations', data['summary']['acceptedInvitations']),
+            ('Certificates issued', data['summary']['certificatesIssued']),
+            ('Certified students', data['summary']['certifiedStudents']),
+            ('Master certificates', data['summary']['masterCertificates']),
+            ('Average certificate score', data['summary']['averageCertificateScore']),
+            ('Course completions', data['summary']['courseCompletions']),
+            ('Average course completion percent', data['summary']['averageCourseCompletionPercent']),
+            ('Pose passes', data['summary']['posePasses']),
+            ('Feedback submissions', data['summary']['feedbackSubmissions']),
+            ('Average feedback rating', data['summary']['averageFeedbackRating']),
+            ('Recommend yes', data['summary']['recommendYes']),
+        ])
+
+        cohort_headers = [
+            'batch', 'branch', 'section', 'students', 'active30', 'active30Percent',
+            'courseCompletions', 'averageCompletionPercent', 'certificates',
+        ]
+        w.writerow(['Cohorts'])
+        w.writerow(cohort_headers)
+        for row in data['cohorts']:
+            w.writerow([_safe_cell(row.get(h, '')) for h in cohort_headers])
+        w.writerow([])
+
+        student_headers = [
+            'email', 'name', 'usn', 'rollNumber', 'batch', 'branch', 'section',
+            'currentSemester', 'paidStatus', 'createdAt', 'lastActive', 'activeDays',
+            'bestStreak', 'posePasses', 'posesLearned', 'coursesCompleted',
+            'courseCompletionPercent', 'posesCompleted', 'poseCompletionPercent',
+            'averageCourseScore', 'certificatesEarned', 'bestCertificateScore',
+            'latestCertificateId', 'latestCertificateVerifyUrl',
+        ]
+        w.writerow(['Students'])
+        w.writerow(student_headers)
+        for row in data['students']:
+            w.writerow([_safe_cell(row.get(h, '')) for h in student_headers])
+        w.writerow([])
+
+        cert_headers = [
+            'email', 'name', 'courseId', 'courseTitle', 'score', 'isMaster',
+            'certId', 'issuedAt', 'verifyUrl',
+        ]
+        w.writerow(['Certificates'])
+        w.writerow(cert_headers)
+        for row in data['certificates']:
+            w.writerow([_safe_cell(row.get(h, '')) for h in cert_headers])
+
+        safe_org = re.sub(r'[^a-z0-9]+', '-', data['organization']['name'].lower()).strip('-') or 'organization'
+        stamp = datetime.utcnow().strftime('%Y%m%d')
+        response = app.make_response(out.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename=asanminds-proof-report-{safe_org}-{stamp}.csv'
+        return response
+
+    @app.route('/api/org/report.html', methods=['GET'])
+    @org_admin_required
+    def org_report_html():
+        import html as _html
+        data = _build_org_report(request._org_email, request.args)
+
+        def h(v):
+            return _html.escape('' if v is None else str(v), quote=True)
+
+        metric_cards = ''.join(
+            f'<div class="metric"><span>{h(label)}</span><b>{h(value)}</b></div>'
+            for label, value in [
+                ('Students', data['summary']['students']),
+                ('Active 30d', data['summary']['active30']),
+                ('Certificates', data['summary']['certificatesIssued']),
+                ('Certified students', data['summary']['certifiedStudents']),
+                ('Course completions', data['summary']['courseCompletions']),
+                ('Avg completion', f"{data['summary']['averageCourseCompletionPercent']}%"),
+                ('Pose passes', data['summary']['posePasses']),
+                ('Pending invites', data['summary']['pendingInvitations']),
+            ]
+        )
+        cohort_rows = ''.join(
+            '<tr>' + ''.join(f'<td>{h(row.get(col, ""))}</td>' for col in [
+                'batch', 'branch', 'section', 'students', 'active30', 'active30Percent',
+                'courseCompletions', 'averageCompletionPercent', 'certificates',
+            ]) + '</tr>'
+            for row in data['cohorts']
+        ) or '<tr><td colspan="9">No cohorts found.</td></tr>'
+        student_rows = ''.join(
+            '<tr>' + ''.join(f'<td>{h(row.get(col, ""))}</td>' for col in [
+                'name', 'email', 'usn', 'batch', 'branch', 'section', 'lastActive',
+                'courseCompletionPercent', 'certificatesEarned', 'latestCertificateId',
+            ]) + '</tr>'
+            for row in data['students']
+        ) or '<tr><td colspan="10">No students found.</td></tr>'
+
+        body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AsanMinds Proof Report</title>
+<style>
+body{{margin:0;background:#F5F2EB;color:#14120E;font-family:Inter,Arial,sans-serif;line-height:1.45}}
+.page{{max-width:1120px;margin:0 auto;padding:32px 24px 72px}}
+.top{{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;border-bottom:2px solid #0F3D2E;padding-bottom:18px;margin-bottom:22px}}
+h1{{font-family:Georgia,serif;font-size:36px;font-weight:400;margin:6px 0 8px}}
+h2{{font-family:Georgia,serif;font-size:22px;font-weight:400;margin:28px 0 12px}}
+.kicker{{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#C2552F;font-weight:700}}
+.muted{{color:#7A7364;font-size:13px}}
+.actions{{display:flex;gap:8px;flex-wrap:wrap}}
+.btn{{border:1px solid #0F3D2E;background:#0F3D2E;color:#F5F2EB;text-decoration:none;border-radius:999px;padding:10px 16px;font-size:13px}}
+.metrics{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}}
+.metric{{background:#fff;border:1px solid #D4CCB8;border-radius:10px;padding:14px}}
+.metric span{{display:block;color:#7A7364;font-size:10px;letter-spacing:.14em;text-transform:uppercase}}
+.metric b{{display:block;font-family:Georgia,serif;font-size:28px;font-weight:400;margin-top:4px}}
+.proof{{background:#fff;border:1px solid #D4CCB8;border-radius:10px;padding:16px;margin:16px 0;color:#4A453B;font-size:13px}}
+table{{width:100%;border-collapse:collapse;background:#fff;border:1px solid #D4CCB8;margin-bottom:24px}}
+th,td{{border-bottom:1px solid #EEE9DE;text-align:left;padding:9px 10px;font-size:12px;vertical-align:top}}
+th{{background:#0F3D2E;color:#fff;font-size:10px;letter-spacing:.12em;text-transform:uppercase}}
+td{{word-break:break-word}}
+@media print{{.actions{{display:none}}.page{{padding:0}}body{{background:#fff}}}}
+@media(max-width:760px){{.top{{display:block}}.metrics{{grid-template-columns:repeat(2,1fr)}}}}
+</style>
+</head>
+<body>
+<main class="page">
+<section class="top">
+<div>
+<span class="kicker">AsanMinds proof report</span>
+<h1>{h(data['organization']['name'])}</h1>
+<p class="muted">Scope: {h(data['scopeLabel'])}<br>Generated at: {h(data['generatedAt'])} UTC<br>Generated by: {h(data['generatedBy'])}<br>Report ID: {h(data['summary']['reportId'])}</p>
+</div>
+<div class="actions">
+<a class="btn" href="/api/org/report.xlsx?{h(request.query_string.decode('utf-8'))}">Download Excel</a>
+<a class="btn" href="/api/org/report.csv?{h(request.query_string.decode('utf-8'))}">Download CSV</a>
+<button class="btn" onclick="window.print()">Print / Save PDF</button>
+</div>
+</section>
+<section class="proof">
+This report is generated from server-side records scoped to organizationEmail = <b>{h(data['organization']['email'])}</b>.
+It includes enrolled students, invitations, course progress, activity, feedback, and certificate verification IDs visible to this sub-admin only.
+</section>
+<section class="metrics">{metric_cards}</section>
+<h2>Cohort breakdown</h2>
+<table>
+<thead><tr><th>Batch</th><th>Branch</th><th>Section</th><th>Students</th><th>Active 30d</th><th>Active %</th><th>Course completions</th><th>Avg completion %</th><th>Certificates</th></tr></thead>
+<tbody>{cohort_rows}</tbody>
+</table>
+<h2>Student proof rows</h2>
+<table>
+<thead><tr><th>Name</th><th>Email</th><th>USN</th><th>Batch</th><th>Branch</th><th>Section</th><th>Last active</th><th>Completion %</th><th>Certificates</th><th>Latest cert</th></tr></thead>
+<tbody>{student_rows}</tbody>
+</table>
+</main>
+</body>
+</html>"""
+        response = app.make_response(body)
+        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+        return response
+
     @app.route('/api/org/broadcast', methods=['POST'])
     @org_admin_required
     def org_broadcast():

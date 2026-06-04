@@ -272,6 +272,7 @@ const ROUTES = [
     { p: 'broadcast', l: 'Broadcast' },
     { p: 'feedback', l: 'Feedback' },
     { p: 'analytics', l: 'Analytics' },
+    { p: 'reports', l: 'Reports' },
     { p: 'config', l: 'Config' },
 ];
 let myProfile = null;
@@ -382,6 +383,7 @@ function renderRoute() {
     if (route === 'broadcast') return renderBroadcast();
     if (route === 'feedback') return renderFeedback();
     if (route === 'analytics') return renderAnalytics();
+    if (route === 'reports') return renderReports();
     if (route === 'config') return renderConfig();
     location.hash = '#dashboard';
 }
@@ -1066,8 +1068,130 @@ async function recomputeSems() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CONFIG (batches, branches, sections)
+// REPORTS
 // ─────────────────────────────────────────────────────────────
+function renderReports() {
+    $('#content').innerHTML = `
+        <div class="page-head">
+            <div><span class="kicker">Reports</span><h1>Proof for ${esc(myOrg.name)}</h1></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <a class="btn" id="rpt-html" href="/api/org/report.html" target="_blank" rel="noopener">Open printable report</a>
+                <a class="btn btn-primary" id="rpt-xlsx" href="/api/org/report.xlsx" download>Download Excel report</a>
+                <a class="btn" id="rpt-csv" href="/api/org/report.csv" download>Download CSV</a>
+            </div>
+        </div>
+        <div class="section">
+            <div class="toolbar">
+                <select class="select" id="rpt-batch" onchange="loadReportSummary()"><option value="">All batches</option>${(myOrg.batches||[]).map(b=>`<option>${esc(b)}</option>`).join('')}</select>
+                <select class="select" id="rpt-branch" onchange="loadReportSummary()"><option value="">All branches</option>${(myOrg.branches||[]).map(b=>`<option value="${esc(b.code)}">${esc(b.code)}</option>`).join('')}</select>
+                <select class="select" id="rpt-section" onchange="loadReportSummary()"><option value="">All sections</option>${(myOrg.sections||[]).map(s=>`<option>${esc(s)}</option>`).join('')}</select>
+            </div>
+            <div id="rpt-summary"><div class="spinner"></div></div>
+        </div>
+    `;
+    _updateReportLinks();
+    loadReportSummary();
+}
+
+function _reportQuery() {
+    const params = new URLSearchParams();
+    const batch = $('#rpt-batch')?.value || '';
+    const branch = $('#rpt-branch')?.value || '';
+    const section = $('#rpt-section')?.value || '';
+    if (batch) params.set('batch', batch);
+    if (branch) params.set('branch', branch);
+    if (section) params.set('section', section);
+    const qs = params.toString();
+    return qs ? '?' + qs : '';
+}
+
+function _updateReportLinks() {
+    const qs = _reportQuery();
+    const html = $('#rpt-html');
+    const xlsx = $('#rpt-xlsx');
+    const csv = $('#rpt-csv');
+    if (html) html.href = '/api/org/report.html' + qs;
+    if (xlsx) xlsx.href = '/api/org/report.xlsx' + qs;
+    if (csv) csv.href = '/api/org/report.csv' + qs;
+}
+
+async function loadReportSummary() {
+    _updateReportLinks();
+    const box = $('#rpt-summary');
+    if (!box) return;
+    box.innerHTML = '<div class="spinner"></div>';
+    try {
+        const data = await fetchJSON('/api/org/report/summary' + _reportQuery());
+        renderReportSummary(data);
+    } catch (e) {
+        box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    }
+}
+
+function _reportMetric(label, value, sub) {
+    return `
+        <div class="kpi">
+            <span class="kpi-label">${esc(label)}</span>
+            <div class="kpi-n">${esc(value == null || value === '' ? '0' : value)}</div>
+            ${sub ? `<div class="kpi-sub">${esc(sub)}</div>` : ''}
+        </div>
+    `;
+}
+
+function renderReportSummary(data) {
+    const s = data.summary || {};
+    const cohorts = data.cohorts || [];
+    const cap = s.studentCap ? `${s.students} / ${s.studentCap}` : s.students;
+    $('#rpt-summary').innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+            <div>
+                <span class="kicker" style="color:var(--accent)">Report scope</span>
+                <h2 style="font-family:Fraunces,serif;font-size:24px;font-weight:400;margin:4px 0">${esc(data.scopeLabel || 'Whole organization')}</h2>
+                <p style="margin:0;color:var(--text-3);font-size:12px">Report ID ${esc(s.reportId || '')} - generated from server records</p>
+            </div>
+            <button class="btn btn-sm" onclick="loadReportSummary()">Refresh</button>
+        </div>
+        <div class="kpis" style="margin-bottom:22px">
+            ${_reportMetric('Students', cap, 'enrolled / cap')}
+            ${_reportMetric('Active 30d', s.active30, `${s.inactive30 || 0} inactive`)}
+            ${_reportMetric('Certificates', s.certificatesIssued, `${s.certifiedStudents || 0} certified students`)}
+            ${_reportMetric('Course completion', (s.averageCourseCompletionPercent || 0) + '%', `${s.courseCompletions || 0} completed semesters`)}
+            ${_reportMetric('Pose passes', s.posePasses, 'AR + course activity')}
+            ${_reportMetric('Pending invites', s.pendingInvitations, `${s.acceptedInvitations || 0} accepted`)}
+            ${_reportMetric('Feedback', s.feedbackSubmissions, s.averageFeedbackRating ? `${s.averageFeedbackRating}/5 average` : 'no rating yet')}
+            ${_reportMetric('Master certs', s.masterCertificates, s.averageCertificateScore ? `${s.averageCertificateScore}% avg score` : '')}
+        </div>
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:18px;color:var(--text-2);font-size:13px">
+            The downloadable report includes summary metrics, cohort breakdowns, student-level proof rows, certificate IDs, and public verification URLs.
+        </div>
+        <div style="overflow-x:auto">
+            <table class="table">
+                <thead><tr>
+                    <th>Batch</th><th>Branch</th><th>Sec</th><th>Students</th><th>Active 30d</th><th>Active %</th><th>Completed sems</th><th>Avg completion</th><th>Certificates</th>
+                </tr></thead>
+                <tbody>
+                    ${cohorts.length ? cohorts.map(c => `
+                        <tr>
+                            <td>${esc(c.batch)}</td>
+                            <td>${esc(c.branch)}</td>
+                            <td>${esc(c.section)}</td>
+                            <td>${esc(c.students)}</td>
+                            <td>${esc(c.active30)}</td>
+                            <td>${esc(c.active30Percent)}%</td>
+                            <td>${esc(c.courseCompletions)}</td>
+                            <td>${esc(c.averageCompletionPercent)}%</td>
+                            <td>${esc(c.certificates)}</td>
+                        </tr>
+                    `).join('') : '<tr><td colspan="9" class="empty">No students found for this scope.</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// -------------------------------------------------------------------------
+// CONFIG (batches, branches, sections)
+// -------------------------------------------------------------------------
 function renderConfig() {
     $('#content').innerHTML = `
         <div class="page-head"><div><span class="kicker">Configuration</span><h1>Academic structure</h1></div></div>
