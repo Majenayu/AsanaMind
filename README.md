@@ -140,6 +140,8 @@ The repo ships ready-to-deploy. After connecting it to a Render web service:
 
 The app refuses to start in production if `SECRET_KEY` or `MONGO_URI` is missing — this is intentional, no insecure defaults.
 
+For institution-specific deployments, see [`docs/organization-admin-and-scaling.md`](docs/organization-admin-and-scaling.md) for sub-admin batch setup, multi-instance vs. shared SaaS architecture, and per-client environment variable guidance.
+
 ## How the course works
 
 | Sem | Asanas | Theme |
