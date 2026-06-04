@@ -1441,6 +1441,12 @@
                     // the mic on — this gives rock-solid "always listening"
                     // behaviour across Chrome, Edge, Safari, and Android.
                     if (this.isListening) {
+                        // Do not restart if TTS is currently speaking.
+                        // The TTS onend handler will restart it when it finishes.
+                        if (this.isSpeaking || window.speechSynthesis.speaking) {
+                            this._temporarilyPausedSpeech = true;
+                            return;
+                        }
                         setTimeout(() => {
                             try { this.recognitionInstance.start(); }
                             catch (e) {
@@ -1858,9 +1864,25 @@
                         }
                     }
                 } catch (_) { u.lang = 'en-IN'; }
-                u.onstart = () => { this.isSpeaking = true; };
+                u.onstart = () => {
+                    this.isSpeaking = true;
+                    // Stop recognition temporarily so the microphone doesn't capture the synthesized voice
+                    if (this.isListening && this.recognitionInstance) {
+                        this._temporarilyPausedSpeech = true;
+                        try { this.recognitionInstance.stop(); } catch(_) {}
+                    }
+                };
                 u.onend = () => {
                     this.isSpeaking = false;
+                    // Resume listening if we paused it for TTS
+                    if (this._temporarilyPausedSpeech) {
+                        this._temporarilyPausedSpeech = false;
+                        if (this.isListening && this.recognitionInstance) {
+                            setTimeout(() => {
+                                try { this.recognitionInstance.start(); } catch (_) {}
+                            }, 400); // Give it a slight delay to let audio output channel clear
+                        }
+                    }
                     // After this utterance ends, speak a queued second cue
                     // (from multi-rule correction) once there's a small pause.
                     if (this._queuedCorrection) {
@@ -1876,6 +1898,15 @@
                 u.onerror = (e) => {
                     console.warn('TTS Error:', e && e.error);
                     this.isSpeaking = false;
+                    // Resume listening if we paused it for TTS
+                    if (this._temporarilyPausedSpeech) {
+                        this._temporarilyPausedSpeech = false;
+                        if (this.isListening && this.recognitionInstance) {
+                            setTimeout(() => {
+                                try { this.recognitionInstance.start(); } catch (_) {}
+                            }, 400);
+                        }
+                    }
                 };
                 window.speechSynthesis.speak(u);
             },
@@ -2655,10 +2686,18 @@
                 // lazy-loads MediaPipe BlazePose for them.
                 const _selectedPose = (typeof asanaData !== 'undefined' && this.currentPose)
                     ? asanaData.find(a => a.name === this.currentPose) : null;
-                const _modelKey = (window.PoseModelDispatcher && _selectedPose)
+                let _modelKey = (window.PoseModelDispatcher && _selectedPose)
                     ? PoseModelDispatcher.modelFor(_selectedPose)
                     : 'movenet-thunder';
+
+                // Dynamic Mobile Fallback to MoveNet Lightning
+                const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+                if (isMobileDevice && _modelKey === 'movenet-thunder') {
+                    console.log('Mobile device detected. Falling back to faster MoveNet Lightning.');
+                    _modelKey = 'movenet-lightning';
+                }
                 this._activeModelKey = _modelKey;
+                this._isEstimating = false;
                 try {
                     if (window.PoseModelDispatcher) {
                         updateStatus(_modelKey === 'movenet-thunder'
@@ -2759,11 +2798,19 @@
              * Main loop for MoveNet pose detection and drawing.
              */
             async poseDetectionFrame(video, ctx, detector, feedbackText) {
+                // If the stream is closed or we're not running, stop assessment
+                if (!this.videoStream) return;
+
                 // Request next frame first to allow browser to manage repaint speed
                 this.animationFrameId = requestAnimationFrame(() => this.poseDetectionFrame(video, ctx, detector, feedbackText));
 
+                // If already running estimation, skip this frame to prevent backlog
+                if (this._isEstimating) return;
+
                 if (detector && video.readyState === 4) {
-                    const poses = await detector.estimatePoses(video);
+                    this._isEstimating = true;
+                    try {
+                        const poses = await detector.estimatePoses(video);
 
                     // Clear the canvas
                     ctx.clearRect(0, 0, video.videoWidth, video.videoHeight);
@@ -3016,6 +3063,11 @@
                     } else {
                         // No pose detected
                         feedbackText.textContent = this.currentPose ? `No person detected. Stand further back or adjust lighting.` : 'Select a pose to begin tracking!';
+                    }
+                    } catch (err) {
+                        console.error("Pose estimation error:", err);
+                    } finally {
+                        this._isEstimating = false;
                     }
                 }
             },
@@ -3399,6 +3451,7 @@
                 } catch (e) { console.warn('history log failed', e); }
                 this._sessionStartTs = null;
                 this._sessionPeakScore = 0;
+                this._isEstimating = false;
 
                 if (this.animationFrameId) {
                     cancelAnimationFrame(this.animationFrameId);
