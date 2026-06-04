@@ -42,6 +42,18 @@ In the `Students` tab, sub-admins can filter by a specific batch, then select st
 
 This makes the batch field the current group/cohort tracking mechanism for each organization.
 
+### Proof Reports for Organizations
+
+The sub-admin panel also includes a `Reports` tab for organization-facing proof.
+
+Sub-admins can filter by batch, branch, or section, then generate:
+
+- A printable HTML report that can be saved as PDF from the browser.
+- An Excel proof report with separate sheets for summary, cohorts, students, and certificates.
+- A CSV proof report as a dependency-free fallback.
+
+The report includes enrolled student counts, active students, pending invitations, completed semesters, pose passes, certificate counts, certificate IDs, public verification URLs, and cohort-level breakdowns. All report endpoints are scoped to the logged-in sub-admin's organization.
+
 ## 2. Multi-Organization Architecture Options
 
 AsanMinds can scale to multiple institutions in two main ways.
