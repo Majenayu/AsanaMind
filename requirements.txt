@@ -10,3 +10,8 @@ cryptography
 google-auth
 requests
 openpyxl
+
+# Microsoft Azure Services (for Agents League Contest)
+openai>=1.0.0  # Azure OpenAI SDK
+azure-identity
+applicationinsights  # Azure monitoring
