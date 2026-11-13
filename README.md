@@ -56,3 +56,14 @@ This is an actively evolving project. Production hardening, observability, rate 
 ## License
 
 See the repository license file and package metadata for the authoritative terms.
+## Implementation notes
+
+The deployable Flask entrypoint is `app.py`; HTML pages are served alongside browser assets in `static/`. Assistant behavior is split into `assistant.py` and supporting launch paths (`main.py`, `main1.py`, and `start_sunday.py`). The repository includes pose/course/voice knowledge JavaScript and status JSON files, while MongoDB and optional mail/push/auth integrations are configured outside the source tree.
+
+### API and workflow
+
+The implemented routes include authentication/home flows and `/api/assistant`; inspect `app.py` for the current request and session contract before integrating clients. Exercise sign-in, assistant requests, practice selection, and graceful behavior when MongoDB or speech APIs are unavailable.
+
+### License status
+
+No dedicated license file is present in the inspected tree; treat the project as **all rights reserved / license unspecified** until the owner adds explicit terms.
