@@ -1,0 +1,29 @@
+name: Documentation and Python quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile application modules
+        run: python -m compileall -q app.py assistant.py main.py main1.py start_sunday.py
+      - name: Check README relative links
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('README.md').read_text()
+          for link in re.findall(r'!?\[[^]]*\]\(([^)#]+)', text):
+              if '://' not in link and not Path(link).exists():
+                  raise SystemExit(f'Missing README link target: {link}')
+          PY
