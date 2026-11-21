@@ -296,26 +296,26 @@
         // --- BEGINNER ---
         'Tadasana':              { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:10, right_shoulder:10, left_elbow:175, right_elbow:175 },
         'Urdhva Hastasana':      { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
-        'Anjali Mudra':          { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:30, right_shoulder:30, left_elbow:70, right_elbow:70 },
-        'Vrikshasana':           { left_knee:180, right_knee:55,  left_hip:180, right_hip:110, left_shoulder:160, right_shoulder:160, left_elbow:70, right_elbow:70 },
-        'Uttanasana':            { left_knee:170, right_knee:170, left_hip:30,  right_hip:30,  left_shoulder:160, right_shoulder:160, left_elbow:170, right_elbow:170 },
-        'Sukhasana':             { left_knee:60,  right_knee:60,  left_hip:90,  right_hip:90,  left_shoulder:30, right_shoulder:30, left_elbow:170, right_elbow:170 },
-        'Dandasana':             { left_knee:175, right_knee:175, left_hip:90,  right_hip:90,  left_shoulder:20, right_shoulder:20, left_elbow:170, right_elbow:170 },
-        'Baddha Konasana':       { left_knee:40,  right_knee:40,  left_hip:80,  right_hip:80,  left_shoulder:20, right_shoulder:20, left_elbow:150, right_elbow:150 },
-        'Paschimottanasana':     { left_knee:170, right_knee:170, left_hip:35,  right_hip:35,  left_shoulder:50, right_shoulder:50, left_elbow:170, right_elbow:170 },
-        'Balasana':              { left_knee:40,  right_knee:40,  left_hip:40,  right_hip:40,  left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
+        'Anjali Mudra':          { left_knee:180, right_knee:180, left_hip:180, right_hip:180, left_shoulder:30, right_shoulder:30, left_elbow:55, right_elbow:55 },
+        'Vrikshasana':           { left_knee:180, right_knee:35,  left_hip:178, right_hip:125 }  /* arms free: hands at heart or overhead both valid */,
+        'Uttanasana':            { left_knee:175, right_knee:175, left_hip:40,  right_hip:40,  left_shoulder:120, right_shoulder:120, left_elbow:165, right_elbow:165 },
+        'Sukhasana':             { left_knee:35,  right_knee:35,  left_hip:92,  right_hip:92,  left_shoulder:22, right_shoulder:22, left_elbow:150, right_elbow:150 },
+        'Dandasana':             { left_knee:178, right_knee:175, left_hip:100, right_hip:100, left_shoulder:14, right_shoulder:14, left_elbow:172, right_elbow:172 },
+        'Baddha Konasana':       { left_knee:22,  right_knee:22,  left_hip:78,  right_hip:78,  left_shoulder:8,  right_shoulder:8,  left_elbow:165, right_elbow:165 },
+        'Paschimottanasana':     { left_knee:175, right_knee:175, left_hip:25,  right_hip:25,  left_shoulder:110, right_shoulder:110, left_elbow:135, right_elbow:135 },
+        'Balasana':              { left_knee:32,  right_knee:32,  left_hip:28,  right_hip:28,  left_shoulder:155, right_shoulder:155, left_elbow:155, right_elbow:155 },
         // --- INTERMEDIATE ---
         'Adho Mukha Svanasana':  { left_knee:170, right_knee:170, left_hip:75,  right_hip:75,  left_shoulder:170, right_shoulder:170, left_elbow:175, right_elbow:175 },
         'Virabhadrasana I':      { left_knee:170, right_knee:95,  left_hip:130, right_hip:110, left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
-        'Virabhadrasana II':     { left_knee:170, right_knee:95,  left_hip:165, right_hip:135, left_shoulder:90,  right_shoulder:90,  left_elbow:175, right_elbow:175 },
-        'Utthita Trikonasana':   { left_knee:175, right_knee:175, left_hip:100, right_hip:60,  left_shoulder:170, right_shoulder:90,  left_elbow:175, right_elbow:175 },
+        'Virabhadrasana II':     { left_knee:175, right_knee:105, left_hip:128, right_hip:100, left_shoulder:92,  right_shoulder:94,  left_elbow:175, right_elbow:175 },
+        'Utthita Trikonasana':   { left_knee:175, right_knee:175, left_hip:150, right_hip:80,  left_shoulder:170, right_shoulder:70,  left_elbow:175, right_elbow:175 },
         'Utkatasana':            { left_knee:110, right_knee:110, left_hip:110, right_hip:110, left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
-        'Utthita Parsvakonasana':{ left_knee:170, right_knee:95,  left_hip:140, right_hip:70,  left_shoulder:170, right_shoulder:75,  left_elbow:170, right_elbow:170 },
-        'Setu Bandhasana':       { left_knee:95,  right_knee:95,  left_hip:155, right_hip:155, left_shoulder:40, right_shoulder:40, left_elbow:170, right_elbow:170 },
+        'Utthita Parsvakonasana':{ left_knee:172, right_knee:100, left_hip:140, right_hip:50,  left_shoulder:170, right_shoulder:75,  left_elbow:170, right_elbow:170 },
+        'Setu Bandhasana':       { left_knee:75,  right_knee:75,  left_hip:158, right_hip:158, left_shoulder:42, right_shoulder:42, left_elbow:175, right_elbow:175 },
         // --- ADVANCED ---
-        'Virabhadrasana III':    { left_knee:175, right_knee:175, left_hip:165, right_hip:90,  left_shoulder:170, right_shoulder:170, left_elbow:170, right_elbow:170 },
-        'Ardha Chandrasana':     { left_knee:175, right_knee:175, left_hip:150, right_hip:90,  left_shoulder:170, right_shoulder:100, left_elbow:175, right_elbow:175 },
-        'Natarajasana':          { left_knee:175, right_knee:45,  left_hip:175, right_hip:100, left_shoulder:170, right_shoulder:120, left_elbow:170, right_elbow:100 },
+        'Virabhadrasana III':    { left_knee:175, right_knee:175, left_hip:170, right_hip:100, left_shoulder:170, right_shoulder:168, left_elbow:172, right_elbow:172 },
+        'Ardha Chandrasana':     { left_knee:175, right_knee:175, left_hip:175, right_hip:80,  left_shoulder:90,  right_shoulder:105, left_elbow:175, right_elbow:172 },
+        'Natarajasana':          { left_knee:172, right_knee:50,  left_hip:140, right_hip:105, left_shoulder:155, right_shoulder:75,  left_elbow:175, right_elbow:172 },
     };
 
     // Human-readable correction messages per joint, with mirror-safe wording.
@@ -1205,8 +1205,8 @@
                 // this, "arms up, hands apart" was scoring 100%. Tight
                 // tolerance (0.18 of body width) since the user can see
                 // the reference and copy it.
-                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.18, message: 'Bring your palms together above your head', priority: 1 },
                 { type: 'symmetric', joints: ['left_shoulder', 'left_elbow', 'left_wrist', 'right_shoulder', 'right_elbow', 'right_wrist'], tolDeg: 18, message: 'Reach evenly with both arms', priority: 3 },
+                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.18, message: 'Bring your palms together above your head', priority: 1 },
             ],
         },
         {
@@ -1280,9 +1280,6 @@
                 // when arms are actually raised; if hands are at heart
                 // (lower than nose), this rule is skipped via the
                 // hands-up gate that the engine applies via priority.
-                { type: 'higher', joints: ['left_wrist', 'nose'], bufferFrac: 0.0, message: 'Lift hands above your head, palms together', priority: 1 },
-                { type: 'higher', joints: ['right_wrist', 'nose'], bufferFrac: 0.0, message: 'Lift hands above your head, palms together', priority: 1 },
-                { type: 'distance', joints: ['left_wrist', 'right_wrist'], minFrac: 0, maxFrac: 0.20, message: 'Bring your palms together above your head', priority: 1 },
             ],
         },
         {

@@ -338,6 +338,11 @@
             top: 0; left: 0;
             width: 100%;
             height: 100%;
+            /* Must crop exactly like #video-feed. The canvas bitmap is
+               videoWidth x videoHeight, so object-fit:cover applies the
+               same uniform scale + centre crop and keypoints land on the
+               body. Without it the canvas was stretched non-uniformly. */
+            object-fit: cover;
             transform: scaleX(-1);
             pointer-events: none;
         }
@@ -2703,7 +2708,18 @@
                         updateStatus(_modelKey === 'movenet-thunder'
                             ? 'Loading MoveNet model...'
                             : 'Loading specialised pose model...');
-                        this.detector = await PoseModelDispatcher.getDetector(_modelKey);
+                        try {
+                            this.detector = await PoseModelDispatcher.getDetector(_modelKey);
+                        } catch (modelErr) {
+                            // BlazePose is fetched from a CDN when it isn't vendored
+                            // locally. If that fails (offline / blocked), fall back to
+                            // the bundled MoveNet so the pose still tracks.
+                            if (!/^blazepose/.test(_modelKey)) throw modelErr;
+                            console.warn('BlazePose unavailable, using MoveNet:', modelErr);
+                            _modelKey = isMobileDevice ? 'movenet-lightning' : 'movenet-thunder';
+                            this._activeModelKey = _modelKey;
+                            this.detector = await PoseModelDispatcher.getDetector(_modelKey);
+                        }
                         updateStatus('Model loaded. Requesting camera access...');
                     } else {
                         // Fallback if pose-models.js failed to load —
